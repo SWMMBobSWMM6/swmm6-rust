@@ -146,5 +146,10 @@ Rust so far: see `git log`; about 23,500 lines in `crates/engine` (2 Nov).
 
 ## Next
 
+Approach for the solver (phase 1b on): the reference library exports every C++ symbol, and the C API handle is the SWMMEngine, so a harness can open, initialize and step upstream and dump its whole context at any point (`gate/diff/ctxopen`). Two uses:
+* **State gate.** Dump after open, after initialize and after every step on both sides, and report the first step and member that differ (G3, with every member rather than five).
+* **Context loader (to build).** `tools/ctxdump.py` can also generate a Rust loader that reads a dump into a SimulationContext. Load upstream's state at step k into Rust, run one translated step, and compare with upstream's dump at k+1. This tests each solver piece on real states in isolation, without waiting for the whole engine. It needs every member a step reads to be dumped, including solver state held outside ctx in SWMMEngine members (DW tiles, router state), so those structs must be dumped too.
+
+
 1. TableData.cpp and MultiColumnSeriesFile (external series files) — in progress; then swap the stub in catchment_handler.rs.
 2. The rest of SWMMEngine::open (process components, msxsurf::resolve, the open-time validations). Gate: `gate/diff/ctxopen` dumps the reference engine's own context after swmm_engine_open (the C API handle is the SWMMEngine); the translation's open must dump the same.
