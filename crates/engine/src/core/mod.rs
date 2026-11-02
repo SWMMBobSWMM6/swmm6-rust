@@ -2,6 +2,8 @@
 pub mod charconv;
 pub mod cmath;
 pub mod datetime;
+pub mod error_codes;
 pub mod options;
 pub mod spatial_frame;
+pub mod unit_conversion;
 pub mod user_flags;

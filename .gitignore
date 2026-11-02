@@ -4,3 +4,14 @@ gate/diff/*.txt
 gate/steptrace
 gate/diff/tabdump
 gate/diff/tables.bin
+gate/diff/*_cpp.txt
+gate/diff/*_rs.txt
+gate/diff/tokens.txt
+gate/diff/sizes
+gate/diff/linksub
+gate/diff/nodesub
+gate/diff/stgeo
+gate/diff/errdump
+gate/diff/ucfdump
+gate/diff/dtdump
+gate/diff/pudump
