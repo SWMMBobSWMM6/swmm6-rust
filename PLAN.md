@@ -153,4 +153,10 @@ Approach for the solver (phase 1b on): the reference library exports every C++ s
 
 
 1. TableData.cpp and MultiColumnSeriesFile (external series files) — in progress; then swap the stub in catchment_handler.rs.
-2. SWMMEngine::initialize (init_modules: hydraulics, hydrology, quality, geometry, mass balance) and start(). Gate: `ctxopen ... init` already runs swmm_engine_initialize upstream. Gate: `gate/diff/ctxopen` dumps the reference engine's own context after swmm_engine_open (the C API handle is the SWMMEngine); the translation's open must dump the same.
+2. SWMMEngine::initialize. In progress as four parallel pieces:
+   * initHydraulics: Router::init, DW/KW init, structures, outfall map.
+   * initHydrology: runoff, infiltration, gage, climate, snow, GW, LID and RDII inits.
+   * initQuality, initGeometry and initMassBalance.
+   * The context loader.
+   
+   Each init is gated on its own: a harness compiled with `#define private public` calls upstream's private init method straight after open, and the Rust side does the same. Then the orchestration (initialize's state seeding, hotstart, init_modules wiring, start) is gated whole by `ctxopen <deck> init`. Gate: `gate/diff/ctxopen` dumps the reference engine's own context after swmm_engine_open (the C API handle is the SWMMEngine); the translation's open must dump the same.
