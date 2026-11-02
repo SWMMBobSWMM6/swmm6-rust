@@ -4,6 +4,7 @@ pub mod cmath;
 pub mod context;
 pub mod datetime;
 pub mod error_codes;
+pub mod file_io;
 pub mod options;
 pub mod spatial_frame;
 pub mod unit_conversion;
