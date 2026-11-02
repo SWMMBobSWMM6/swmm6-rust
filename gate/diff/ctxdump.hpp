@@ -52,10 +52,14 @@ inline void dump(const openswmm::SimulationContext& c) {
   pi("xsect_generation", (long long)(c.xsect_generation));
   pi("gpkg_units_internal", (long long)(c.gpkg_units_internal));
   pi("tables.n", (long long)c.tables.tables.size());
-  for (auto& t : c.tables.tables) { ps("table.id", t.id); pi("table.type", (long long)t.type); vf("table.x", t.x); vf("table.y", t.y); pi("table.n_relative", t.n_relative); pf("table.rel_anchor", t.rel_anchor); pi("table.is_file", t.is_file_based); ps("table.file", t.file_path.original); }
+  for (auto& t : c.tables.tables) { ps("table.id", t.id); pi("table.type", (long long)t.type); ps("table.comment", t.comment); vf("table.x", t.x); vf("table.y", t.y); pi("table.n_relative", t.n_relative); pf("table.rel_anchor", t.rel_anchor); pi("table.is_file", t.is_file_based); ps("table.file", t.file_path.original); }
   for (auto& h : c.unknown_section_headers) { ps("unknown_header", h.first); pi("unknown_header.line", h.second); }
   for (auto& kv : c.passthrough_sections) { ps("passthrough", kv.first); vs("passthrough.lines", kv.second); }
   { std::vector<std::pair<std::string,std::string>> e(c.options.ext_options.begin(), c.options.ext_options.end()); std::sort(e.begin(), e.end()); for (auto& kv : e) { ps("ext_option", kv.first); ps("ext_option.value", kv.second); } }
+  { std::vector<long long> t; for (auto x : c.node_subtypes.subtype_row) t.push_back(x); vi("node_subtypes.subtype_row", t); }
+  { std::vector<long long> t; for (auto x : c.link_subtypes.subtype_row) t.push_back(x); vi("link_subtypes.subtype_row", t); }
+  pi("events.n", (long long)c.events.size()); for (auto& e : c.events) { pf("event.start", e.start); pf("event.end", e.end); }
+  pi("pending_link_nodes.n", (long long)c.pending_link_nodes.size()); for (auto& p : c.pending_link_nodes) { pi("pending_link_node", p.first); ps("pending_link_node.n1", p.second.first); ps("pending_link_node.n2", p.second.second); }
   { std::vector<long long> t; for (auto x : c.nodes.type) t.push_back((long long)x); vi("nodes.type", t); }
   { std::vector<double> t; for (auto x : c.nodes.invert_elev) t.push_back((double)x); vf("nodes.invert_elev", t); }
   { std::vector<double> t; for (auto x : c.nodes.full_depth) t.push_back((double)x); vf("nodes.full_depth", t); }
@@ -339,6 +343,7 @@ inline void dump(const openswmm::SimulationContext& c) {
   { std::vector<double> t; for (auto x : c.subcatches.lid_drain_runon_cfs) t.push_back((double)x); vf("subcatches.lid_drain_runon_cfs", t); }
   { std::vector<double> t; for (auto x : c.subcatches.total_load) t.push_back((double)x); vf("subcatches.total_load", t); }
   pi("subcatches.total_load_n_pollutants", (long long)(c.subcatches.total_load_n_pollutants));
+  { std::vector<double> t; for (auto x : c.subcatches.coverage) t.push_back((double)x); vf("subcatches.coverage", t); }
   pi("subcatches.coverage_n_landuses", (long long)(c.subcatches.coverage_n_landuses));
   { std::vector<double> t; for (auto x : c.subcatches.sweep_last_swept) t.push_back((double)x); vf("subcatches.sweep_last_swept", t); }
   { std::vector<long long> t; for (auto x : c.subcatches.sweep_now) t.push_back((long long)x); vi("subcatches.sweep_now", t); }
@@ -479,6 +484,7 @@ inline void dump(const openswmm::SimulationContext& c) {
   { std::vector<double> t; for (auto x : c.link_subtypes.outlets.coeff) t.push_back((double)x); vf("outlets.coeff", t); }
   { std::vector<double> t; for (auto x : c.link_subtypes.outlets.expon) t.push_back((double)x); vf("outlets.expon", t); }
   { std::vector<long long> t; for (auto x : c.link_subtypes.outlets.curve) t.push_back((long long)x); vi("outlets.curve", t); }
+  { std::vector<double> t; for (auto x : c.landuses.sweep_interval) t.push_back((double)x); vf("landuses.sweep_interval", t); }
   { std::vector<double> t; for (auto x : c.landuses.sweep_removal) t.push_back((double)x); vf("landuses.sweep_removal", t); }
   { std::vector<double> t; for (auto x : c.landuses.last_swept) t.push_back((double)x); vf("landuses.last_swept", t); }
   vs("landuses.comments", c.landuses.comments);
@@ -503,6 +509,7 @@ inline void dump(const openswmm::SimulationContext& c) {
   { std::vector<long long> t; for (auto x : c.treatment.has_treatment) t.push_back((long long)x); vi("treatment.has_treatment", t); }
   { std::vector<double> t; for (auto x : c.treatment.cin) t.push_back((double)x); vf("treatment.cin", t); }
   { std::vector<double> t; for (auto x : c.treatment.removal) t.push_back((double)x); vf("treatment.removal", t); }
+  { std::vector<long long> t; for (auto x : c.ext_inflows.node_idx) t.push_back((long long)x); vi("ext_inflows.node_idx", t); }
   vs("ext_inflows.node_name", c.ext_inflows.node_name);
   vs("ext_inflows.constituent", c.ext_inflows.constituent);
   vs("ext_inflows.ts_name", c.ext_inflows.ts_name);
@@ -511,6 +518,7 @@ inline void dump(const openswmm::SimulationContext& c) {
   { std::vector<double> t; for (auto x : c.ext_inflows.s_factor) t.push_back((double)x); vf("ext_inflows.s_factor", t); }
   { std::vector<double> t; for (auto x : c.ext_inflows.baseline) t.push_back((double)x); vf("ext_inflows.baseline", t); }
   vs("ext_inflows.pattern_name", c.ext_inflows.pattern_name);
+  { std::vector<long long> t; for (auto x : c.dwf_inflows.node_idx) t.push_back((long long)x); vi("dwf.node_idx", t); }
   vs("dwf.node_name", c.dwf_inflows.node_name);
   vs("dwf.constituent", c.dwf_inflows.constituent);
   { std::vector<double> t; for (auto x : c.dwf_inflows.avg_value) t.push_back((double)x); vf("dwf.avg_value", t); }
@@ -518,14 +526,46 @@ inline void dump(const openswmm::SimulationContext& c) {
   vs("dwf.pat2", c.dwf_inflows.pat2);
   vs("dwf.pat3", c.dwf_inflows.pat3);
   vs("dwf.pat4", c.dwf_inflows.pat4);
+  { std::vector<long long> t; for (auto x : c.rdii_assigns.node_idx) t.push_back((long long)x); vi("rdii.node_idx", t); }
   vs("rdii.node_name", c.rdii_assigns.node_name);
   vs("rdii.uh_name", c.rdii_assigns.uh_name);
   { std::vector<double> t; for (auto x : c.rdii_assigns.sewer_area) t.push_back((double)x); vf("rdii.sewer_area", t); }
+  vs("patterns.names", c.patterns.names);
   { std::vector<long long> t; for (auto x : c.patterns.types) t.push_back((long long)x); vi("patterns.types", t); }
   pi("patterns.factors.n", (long long)(c.patterns.factors).size());
   for (std::size_t q = 0; q < (c.patterns.factors).size(); ++q) {
   { std::vector<double> t; for (auto x : (c.patterns.factors)[q]) t.push_back((double)x); vf("patterns.factors[]", t); }
   }
+  pi("unit_hyds.entries.n", (long long)(c.unit_hyds.entries).size());
+  for (auto& el : c.unit_hyds.entries) {
+  ps("unit_hyds.entries[].name", el.name);
+  ps("unit_hyds.entries[].gage_name", el.gage_name);
+  pi("unit_hyds.entries[].month", (long long)(el.month));
+  pi("unit_hyds.entries[].response", (long long)(el.response));
+  pf("unit_hyds.entries[].r", (double)(el.r));
+  pf("unit_hyds.entries[].t", (double)(el.t));
+  pf("unit_hyds.entries[].k", (double)(el.k));
+  pf("unit_hyds.entries[].dmax", (double)(el.dmax));
+  pf("unit_hyds.entries[].drecov", (double)(el.drecov));
+  pf("unit_hyds.entries[].dinit", (double)(el.dinit));
+  }
+  vs("unit_hyds.gage_assignments", c.unit_hyds.gage_assignments);
+  vs("unit_hyds.gage_names", c.unit_hyds.gage_names);
+  pi("rdii_decay.entries.n", (long long)(c.rdii_decay.entries).size());
+  for (auto& el : c.rdii_decay.entries) {
+  ps("rdii_decay.entries[].uh_name", el.uh_name);
+  pi("rdii_decay.entries[].response", (long long)(el.response));
+  pf("rdii_decay.entries[].k_dep", (double)(el.k_dep));
+  pf("rdii_decay.entries[].k_0", (double)(el.k_0));
+  pf("rdii_decay.entries[].k_T", (double)(el.k_T));
+  pf("rdii_decay.entries[].T_ref", (double)(el.T_ref));
+  pf("rdii_decay.entries[].theta_rec", (double)(el.theta_rec));
+  pf("rdii_decay.entries[].T_freeze", (double)(el.T_freeze));
+  pi("rdii_decay.entries[].snow_on", (long long)(el.snow_on));
+  pf("rdii_decay.entries[].snow_T", (double)(el.snow_T));
+  pf("rdii_decay.entries[].snow_ddf", (double)(el.snow_ddf));
+  }
+  vs("transects.names", c.transects.names);
   vs("transects.comments", c.transects.comments);
   { std::vector<double> t; for (auto x : c.transects.n_left) t.push_back((double)x); vf("transects.n_left", t); }
   { std::vector<double> t; for (auto x : c.transects.n_right) t.push_back((double)x); vf("transects.n_right", t); }
@@ -545,6 +585,7 @@ inline void dump(const openswmm::SimulationContext& c) {
   for (std::size_t q = 0; q < (c.transects.elevations).size(); ++q) {
   { std::vector<double> t; for (auto x : (c.transects.elevations)[q]) t.push_back((double)x); vf("transects.elevations[]", t); }
   }
+  vs("streets.names", c.streets.names);
   { std::vector<double> t; for (auto x : c.streets.t_crown) t.push_back((double)x); vf("streets.t_crown", t); }
   { std::vector<double> t; for (auto x : c.streets.h_curb) t.push_back((double)x); vf("streets.h_curb", t); }
   { std::vector<double> t; for (auto x : c.streets.sx) t.push_back((double)x); vf("streets.sx", t); }
@@ -555,6 +596,7 @@ inline void dump(const openswmm::SimulationContext& c) {
   { std::vector<double> t; for (auto x : c.streets.back_width) t.push_back((double)x); vf("streets.back_width", t); }
   { std::vector<double> t; for (auto x : c.streets.back_slope) t.push_back((double)x); vf("streets.back_slope", t); }
   { std::vector<double> t; for (auto x : c.streets.back_n) t.push_back((double)x); vf("streets.back_n", t); }
+  vs("inlets.names", c.inlets.names);
   vs("inlets.inlet_type", c.inlets.inlet_type);
   { std::vector<double> t; for (auto x : c.inlets.length) t.push_back((double)x); vf("inlets.length", t); }
   { std::vector<double> t; for (auto x : c.inlets.width) t.push_back((double)x); vf("inlets.width", t); }
@@ -568,6 +610,7 @@ inline void dump(const openswmm::SimulationContext& c) {
   { std::vector<long long> t; for (auto x : c.inlets.curve_index) t.push_back((long long)x); vi("inlets.curve_index", t); }
   { std::vector<long long> t; for (auto x : c.inlets.curve_kind) t.push_back((long long)x); vi("inlets.curve_kind", t); }
   vs("inlets.comments", c.inlets.comments);
+  { std::vector<long long> t; for (auto x : c.inlet_usages.link_index) t.push_back((long long)x); vi("inlet_usages.link_index", t); }
   { std::vector<long long> t; for (auto x : c.inlet_usages.node_host) t.push_back((long long)x); vi("inlet_usages.node_host", t); }
   { std::vector<long long> t; for (auto x : c.inlet_usages.design_index) t.push_back((long long)x); vi("inlet_usages.design_index", t); }
   { std::vector<long long> t; for (auto x : c.inlet_usages.node_index) t.push_back((long long)x); vi("inlet_usages.node_index", t); }
@@ -580,20 +623,24 @@ inline void dump(const openswmm::SimulationContext& c) {
   { std::vector<long long> t; for (auto x : c.inlet_usages.street_index) t.push_back((long long)x); vi("inlet_usages.street_index", t); }
   vs("inlet_usages.pending_design_name", c.inlet_usages.pending_design_name);
   vs("inlet_usages.pending_capture_name", c.inlet_usages.pending_capture_name);
+  { std::vector<double> t; for (auto x : c.inlet_usages.stat_capture_vol) t.push_back((double)x); vf("inlet_usages.stat_capture_vol", t); }
   { std::vector<double> t; for (auto x : c.inlet_usages.stat_bypass_vol) t.push_back((double)x); vf("inlet_usages.stat_bypass_vol", t); }
   { std::vector<double> t; for (auto x : c.inlet_usages.stat_backflow_vol) t.push_back((double)x); vf("inlet_usages.stat_backflow_vol", t); }
   { std::vector<double> t; for (auto x : c.inlet_usages.stat_peak_flow) t.push_back((double)x); vf("inlet_usages.stat_peak_flow", t); }
+  vs("control_rules.rule_text", c.control_rules.rule_text);
   sk("snowpacks.report_values");
   sk("snowpacks.runtime");
   sk("snowpacks.config");
   sk("snowpacks.mesh_config");
   sk("snowpacks.meteorology");
   sk("snowpacks.daily_weather");
+  vs("snowpacks.names", c.snowpacks.names);
   { std::vector<double> t; for (auto& a : c.snowpacks.plowable) for (double x : a) t.push_back(x); vf("snowpacks.plowable", t); }
   { std::vector<double> t; for (auto& a : c.snowpacks.impervious) for (double x : a) t.push_back(x); vf("snowpacks.impervious", t); }
   { std::vector<double> t; for (auto& a : c.snowpacks.pervious) for (double x : a) t.push_back(x); vf("snowpacks.pervious", t); }
   { std::vector<double> t; for (auto& a : c.snowpacks.removal) for (double x : a) t.push_back(x); vf("snowpacks.removal", t); }
   vs("snowpacks.removal_subcatch", c.snowpacks.removal_subcatch);
+  vs("aquifers.names", c.aquifers.names);
   { std::vector<double> t; for (auto x : c.aquifers.porosity) t.push_back((double)x); vf("aquifers.porosity", t); }
   { std::vector<double> t; for (auto x : c.aquifers.wilting_point) t.push_back((double)x); vf("aquifers.wilting_point", t); }
   { std::vector<double> t; for (auto x : c.aquifers.field_capacity) t.push_back((double)x); vf("aquifers.field_capacity", t); }
@@ -608,6 +655,7 @@ inline void dump(const openswmm::SimulationContext& c) {
   { std::vector<double> t; for (auto x : c.aquifers.upper_moist) t.push_back((double)x); vf("aquifers.upper_moist", t); }
   vs("aquifers.upper_evap_pat", c.aquifers.upper_evap_pat);
   sk("lid_controls.node_layers");
+  vs("lid_controls.names", c.lid_controls.names);
   vs("lid_controls.lid_type", c.lid_controls.lid_type);
   { std::vector<double> t; for (auto& a : c.lid_controls.surface) for (double x : a) t.push_back(x); vf("lid_controls.surface", t); }
   { std::vector<double> t; for (auto& a : c.lid_controls.soil) for (double x : a) t.push_back(x); vf("lid_controls.soil", t); }
@@ -618,6 +666,7 @@ inline void dump(const openswmm::SimulationContext& c) {
   { std::vector<double> t; for (auto& a : c.lid_controls.drainmat) for (double x : a) t.push_back(x); vf("lid_controls.drainmat", t); }
   sk("lid_controls.removals");
   sk("lid_controls.removals_by_name");
+  { std::vector<long long> t; for (auto x : c.lid_usage.subcatch_index) t.push_back((long long)x); vi("lid_usage.subcatch_index", t); }
   { std::vector<long long> t; for (auto x : c.lid_usage.lid_index) t.push_back((long long)x); vi("lid_usage.lid_index", t); }
   { std::vector<long long> t; for (auto x : c.lid_usage.number) t.push_back((long long)x); vi("lid_usage.number", t); }
   { std::vector<double> t; for (auto x : c.lid_usage.area) t.push_back((double)x); vf("lid_usage.area", t); }
@@ -674,6 +723,7 @@ inline void dump(const openswmm::SimulationContext& c) {
   pf("options.report_start", (double)(c.options.report_start));
   pf("options.routing_step", (double)(c.options.routing_step));
   pf("options.routing_step_authored", (double)(c.options.routing_step_authored));
+  pf("options.min_routing_step", (double)(c.options.min_routing_step));
   pf("options.dry_step", (double)(c.options.dry_step));
   pf("options.wet_step", (double)(c.options.wet_step));
   pf("options.report_step", (double)(c.options.report_step));

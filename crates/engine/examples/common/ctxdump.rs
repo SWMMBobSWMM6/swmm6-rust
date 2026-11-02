@@ -48,10 +48,14 @@ pub fn dump(c: &SimulationContext) -> Vec<u8> {
     pi(o, "xsect_generation", (c.xsect_generation) as i64);
     pi(o, "gpkg_units_internal", (c.gpkg_units_internal) as i64);
     pi(o, "tables.n", c.tables.tables.len() as i64);
-    for t in &c.tables.tables { ps(o, "table.id", &t.id); pi(o, "table.type", t.type_ as i64); vf(o, "table.x", &t.x); vf(o, "table.y", &t.y); pi(o, "table.n_relative", t.n_relative as i64); pf(o, "table.rel_anchor", t.rel_anchor); pi(o, "table.is_file", t.is_file_based as i64); ps(o, "table.file", &t.file_path.original); }
+    for t in &c.tables.tables { ps(o, "table.id", &t.id); pi(o, "table.type", t.type_ as i64); ps(o, "table.comment", &t.comment); vf(o, "table.x", &t.x); vf(o, "table.y", &t.y); pi(o, "table.n_relative", t.n_relative as i64); pf(o, "table.rel_anchor", t.rel_anchor); pi(o, "table.is_file", t.is_file_based as i64); ps(o, "table.file", &t.file_path.original); }
     for h in &c.unknown_section_headers { ps(o, "unknown_header", &h.0); pi(o, "unknown_header.line", h.1); }
     for (k, v) in &c.passthrough_sections { ps(o, "passthrough", k); vs(o, "passthrough.lines", v); }
     { let mut e: Vec<_> = c.options.ext_options.iter().collect(); e.sort(); for (k, v) in e { ps(o, "ext_option", k); ps(o, "ext_option.value", v); } }
+    vi(o, "node_subtypes.subtype_row", &c.node_subtypes.subtype_row.iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "link_subtypes.subtype_row", &c.link_subtypes.subtype_row.iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    pi(o, "events.n", c.events.len() as i64); for e in &c.events { pf(o, "event.start", e.start); pf(o, "event.end", e.end); }
+    pi(o, "pending_link_nodes.n", c.pending_link_nodes.len() as i64); for p in &c.pending_link_nodes { pi(o, "pending_link_node", p.0 as i64); ps(o, "pending_link_node.n1", &(p.1).0); ps(o, "pending_link_node.n2", &(p.1).1); }
     vi(o, "nodes.type", &(c.nodes.type_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     vf(o, "nodes.invert_elev", &(c.nodes.invert_elev).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "nodes.full_depth", &(c.nodes.full_depth).iter().map(|x| *x as f64).collect::<Vec<f64>>());
@@ -335,6 +339,7 @@ pub fn dump(c: &SimulationContext) -> Vec<u8> {
     vf(o, "subcatches.lid_drain_runon_cfs", &(c.subcatches.lid_drain_runon_cfs).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "subcatches.total_load", &(c.subcatches.total_load).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     pi(o, "subcatches.total_load_n_pollutants", (c.subcatches.total_load_n_pollutants) as i64);
+    vf(o, "subcatches.coverage", &(c.subcatches.coverage).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     pi(o, "subcatches.coverage_n_landuses", (c.subcatches.coverage_n_landuses) as i64);
     vf(o, "subcatches.sweep_last_swept", &(c.subcatches.sweep_last_swept).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vi(o, "subcatches.sweep_now", &(c.subcatches.sweep_now).iter().map(|x| *x as i64).collect::<Vec<i64>>());
@@ -475,6 +480,7 @@ pub fn dump(c: &SimulationContext) -> Vec<u8> {
     vf(o, "outlets.coeff", &(c.link_subtypes.outlets.coeff).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "outlets.expon", &(c.link_subtypes.outlets.expon).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vi(o, "outlets.curve", &(c.link_subtypes.outlets.curve).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "landuses.sweep_interval", &(c.landuses.sweep_interval).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "landuses.sweep_removal", &(c.landuses.sweep_removal).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "landuses.last_swept", &(c.landuses.last_swept).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vs(o, "landuses.comments", &c.landuses.comments);
@@ -499,6 +505,7 @@ pub fn dump(c: &SimulationContext) -> Vec<u8> {
     vi(o, "treatment.has_treatment", &(c.treatment.has_treatment).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     vf(o, "treatment.cin", &(c.treatment.cin).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "treatment.removal", &(c.treatment.removal).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vi(o, "ext_inflows.node_idx", &(c.ext_inflows.node_idx).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     vs(o, "ext_inflows.node_name", &c.ext_inflows.node_name);
     vs(o, "ext_inflows.constituent", &c.ext_inflows.constituent);
     vs(o, "ext_inflows.ts_name", &c.ext_inflows.ts_name);
@@ -507,6 +514,7 @@ pub fn dump(c: &SimulationContext) -> Vec<u8> {
     vf(o, "ext_inflows.s_factor", &(c.ext_inflows.s_factor).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "ext_inflows.baseline", &(c.ext_inflows.baseline).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vs(o, "ext_inflows.pattern_name", &c.ext_inflows.pattern_name);
+    vi(o, "dwf.node_idx", &(c.dwf_inflows.node_idx).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     vs(o, "dwf.node_name", &c.dwf_inflows.node_name);
     vs(o, "dwf.constituent", &c.dwf_inflows.constituent);
     vf(o, "dwf.avg_value", &(c.dwf_inflows.avg_value).iter().map(|x| *x as f64).collect::<Vec<f64>>());
@@ -514,14 +522,46 @@ pub fn dump(c: &SimulationContext) -> Vec<u8> {
     vs(o, "dwf.pat2", &c.dwf_inflows.pat2);
     vs(o, "dwf.pat3", &c.dwf_inflows.pat3);
     vs(o, "dwf.pat4", &c.dwf_inflows.pat4);
+    vi(o, "rdii.node_idx", &(c.rdii_assigns.node_idx).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     vs(o, "rdii.node_name", &c.rdii_assigns.node_name);
     vs(o, "rdii.uh_name", &c.rdii_assigns.uh_name);
     vf(o, "rdii.sewer_area", &(c.rdii_assigns.sewer_area).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vs(o, "patterns.names", &c.patterns.names);
     vi(o, "patterns.types", &(c.patterns.types).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     pi(o, "patterns.factors.n", (c.patterns.factors).len() as i64);
     for q in 0..(c.patterns.factors).len() {
     vf(o, "patterns.factors[]", &((c.patterns.factors)[q]).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     }
+    pi(o, "unit_hyds.entries.n", (c.unit_hyds.entries).len() as i64);
+    for el in &c.unit_hyds.entries {
+    ps(o, "unit_hyds.entries[].name", &el.name);
+    ps(o, "unit_hyds.entries[].gage_name", &el.gage_name);
+    pi(o, "unit_hyds.entries[].month", (el.month) as i64);
+    pi(o, "unit_hyds.entries[].response", (el.response) as i64);
+    pf(o, "unit_hyds.entries[].r", (el.r) as f64);
+    pf(o, "unit_hyds.entries[].t", (el.t) as f64);
+    pf(o, "unit_hyds.entries[].k", (el.k) as f64);
+    pf(o, "unit_hyds.entries[].dmax", (el.dmax) as f64);
+    pf(o, "unit_hyds.entries[].drecov", (el.drecov) as f64);
+    pf(o, "unit_hyds.entries[].dinit", (el.dinit) as f64);
+    }
+    vs(o, "unit_hyds.gage_assignments", &c.unit_hyds.gage_assignments);
+    vs(o, "unit_hyds.gage_names", &c.unit_hyds.gage_names);
+    pi(o, "rdii_decay.entries.n", (c.rdii_decay.entries).len() as i64);
+    for el in &c.rdii_decay.entries {
+    ps(o, "rdii_decay.entries[].uh_name", &el.uh_name);
+    pi(o, "rdii_decay.entries[].response", (el.response) as i64);
+    pf(o, "rdii_decay.entries[].k_dep", (el.k_dep) as f64);
+    pf(o, "rdii_decay.entries[].k_0", (el.k_0) as f64);
+    pf(o, "rdii_decay.entries[].k_T", (el.k_T) as f64);
+    pf(o, "rdii_decay.entries[].T_ref", (el.T_ref) as f64);
+    pf(o, "rdii_decay.entries[].theta_rec", (el.theta_rec) as f64);
+    pf(o, "rdii_decay.entries[].T_freeze", (el.T_freeze) as f64);
+    pi(o, "rdii_decay.entries[].snow_on", (el.snow_on) as i64);
+    pf(o, "rdii_decay.entries[].snow_T", (el.snow_T) as f64);
+    pf(o, "rdii_decay.entries[].snow_ddf", (el.snow_ddf) as f64);
+    }
+    vs(o, "transects.names", &c.transects.names);
     vs(o, "transects.comments", &c.transects.comments);
     vf(o, "transects.n_left", &(c.transects.n_left).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "transects.n_right", &(c.transects.n_right).iter().map(|x| *x as f64).collect::<Vec<f64>>());
@@ -541,6 +581,7 @@ pub fn dump(c: &SimulationContext) -> Vec<u8> {
     for q in 0..(c.transects.elevations).len() {
     vf(o, "transects.elevations[]", &((c.transects.elevations)[q]).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     }
+    vs(o, "streets.names", &c.streets.names);
     vf(o, "streets.t_crown", &(c.streets.t_crown).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "streets.h_curb", &(c.streets.h_curb).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "streets.sx", &(c.streets.sx).iter().map(|x| *x as f64).collect::<Vec<f64>>());
@@ -551,6 +592,7 @@ pub fn dump(c: &SimulationContext) -> Vec<u8> {
     vf(o, "streets.back_width", &(c.streets.back_width).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "streets.back_slope", &(c.streets.back_slope).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "streets.back_n", &(c.streets.back_n).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vs(o, "inlets.names", &c.inlets.names);
     vs(o, "inlets.inlet_type", &c.inlets.inlet_type);
     vf(o, "inlets.length", &(c.inlets.length).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "inlets.width", &(c.inlets.width).iter().map(|x| *x as f64).collect::<Vec<f64>>());
@@ -564,6 +606,7 @@ pub fn dump(c: &SimulationContext) -> Vec<u8> {
     vi(o, "inlets.curve_index", &(c.inlets.curve_index).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     vi(o, "inlets.curve_kind", &(c.inlets.curve_kind).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     vs(o, "inlets.comments", &c.inlets.comments);
+    vi(o, "inlet_usages.link_index", &(c.inlet_usages.link_index).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     vi(o, "inlet_usages.node_host", &(c.inlet_usages.node_host).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     vi(o, "inlet_usages.design_index", &(c.inlet_usages.design_index).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     vi(o, "inlet_usages.node_index", &(c.inlet_usages.node_index).iter().map(|x| *x as i64).collect::<Vec<i64>>());
@@ -576,20 +619,24 @@ pub fn dump(c: &SimulationContext) -> Vec<u8> {
     vi(o, "inlet_usages.street_index", &(c.inlet_usages.street_index).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     vs(o, "inlet_usages.pending_design_name", &c.inlet_usages.pending_design_name);
     vs(o, "inlet_usages.pending_capture_name", &c.inlet_usages.pending_capture_name);
+    vf(o, "inlet_usages.stat_capture_vol", &(c.inlet_usages.stat_capture_vol).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "inlet_usages.stat_bypass_vol", &(c.inlet_usages.stat_bypass_vol).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "inlet_usages.stat_backflow_vol", &(c.inlet_usages.stat_backflow_vol).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "inlet_usages.stat_peak_flow", &(c.inlet_usages.stat_peak_flow).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vs(o, "control_rules.rule_text", &c.control_rules.rule_text);
     sk(o, "snowpacks.report_values");
     sk(o, "snowpacks.runtime");
     sk(o, "snowpacks.config");
     sk(o, "snowpacks.mesh_config");
     sk(o, "snowpacks.meteorology");
     sk(o, "snowpacks.daily_weather");
+    vs(o, "snowpacks.names", &c.snowpacks.names);
     vf(o, "snowpacks.plowable", &(c.snowpacks.plowable).iter().flat_map(|a| a.iter().copied()).collect::<Vec<f64>>());
     vf(o, "snowpacks.impervious", &(c.snowpacks.impervious).iter().flat_map(|a| a.iter().copied()).collect::<Vec<f64>>());
     vf(o, "snowpacks.pervious", &(c.snowpacks.pervious).iter().flat_map(|a| a.iter().copied()).collect::<Vec<f64>>());
     vf(o, "snowpacks.removal", &(c.snowpacks.removal).iter().flat_map(|a| a.iter().copied()).collect::<Vec<f64>>());
     vs(o, "snowpacks.removal_subcatch", &c.snowpacks.removal_subcatch);
+    vs(o, "aquifers.names", &c.aquifers.names);
     vf(o, "aquifers.porosity", &(c.aquifers.porosity).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "aquifers.wilting_point", &(c.aquifers.wilting_point).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "aquifers.field_capacity", &(c.aquifers.field_capacity).iter().map(|x| *x as f64).collect::<Vec<f64>>());
@@ -604,6 +651,7 @@ pub fn dump(c: &SimulationContext) -> Vec<u8> {
     vf(o, "aquifers.upper_moist", &(c.aquifers.upper_moist).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vs(o, "aquifers.upper_evap_pat", &c.aquifers.upper_evap_pat);
     sk(o, "lid_controls.node_layers");
+    vs(o, "lid_controls.names", &c.lid_controls.names);
     vs(o, "lid_controls.lid_type", &c.lid_controls.lid_type);
     vf(o, "lid_controls.surface", &(c.lid_controls.surface).iter().flat_map(|a| a.iter().copied()).collect::<Vec<f64>>());
     vf(o, "lid_controls.soil", &(c.lid_controls.soil).iter().flat_map(|a| a.iter().copied()).collect::<Vec<f64>>());
@@ -614,6 +662,7 @@ pub fn dump(c: &SimulationContext) -> Vec<u8> {
     vf(o, "lid_controls.drainmat", &(c.lid_controls.drainmat).iter().flat_map(|a| a.iter().copied()).collect::<Vec<f64>>());
     sk(o, "lid_controls.removals");
     sk(o, "lid_controls.removals_by_name");
+    vi(o, "lid_usage.subcatch_index", &(c.lid_usage.subcatch_index).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     vi(o, "lid_usage.lid_index", &(c.lid_usage.lid_index).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     vi(o, "lid_usage.number", &(c.lid_usage.number).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     vf(o, "lid_usage.area", &(c.lid_usage.area).iter().map(|x| *x as f64).collect::<Vec<f64>>());
@@ -670,6 +719,7 @@ pub fn dump(c: &SimulationContext) -> Vec<u8> {
     pf(o, "options.report_start", (c.options.report_start) as f64);
     pf(o, "options.routing_step", (c.options.routing_step) as f64);
     pf(o, "options.routing_step_authored", (c.options.routing_step_authored) as f64);
+    pf(o, "options.min_routing_step", (c.options.min_routing_step) as f64);
     pf(o, "options.dry_step", (c.options.dry_step) as f64);
     pf(o, "options.wet_step", (c.options.wet_step) as f64);
     pf(o, "options.report_step", (c.options.report_step) as f64);

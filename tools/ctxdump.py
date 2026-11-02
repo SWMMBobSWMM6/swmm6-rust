@@ -58,6 +58,8 @@ def fields(header, struct):
             continue
         if ch == '}':
             depth -= 1
+            if depth == 0:
+                buf += ';'   # an inline method body ends a statement too
             continue
         if depth == 0:
             buf += ch
@@ -154,10 +156,20 @@ def dump_struct(header, struct, path_c, path_r, label, C, R):
             else:
                 SKIPS.append(lb); C.append(f'  sk("{lb}");'); R.append(f'    sk(o, "{lb}");')
             continue
+        em = re.fullmatch(r'std::vector<(\w+)>', ty.replace('const ', '').strip())
+        if k is None and em and em.group(1) in ELEM_STRUCTS:
+            C.append(f'  pi("{lb}.n", (long long)({pc}).size());'); R.append(f'    pi(o, "{lb}.n", ({pr}).len() as i64);')
+            C.append(f'  for (auto& el : {pc}) {{'); R.append(f'    for el in &{pr} {{')
+            dump_struct(ELEM_STRUCTS[em.group(1)], em.group(1), 'el', 'el', lb + '[]', C, R)
+            C.append('  }'); R.append('    }')
+            continue
         if k is None:
             SKIPS.append(f'{lb} ({ty})'); C.append(f'  sk("{lb}");'); R.append(f'    sk(o, "{lb}");')
             continue
         emit(pc, pr, lb, k, C, R)
+
+# element structs of std::vector members that are dumped field by field
+ELEM_STRUCTS = {'UnitHydEntry': 'data/InflowData.hpp', 'RDIIDecayEntry': 'data/InflowData.hpp'}
 
 # (header, struct, C++ path, Rust path, label)
 STORES = [
@@ -182,6 +194,8 @@ STORES = [
     ('data/InflowData.hpp', 'DwfData', 'c.dwf_inflows', 'c.dwf_inflows', 'dwf'),
     ('data/InflowData.hpp', 'RDIIAssignData', 'c.rdii_assigns', 'c.rdii_assigns', 'rdii'),
     ('data/InflowData.hpp', 'PatternData', 'c.patterns', 'c.patterns', 'patterns'),
+    ('data/InflowData.hpp', 'UnitHydData', 'c.unit_hyds', 'c.unit_hyds', 'unit_hyds'),
+    ('data/InflowData.hpp', 'RDIIDecayData', 'c.rdii_decay', 'c.rdii_decay', 'rdii_decay'),
     ('data/InfraData.hpp', 'TransectStore', 'c.transects', 'c.transects', 'transects'),
     ('data/InfraData.hpp', 'StreetStore', 'c.streets', 'c.streets', 'streets'),
     ('data/InfraData.hpp', 'InletStore', 'c.inlets', 'c.inlets', 'inlets'),
@@ -238,8 +252,8 @@ def main():
             emit(f'c.{n}', f'c.{n}', n, k, C, R)
     # tables
     C.append('  pi("tables.n", (long long)c.tables.tables.size());'); R.append('    pi(o, "tables.n", c.tables.tables.len() as i64);')
-    C.append('  for (auto& t : c.tables.tables) { ps("table.id", t.id); pi("table.type", (long long)t.type); vf("table.x", t.x); vf("table.y", t.y); pi("table.n_relative", t.n_relative); pf("table.rel_anchor", t.rel_anchor); pi("table.is_file", t.is_file_based); ps("table.file", t.file_path.original); }')
-    R.append('    for t in &c.tables.tables { ps(o, "table.id", &t.id); pi(o, "table.type", t.type_ as i64); vf(o, "table.x", &t.x); vf(o, "table.y", &t.y); pi(o, "table.n_relative", t.n_relative as i64); pf(o, "table.rel_anchor", t.rel_anchor); pi(o, "table.is_file", t.is_file_based as i64); ps(o, "table.file", &t.file_path.original); }')
+    C.append('  for (auto& t : c.tables.tables) { ps("table.id", t.id); pi("table.type", (long long)t.type); ps("table.comment", t.comment); vf("table.x", t.x); vf("table.y", t.y); pi("table.n_relative", t.n_relative); pf("table.rel_anchor", t.rel_anchor); pi("table.is_file", t.is_file_based); ps("table.file", t.file_path.original); }')
+    R.append('    for t in &c.tables.tables { ps(o, "table.id", &t.id); pi(o, "table.type", t.type_ as i64); ps(o, "table.comment", &t.comment); vf(o, "table.x", &t.x); vf(o, "table.y", &t.y); pi(o, "table.n_relative", t.n_relative as i64); pf(o, "table.rel_anchor", t.rel_anchor); pi(o, "table.is_file", t.is_file_based as i64); ps(o, "table.file", &t.file_path.original); }')
     # unknown headers, deferred rows, passthrough
     C.append('  for (auto& h : c.unknown_section_headers) { ps("unknown_header", h.first); pi("unknown_header.line", h.second); }')
     R.append('    for h in &c.unknown_section_headers { ps(o, "unknown_header", &h.0); pi(o, "unknown_header.line", h.1); }')
@@ -247,6 +261,14 @@ def main():
     R.append('    for (k, v) in &c.passthrough_sections { ps(o, "passthrough", k); vs(o, "passthrough.lines", v); }')
     C.append('  { std::vector<std::pair<std::string,std::string>> e(c.options.ext_options.begin(), c.options.ext_options.end()); std::sort(e.begin(), e.end()); for (auto& kv : e) { ps("ext_option", kv.first); ps("ext_option.value", kv.second); } }')
     R.append('    { let mut e: Vec<_> = c.options.ext_options.iter().collect(); e.sort(); for (k, v) in e { ps(o, "ext_option", k); ps(o, "ext_option.value", v); } }')
+    C.append('  { std::vector<long long> t; for (auto x : c.node_subtypes.subtype_row) t.push_back(x); vi("node_subtypes.subtype_row", t); }')
+    R.append('    vi(o, "node_subtypes.subtype_row", &c.node_subtypes.subtype_row.iter().map(|x| *x as i64).collect::<Vec<i64>>());')
+    C.append('  { std::vector<long long> t; for (auto x : c.link_subtypes.subtype_row) t.push_back(x); vi("link_subtypes.subtype_row", t); }')
+    R.append('    vi(o, "link_subtypes.subtype_row", &c.link_subtypes.subtype_row.iter().map(|x| *x as i64).collect::<Vec<i64>>());')
+    C.append('  pi("events.n", (long long)c.events.size()); for (auto& e : c.events) { pf("event.start", e.start); pf("event.end", e.end); }')
+    R.append('    pi(o, "events.n", c.events.len() as i64); for e in &c.events { pf(o, "event.start", e.start); pf(o, "event.end", e.end); }')
+    C.append('  pi("pending_link_nodes.n", (long long)c.pending_link_nodes.size()); for (auto& p : c.pending_link_nodes) { pi("pending_link_node", p.first); ps("pending_link_node.n1", p.second.first); ps("pending_link_node.n2", p.second.second); }')
+    R.append('    pi(o, "pending_link_nodes.n", c.pending_link_nodes.len() as i64); for p in &c.pending_link_nodes { pi(o, "pending_link_node", p.0 as i64); ps(o, "pending_link_node.n1", &(p.1).0); ps(o, "pending_link_node.n2", &(p.1).1); }')
     for header, struct, pc, pr, label in STORES:
         dump_struct(header, struct, pc, pr, label, C, R)
     C.append('}'); C.append('} // namespace ctxdump')
