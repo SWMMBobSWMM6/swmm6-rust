@@ -38,6 +38,20 @@ pub fn cclamp<T: PartialOrd>(v: T, lo: T, hi: T) -> T {
     }
 }
 
+/// `static_cast<int>(x)` as the reference build executes it (x86-64 `cvttsd2si`): truncation
+/// toward zero for in-range values, and INT_MIN (0x80000000) for NaN, infinities and
+/// anything out of range. Rust's `as i32` saturates instead (NaN -> 0, +inf -> i32::MAX), so
+/// use this wherever the operand can be non-finite or out of range. (In C++ such a cast is
+/// undefined; this is what g++ -O2 emits on the reference machine.)
+#[inline(always)]
+pub fn cvt_i32(x: f64) -> i32 {
+    if x.is_nan() || x >= 2147483648.0 || x < -2147483648.0 {
+        i32::MIN
+    } else {
+        x as i32
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

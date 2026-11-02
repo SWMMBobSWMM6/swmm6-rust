@@ -15,3 +15,5 @@ gate/diff/errdump
 gate/diff/ucfdump
 gate/diff/dtdump
 gate/diff/pudump
+gate/diff/hydtypes
+gate/diff/xslookup

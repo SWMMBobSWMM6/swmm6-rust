@@ -9,4 +9,6 @@
 
 pub mod core;
 pub mod data;
+pub mod hydraulics;
+pub mod hydrology;
 pub mod input;

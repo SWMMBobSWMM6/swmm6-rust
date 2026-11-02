@@ -6,6 +6,7 @@ pub mod forcing;
 pub mod gage;
 pub mod heat;
 pub mod heat_override;
+pub mod hydrology;
 pub mod inflow;
 pub mod infra;
 pub mod initial_quality;

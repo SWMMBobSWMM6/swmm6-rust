@@ -10,6 +10,7 @@ These conventions apply to every file in `crates/engine`. `crates/engine/src/dat
 * `std::min`/`std::max`/`std::clamp` become `core::cmath::{cmin, cmax, cclamp}`, never Rust's `f64::min`/`max`/`clamp`, which treat NaN differently.
 * `std::fabs` becomes `.abs()`, and `std::sqrt` becomes `.sqrt()`; both are exact.
 * Transcendental functions (`pow`, `exp`, `log`, `sin`, …) need glibc's bits. Mark each use with `// LIBM` so the later libm pass can find it.
+* `static_cast<int>(double)` becomes `core::cmath::cvt_i32(x)` wherever the value can be NaN, infinite or out of range. The reference build gives INT_MIN for all of those, where Rust's `as i32` saturates (NaN gives 0). For values known to be in range, `as i32` is the same.
 * Integer arithmetic keeps C++ widths: `int` is `i32`, `long` is `i64`, `std::size_t` is `usize`. A narrowing cast is `as`, as `static_cast` would be.
 
 ## Data
