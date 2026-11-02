@@ -4,7 +4,7 @@ The OpenSWMM 6 engine's 1D path, translated into safe Rust and held byte for byt
 
 ## The reference
 
-* Upstream is HydroCouple/openswmm.engine, branch `swmm6_rel`, commit `88329d6df2f8dd63fe7e7c601954ec2bde3573e6` (6.0.0-alpha.4, 31 Oct 2026). It is Apache-2.0 with a NOTICE (see `NOTICE`, `LICENSE-APACHE`).
+* Upstream is HydroCouple/openswmm.engine, branch `swmm6_rel`, commit `88329d6df2f8dd63fe7e7c601954ec2bde3573e6` (6.0.0-alpha.4, 31 Oct 2026). It is Apache-2.0 with a NOTICE (see `NOTICE`, `LICENSE`).
 * The reference build is Release, 1D only: `-DOPENSWMM_BUILD_2D=OFF -DOPENSWMM_BUILD_GPU_PLUGIN=OFF -DOPENSWMM_WITH_HDF5=OFF -DOPENSWMM_WITH_GEOPACKAGE=OFF`, built with g++ 13.3.0 on Ubuntu 24.04.
   * The fast kernels are off (the shipping default, documented as bit-exact).
   * OpenMP is on.
