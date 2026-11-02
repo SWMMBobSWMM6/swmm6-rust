@@ -9,11 +9,46 @@
 #include "input/handlers/CatchmentHandler.hpp"
 #include "input/handlers/HydrologyHandler.hpp"
 #include "input/handlers/QualityHandler.hpp"
+#include "input/handlers/OptionsHandler.hpp"
+#include "input/handlers/FilesHandler.hpp"
+#include "input/handlers/PluginsHandler.hpp"
+#include "input/handlers/ProcessComponentsHandler.hpp"
+#include "input/handlers/UserFlagsHandler.hpp"
+#include "input/handlers/UserFlagValuesHandler.hpp"
+#include "input/handlers/SpatialHandler.hpp"
+#include "input/handlers/ControlsHandler.hpp"
+#include "core/SimulationContext.hpp"
 #include <set>
 #include <string>
 namespace openswmm::input {
 void register_reference_handlers(SectionRegistry& reg, const std::set<std::string>& on, bool all) {
     auto r = [&](const char* tag, auto h) { if (all || on.count(tag)) reg.register_builtin(tag, h); };
+    // DefaultInputPlugin.cpp's capture lambda (local to that file), copied.
+    auto capture = [](const char* tag) {
+        return [tag](SimulationContext& ctx, const std::vector<std::string>& lines) {
+            auto& dst = ctx.passthrough_sections[tag];
+            dst.insert(dst.end(), lines.begin(), lines.end());
+        };
+    };
+
+    r("TITLE", input::handle_title);
+    r("OPTIONS", input::handle_options);
+    r("CONTROLS", input::handle_controls);
+    r("VERTICES", input::handle_vertices);
+    r("POLYGONS", input::handle_polygons);
+    r("SYMBOLS", input::handle_symbols);
+    r("LABELS", capture("LABELS"));
+    r("BACKDROP", capture("BACKDROP"));
+    r("MAP", input::handle_map);
+    r("TAGS", input::handle_tags);
+    r("PROFILE", capture("PROFILE"));
+    r("PROFILES", capture("PROFILES"));
+    r("REPORT", input::handle_report);
+    r("FILES", input::handle_files);
+    r("USER_FLAGS", input::handle_user_flags);
+    r("USER_FLAG_VALUES", input::handle_user_flag_values);
+    r("PLUGINS", input::handle_plugins);
+    r("PROCESS_COMPONENTS", input::handle_process_components);
 
     // Node sections
     r("JUNCTIONS", input::handle_junctions);

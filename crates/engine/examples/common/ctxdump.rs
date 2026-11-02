@@ -2,6 +2,7 @@
 #![allow(dead_code, unused_parens, clippy::all)]
 use std::io::Write;
 use swmm6_rust::core::context::SimulationContext;
+use swmm6_rust::core::user_flags::UserFlagValue;
 fn pf(o: &mut Vec<u8>, l: &str, v: f64) { writeln!(o, "{} {:016x}", l, v.to_bits()).unwrap(); }
 fn pi(o: &mut Vec<u8>, l: &str, v: i64) { writeln!(o, "{} {}", l, v).unwrap(); }
 fn ps(o: &mut Vec<u8>, l: &str, s: &[u8]) { write!(o, "{} {}:", l, s.len()).unwrap(); o.extend_from_slice(s); o.push(b'\n'); }
@@ -72,6 +73,11 @@ pub fn dump(c: &SimulationContext) -> Vec<u8> {
     vi(o, "link_subtypes.subtype_row", &c.link_subtypes.subtype_row.iter().map(|x| *x as i64).collect::<Vec<i64>>());
     pi(o, "events.n", c.events.len() as i64); for e in &c.events { pf(o, "event.start", e.start); pf(o, "event.end", e.end); }
     pi(o, "pending_link_nodes.n", c.pending_link_nodes.len() as i64); for p in &c.pending_link_nodes { pi(o, "pending_link_node", p.0 as i64); ps(o, "pending_link_node.n1", &(p.1).0); ps(o, "pending_link_node.n2", &(p.1).1); }
+    for p in &c.plugin_specs { ps(o, "plugin.path", &p.path); vs(o, "plugin.init_args", &p.init_args); }
+    for p in &c.process_component_specs { ps(o, "pcomp.id", &p.id); ps(o, "pcomp.config_path", &p.config_path); for kv in &p.args { ps(o, "pcomp.arg", &kv.0); ps(o, "pcomp.arg.value", &kv.1); } ps(o, "pcomp.resolved_config_path", &p.resolved_config_path); }
+    for d in c.user_flags.all_defs() { ps(o, "uflag_def.name", &d.name); pi(o, "uflag_def.type", d.type_ as i64); ps(o, "uflag_def.description", &d.description); }
+    { let mut e: Vec<_> = c.user_flags.all_values().iter().collect(); e.sort_by(|a, b| a.0.cmp(b.0)); for (k, v) in e { ps(o, "uflag_value", k); match v { UserFlagValue::Bool(b) => { pi(o, "uflag_value.kind", 0); pi(o, "uflag_value.v", *b as i64); } UserFlagValue::Int(i) => { pi(o, "uflag_value.kind", 1); pi(o, "uflag_value.v", *i as i64); } UserFlagValue::Double(d) => { pi(o, "uflag_value.kind", 2); pf(o, "uflag_value.v", *d); } UserFlagValue::String(s) => { pi(o, "uflag_value.kind", 3); ps(o, "uflag_value.v", s); } } } }
+    for h in &c.files.hotstart_saves { ps(o, "hotstart_save.path", &h.path.original); pf(o, "hotstart_save.datetime", h.datetime); pi(o, "hotstart_save.format", h.format as i64); }
     vi(o, "nodes.type", &(c.nodes.type_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     vf(o, "nodes.invert_elev", &(c.nodes.invert_elev).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "nodes.full_depth", &(c.nodes.full_depth).iter().map(|x| *x as f64).collect::<Vec<f64>>());

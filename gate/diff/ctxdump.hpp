@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 #include <algorithm>
+#include <variant>
 #include "core/SimulationContext.hpp"
 namespace ctxdump {
 static void pf(const char* l, double v){ uint64_t u; std::memcpy(&u,&v,8); std::printf("%s %016llx\n", l, (unsigned long long)u); }
@@ -76,6 +77,11 @@ inline void dump(const openswmm::SimulationContext& c) {
   { std::vector<long long> t; for (auto x : c.link_subtypes.subtype_row) t.push_back(x); vi("link_subtypes.subtype_row", t); }
   pi("events.n", (long long)c.events.size()); for (auto& e : c.events) { pf("event.start", e.start); pf("event.end", e.end); }
   pi("pending_link_nodes.n", (long long)c.pending_link_nodes.size()); for (auto& p : c.pending_link_nodes) { pi("pending_link_node", p.first); ps("pending_link_node.n1", p.second.first); ps("pending_link_node.n2", p.second.second); }
+  for (auto& p : c.plugin_specs) { ps("plugin.path", p.path); vs("plugin.init_args", p.init_args); }
+  for (auto& p : c.process_component_specs) { ps("pcomp.id", p.id); ps("pcomp.config_path", p.config_path); for (auto& kv : p.args) { ps("pcomp.arg", kv.first); ps("pcomp.arg.value", kv.second); } ps("pcomp.resolved_config_path", p.resolved_config_path); }
+  for (auto& d : c.user_flags.all_defs()) { ps("uflag_def.name", d.name); pi("uflag_def.type", (long long)d.type); ps("uflag_def.description", d.description); }
+  { std::vector<std::pair<std::string, const openswmm::UserFlagValue*>> e; for (auto& kv : c.user_flags.all_values()) e.emplace_back(kv.first, &kv.second); std::sort(e.begin(), e.end(), [](const auto& a, const auto& b) { return a.first < b.first; }); for (auto& kv : e) { ps("uflag_value", kv.first); pi("uflag_value.kind", (long long)kv.second->index()); if (auto b = std::get_if<bool>(kv.second)) pi("uflag_value.v", *b); else if (auto i = std::get_if<int>(kv.second)) pi("uflag_value.v", *i); else if (auto d = std::get_if<double>(kv.second)) pf("uflag_value.v", *d); else ps("uflag_value.v", std::get<std::string>(*kv.second)); } }
+  for (auto& h : c.files.hotstart_saves) { ps("hotstart_save.path", h.path.original); pf("hotstart_save.datetime", h.datetime); pi("hotstart_save.format", (long long)h.format); }
   { std::vector<long long> t; for (auto x : c.nodes.type) t.push_back((long long)x); vi("nodes.type", t); }
   { std::vector<double> t; for (auto x : c.nodes.invert_elev) t.push_back((double)x); vf("nodes.invert_elev", t); }
   { std::vector<double> t; for (auto x : c.nodes.full_depth) t.push_back((double)x); vf("nodes.full_depth", t); }

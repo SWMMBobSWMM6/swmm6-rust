@@ -5,17 +5,33 @@
 // derivation notice.
 
 pub mod catchment_handler;
+pub mod controls_handler;
+pub mod files_handler;
 pub mod hydrology_handler;
-pub mod infra_handler;
 pub mod inflows_handler;
+pub mod infra_handler;
 pub mod links_handler;
 pub mod nodes_handler;
+pub mod options_handler;
+pub mod plugins_handler;
+pub mod process_components_handler;
 pub mod quality_handler;
+pub mod spatial_handler;
 pub mod tables_handler;
+pub mod title_handler;
+pub mod user_flag_values_handler;
+pub mod user_flags_handler;
 
 use crate::core::context::SimulationContext;
 use crate::core::options::Bytes;
 use crate::input::section_registry::SectionRegistry;
+
+/// DefaultInputPlugin.cpp's `capture(tag)` lambda: [LABELS], [BACKDROP] and [PROFILE(S)] are
+/// GUI annotation, kept verbatim (appended) in passthrough_sections[tag].
+fn capture(ctx: &mut SimulationContext, tag: &[u8], lines: &[Bytes]) {
+    let dst = ctx.passthrough_sections.entry(tag.to_vec()).or_default();
+    dst.extend_from_slice(lines);
+}
 
 /// Register the handlers named in `on` (or all with `all`), as DefaultInputPlugin does,
 /// without the 2D sections. Filled in as handlers are translated.
@@ -25,6 +41,9 @@ pub fn register_reference_handlers(reg: &mut SectionRegistry, on: &[String], all
             reg.register_builtin(tag.as_bytes(), h);
         }
     };
+
+    r("TITLE", title_handler::handle_title);
+    r("OPTIONS", options_handler::handle_options);
 
     // Node sections
     r("JUNCTIONS", nodes_handler::handle_junctions);
@@ -58,6 +77,18 @@ pub fn register_reference_handlers(reg: &mut SectionRegistry, on: &[String], all
     r("TIMESERIES", tables_handler::handle_timeseries);
 
     // Control / map / reporting
+    r("CONTROLS", controls_handler::handle_controls);
+    r("VERTICES", spatial_handler::handle_vertices);
+    r("POLYGONS", spatial_handler::handle_polygons);
+    r("SYMBOLS", spatial_handler::handle_symbols);
+    r("LABELS", |c, l| capture(c, b"LABELS", l));
+    r("BACKDROP", |c, l| capture(c, b"BACKDROP", l));
+    r("MAP", spatial_handler::handle_map);
+    r("TAGS", spatial_handler::handle_tags);
+    r("PROFILE", |c, l| capture(c, b"PROFILE", l));
+    r("PROFILES", |c, l| capture(c, b"PROFILES", l));
+    r("REPORT", controls_handler::handle_report);
+    r("FILES", files_handler::handle_files);
     r("ADJUSTMENTS", infra_handler::handle_adjustments);
     r("EVENTS", infra_handler::handle_events);
 
@@ -91,4 +122,10 @@ pub fn register_reference_handlers(reg: &mut SectionRegistry, on: &[String], all
     r("WASHOFF", quality_handler::handle_washoff);
     r("TREATMENT", quality_handler::handle_treatment);
     r("INITIAL_QUALITY", quality_handler::handle_initial_quality);
+
+    // New in 6.0.0
+    r("USER_FLAGS", user_flags_handler::handle_user_flags);
+    r("USER_FLAG_VALUES", user_flag_values_handler::handle_user_flag_values);
+    r("PLUGINS", plugins_handler::handle_plugins);
+    r("PROCESS_COMPONENTS", process_components_handler::handle_process_components);
 }
