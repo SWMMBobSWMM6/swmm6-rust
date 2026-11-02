@@ -1,0 +1,6 @@
+[reaction_species] ; lower-case tag
+BULK A MG ; tail
+	[REACTION_QUALITY]junk
+GLOBAL A 2
+[ REACTION_TERMS ]
+k 1

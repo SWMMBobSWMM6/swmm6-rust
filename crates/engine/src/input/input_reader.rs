@@ -59,8 +59,15 @@ impl<'r> InputReader<'r> {
 
     pub fn read(&mut self, path: &[u8], ctx: &mut SimulationContext) -> bool {
         let p = crate::core::file_io::path_from_bytes(path);
-        let data = match std::fs::read(&p) {
-            Ok(d) => d,
+        // std::ifstream opens a directory (fopen "r" succeeds on Linux) and then reads
+        // nothing, so a directory is an empty deck, not ERROR 2: File::open behaves the
+        // same, and a failed read keeps what was read before it, as getline stops there.
+        let data = match std::fs::File::open(&p) {
+            Ok(mut f) => {
+                let mut d = Vec::new();
+                let _ = std::io::Read::read_to_end(&mut f, &mut d);
+                d
+            }
             Err(_) => {
                 ctx.error_code = 2; // public SWMM_ERR_INPFILE
                 let mut m = b"InputReader: cannot open file '".to_vec();

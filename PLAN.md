@@ -134,8 +134,9 @@ Each phase ends on a gate run. A deck enters the gate set when every section it 
 | Inflow, infra, LID node, quality, treatment types, 2D coupling data | InflowData, InfraData, LidNodeData, QualityData, Treatment.hpp, NodeCoupling2DData | compiles; sizing checked by the agents' scripts |
 | SWMM6-only data: heat, water age, ARD, bed zone, channel thermal, LID layer species, MSX surface, reactions, species registry, initial quality, forcing | the 13 headers | compiles |
 
-| Section handlers (every section DefaultInputPlugin registers in a 1D build) | input/handlers/*.cpp, DefaultInputPlugin's table | **parse gate: 612 decks (corpus, every upstream test deck, 40 synthetic), every store of the context identical** (`gate/ctxgate.sh ALL`) |
-| PostParseResolver (cross references, unit conversion, rain/series file loading incl. NWS formats), PathResolver, VirtualJunctionOps (what the resolver reaches), MsxInitialQuality | PostParseResolver.cpp and the rest | **resolve gate: 612 decks identical after resolve_cross_references** (`gate/ctxgate.sh ALL resolve`); path resolution 61,560 pairs; `%.10g` 20,040 doubles; sscanf 30,016 lines × 24 formats vs glibc |
+| Section handlers (every section DefaultInputPlugin registers in a 1D build) | input/handlers/*.cpp, DefaultInputPlugin's table | **parse gate: 667 decks (corpus, every upstream test deck, 94 synthetic), every store of the context identical** (`gate/ctxgate.sh ALL`) |
+| SWMMEngine class and open(): plugins, process components, reactions component (apply + expression compiler), heat, water age, ARD config, surface species resolve, gage setup | SWMMEngine.cpp open() and what it reaches | **open gate: 667 decks identical after swmm_engine_open in strict, lenient and metadata modes: the engine's own context and members, open codes, error text** (`gate/ctxgate.sh open [lenient\|metadata]`) |
+| PostParseResolver (cross references, unit conversion, rain/series file loading incl. NWS formats), PathResolver, VirtualJunctionOps (what the resolver reaches), MsxInitialQuality | PostParseResolver.cpp and the rest | **resolve gate: 667 decks identical after resolve_cross_references** (`gate/ctxgate.sh ALL resolve`); path resolution 61,560 pairs; `%.10g` 20,040 doubles; sscanf 30,016 lines × 24 formats vs glibc |
 | InputReader, SectionRegistry, SectionParser, Constants | the matching files | inside the parse gate |
 | C-library input calls (strtod, atof, atoi) | glibc | 486,499 strings identical to glibc |
 | External series files | TableData.cpp, MultiColumnSeriesFile | 138 files (82 real, 53 adversarial, 3 error cases), 62,175 lines |
@@ -152,4 +153,4 @@ Approach for the solver (phase 1b on): the reference library exports every C++ s
 
 
 1. TableData.cpp and MultiColumnSeriesFile (external series files) — in progress; then swap the stub in catchment_handler.rs.
-2. The rest of SWMMEngine::open (process components, msxsurf::resolve, the open-time validations). Gate: `gate/diff/ctxopen` dumps the reference engine's own context after swmm_engine_open (the C API handle is the SWMMEngine); the translation's open must dump the same.
+2. SWMMEngine::initialize (init_modules: hydraulics, hydrology, quality, geometry, mass balance) and start(). Gate: `ctxopen ... init` already runs swmm_engine_initialize upstream. Gate: `gate/diff/ctxopen` dumps the reference engine's own context after swmm_engine_open (the C API handle is the SWMMEngine); the translation's open must dump the same.

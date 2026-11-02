@@ -79,6 +79,8 @@ inline void dump(const openswmm::SimulationContext& c) {
   pi("lid_node_outlets[].layer", (long long)(e5.layer));
   pi("lid_node_outlets[].top", (long long)(e5.top));
   }
+  pi("state", (long long)(c.state));
+  vs("reported_species_names", c.reported_species_names);
   pi("tables.n", (long long)c.tables.tables.size());
   for (auto& t : c.tables.tables) { ps("table.id", t.id); pi("table.type", (long long)t.type); ps("table.comment", t.comment); vf("table.x", t.x); vf("table.y", t.y); pi("table.n_relative", t.n_relative); pf("table.rel_anchor", t.rel_anchor); pi("table.is_file", t.is_file_based); ps("table.file", t.file_path.original); ps("table.file.abs", t.file_path.absolute); }
   for (auto& h : c.unknown_section_headers) { ps("unknown_header", h.first); pi("unknown_header.line", h.second); }
@@ -1201,33 +1203,405 @@ inline void dump(const openswmm::SimulationContext& c) {
   ps("files.hotstart_use_path", std::string(c.files.hotstart_use_path));
   ps("files.hotstart_use_path.abs", (c.files.hotstart_use_path).absolute);
   sk("files.hotstart_saves");
-  pi("msx_rows.buildup.n", (long long)(c.reactions.surface.rows.buildup).size());
-  for (const auto& e48 : c.reactions.surface.rows.buildup) {
-  ps("msx_rows.buildup[].landuse", e48.landuse);
-  ps("msx_rows.buildup[].species", e48.species);
-  pi("msx_rows.buildup[].func_type", (long long)(e48.func_type));
-  pf("msx_rows.buildup[].c1", (double)(e48.c1));
-  pf("msx_rows.buildup[].c2", (double)(e48.c2));
-  pf("msx_rows.buildup[].c3", (double)(e48.c3));
-  ps("msx_rows.buildup[].ts_name", e48.ts_name);
-  pi("msx_rows.buildup[].normalizer", (long long)(e48.normalizer));
+  pi("reactions.solver", (long long)(c.reactions.solver));
+  pi("reactions.coupling", (long long)(c.reactions.coupling));
+  pi("reactions.rate_units", (long long)(c.reactions.rate_units));
+  pi("reactions.area_units", (long long)(c.reactions.area_units));
+  pi("reactions.wall_geometry", (long long)(c.reactions.wall_geometry));
+  pf("reactions.timestep", (double)(c.reactions.timestep));
+  pf("reactions.atol", (double)(c.reactions.atol));
+  pf("reactions.rtol", (double)(c.reactions.rtol));
+  pf("reactions.default_temp_c", (double)(c.reactions.default_temp_c));
+  pi("reactions.registry_base", (long long)(c.reactions.registry_base));
+  vs("reactions.species_name", c.reactions.species_name);
+  { std::vector<long long> t; for (auto x : c.reactions.species_is_wall) t.push_back((long long)x); vi("reactions.species_is_wall", t); }
+  vs("reactions.species_units", c.reactions.species_units);
+  { std::vector<double> t; for (auto x : c.reactions.species_atol) t.push_back((double)x); vf("reactions.species_atol", t); }
+  { std::vector<double> t; for (auto x : c.reactions.species_rtol) t.push_back((double)x); vf("reactions.species_rtol", t); }
+  vs("reactions.coef_name", c.reactions.coef_name);
+  { std::vector<long long> t; for (auto x : c.reactions.coef_is_param) t.push_back((long long)x); vi("reactions.coef_is_param", t); }
+  { std::vector<double> t; for (auto x : c.reactions.coef_value) t.push_back((double)x); vf("reactions.coef_value", t); }
+  pi("reactions.parameter_overrides.n", (long long)(c.reactions.parameter_overrides).size());
+  for (const auto& e48 : c.reactions.parameter_overrides) {
+  pi("reactions.parameter_overrides[].link", (long long)(e48.link));
+  pi("reactions.parameter_overrides[].element", (long long)(e48.element));
+  pi("reactions.parameter_overrides[].coefficient", (long long)(e48.coefficient));
+  pf("reactions.parameter_overrides[].value", (double)(e48.value));
   }
-  pi("msx_rows.washoff.n", (long long)(c.reactions.surface.rows.washoff).size());
-  for (const auto& e49 : c.reactions.surface.rows.washoff) {
-  ps("msx_rows.washoff[].landuse", e49.landuse);
-  ps("msx_rows.washoff[].species", e49.species);
-  pi("msx_rows.washoff[].func_type", (long long)(e49.func_type));
-  pf("msx_rows.washoff[].coeff", (double)(e49.coeff));
-  pf("msx_rows.washoff[].expon", (double)(e49.expon));
-  pf("msx_rows.washoff[].sweep_effic", (double)(e49.sweep_effic));
-  pf("msx_rows.washoff[].bmp_effic", (double)(e49.bmp_effic));
+  pi("reactions.wall_areas.n", (long long)(c.reactions.wall_areas).size());
+  for (const auto& e49 : c.reactions.wall_areas) {
+  pi("reactions.wall_areas[].link", (long long)(e49.link));
+  pi("reactions.wall_areas[].element", (long long)(e49.element));
+  pf("reactions.wall_areas[].area", (double)(e49.area));
   }
-  pi("msx_rows.loadings.n", (long long)(c.reactions.surface.rows.loadings).size());
-  for (const auto& e50 : c.reactions.surface.rows.loadings) {
-  ps("msx_rows.loadings[].subcatch", e50.subcatch);
-  ps("msx_rows.loadings[].species", e50.species);
-  pf("msx_rows.loadings[].value", (double)(e50.value));
+  { std::vector<long long> t; for (auto x : c.reactions.lid_controls) t.push_back((long long)x); vi("reactions.lid_controls", t); }
+  pi("reactions.lid_laws.n", (long long)(c.reactions.lid_laws).size());
+  for (const auto& e50 : c.reactions.lid_laws) {
+  pi("reactions.lid_laws[].control", (long long)(e50.control));
+  pi("reactions.lid_laws[].layer", (long long)(e50.layer));
+  pi("reactions.lid_laws[].species", (long long)(e50.species));
+  pi("reactions.lid_laws[].form", (long long)(e50.form));
+  ps("reactions.lid_laws[].expression", e50.expression);
+  pi("reactions.lid_laws[].compiled.begin", (long long)(e50.compiled.begin));
+  pi("reactions.lid_laws[].compiled.len", (long long)(e50.compiled.len));
   }
+  { std::vector<double> t; for (auto x : c.reactions.booster_mass) t.push_back((double)x); vf("reactions.booster_mass", t); }
+  pf("reactions.pattern_timestep", (double)(c.reactions.pattern_timestep));
+  pi("reactions.source_patterns.n", (long long)(c.reactions.source_patterns).size());
+  for (const auto& e51 : c.reactions.source_patterns) {
+  ps("reactions.source_patterns[].name", e51.name);
+  { std::vector<double> t; for (auto x : e51.factors) t.push_back((double)x); vf("reactions.source_patterns[].factors", t); }
+  }
+  pi("reactions.sources.n", (long long)(c.reactions.sources).size());
+  for (const auto& e52 : c.reactions.sources) {
+  pi("reactions.sources[].mass", (long long)(e52.mass));
+  pi("reactions.sources[].node", (long long)(e52.node));
+  pi("reactions.sources[].species", (long long)(e52.species));
+  pi("reactions.sources[].pattern", (long long)(e52.pattern));
+  pf("reactions.sources[].value", (double)(e52.value));
+  pi("reactions.sources[].booster", (long long)(e52.booster));
+  }
+  { std::vector<long long> t; for (auto x : c.reactions.report_enabled) t.push_back((long long)x); vi("reactions.report_enabled", t); }
+  { std::vector<long long> t; for (auto x : c.reactions.reported_species) t.push_back((long long)x); vi("reactions.reported_species", t); }
+  vs("reactions.term_name", c.reactions.term_name);
+  vs("reactions.term_expr_src", c.reactions.term_expr_src);
+  pi("reactions.subsurface_laws.n", (long long)(c.reactions.subsurface_laws).size());
+  for (const auto& e53 : c.reactions.subsurface_laws) {
+  pi("reactions.subsurface_laws[].scope", (long long)(e53.scope));
+  pi("reactions.subsurface_laws[].cell", (long long)(e53.cell));
+  pi("reactions.subsurface_laws[].zone", (long long)(e53.zone));
+  pi("reactions.subsurface_laws[].layer", (long long)(e53.layer));
+  pi("reactions.subsurface_laws[].species", (long long)(e53.species));
+  ps("reactions.subsurface_laws[].tag", e53.tag);
+  ps("reactions.subsurface_laws[].expression", e53.expression);
+  pi("reactions.subsurface_laws[].form", (long long)(e53.form));
+  pi("reactions.subsurface_laws[].compiled.begin", (long long)(e53.compiled.begin));
+  pi("reactions.subsurface_laws[].compiled.len", (long long)(e53.compiled.len));
+  }
+  { std::vector<long long> t; for (auto x : c.reactions.pipe_form) t.push_back((long long)x); vi("reactions.pipe_form", t); }
+  vs("reactions.pipe_expr_src", c.reactions.pipe_expr_src);
+  { std::vector<long long> t; for (auto x : c.reactions.tank_form) t.push_back((long long)x); vi("reactions.tank_form", t); }
+  vs("reactions.tank_expr_src", c.reactions.tank_expr_src);
+  pi("reactions.wet_laws.n", (long long)(c.reactions.wet_laws).size());
+  for (const auto& e54 : c.reactions.wet_laws) {
+  pi("reactions.wet_laws[].subcatchment", (long long)(e54.subcatchment));
+  pi("reactions.wet_laws[].landuse", (long long)(e54.landuse));
+  pi("reactions.wet_laws[].species", (long long)(e54.species));
+  pi("reactions.wet_laws[].form", (long long)(e54.form));
+  ps("reactions.wet_laws[].expression", e54.expression);
+  pi("reactions.wet_laws[].compiled.begin", (long long)(e54.compiled.begin));
+  pi("reactions.wet_laws[].compiled.len", (long long)(e54.compiled.len));
+  }
+  pi("reactions.buildup_laws.n", (long long)(c.reactions.buildup_laws).size());
+  for (const auto& e55 : c.reactions.buildup_laws) {
+  pi("reactions.buildup_laws[].subcatchment", (long long)(e55.subcatchment));
+  pi("reactions.buildup_laws[].landuse", (long long)(e55.landuse));
+  pi("reactions.buildup_laws[].species", (long long)(e55.species));
+  pi("reactions.buildup_laws[].form", (long long)(e55.form));
+  ps("reactions.buildup_laws[].expression", e55.expression);
+  pi("reactions.buildup_laws[].compiled.begin", (long long)(e55.compiled.begin));
+  pi("reactions.buildup_laws[].compiled.len", (long long)(e55.compiled.len));
+  }
+  { std::vector<long long> t; for (auto x : c.reactions.subcatch_form) t.push_back((long long)x); vi("reactions.subcatch_form", t); }
+  vs("reactions.subcatch_expr_src", c.reactions.subcatch_expr_src);
+  pi("reactions.subcatch_expr.n", (long long)(c.reactions.subcatch_expr).size());
+  for (const auto& e56 : c.reactions.subcatch_expr) {
+  pi("reactions.subcatch_expr[].begin", (long long)(e56.begin));
+  pi("reactions.subcatch_expr[].len", (long long)(e56.len));
+  }
+  { std::vector<double> t; for (auto x : c.reactions.init_global) t.push_back((double)x); vf("reactions.init_global", t); }
+  { std::vector<double> t; for (auto x : c.reactions.rain_conc) t.push_back((double)x); vf("reactions.rain_conc", t); }
+  { std::vector<long long> t; for (auto x : c.reactions.init_elem_is_link) t.push_back((long long)x); vi("reactions.init_elem_is_link", t); }
+  { std::vector<long long> t; for (auto x : c.reactions.init_elem_idx) t.push_back((long long)x); vi("reactions.init_elem_idx", t); }
+  { std::vector<long long> t; for (auto x : c.reactions.init_elem_species) t.push_back((long long)x); vi("reactions.init_elem_species", t); }
+  { std::vector<double> t; for (auto x : c.reactions.init_elem_value) t.push_back((double)x); vf("reactions.init_elem_value", t); }
+  pi("reactions.token_pool.n", (long long)(c.reactions.token_pool).size());
+  for (const auto& e57 : c.reactions.token_pool) {
+  pi("reactions.token_pool[].op", (long long)(e57.op));
+  pi("reactions.token_pool[].idx", (long long)(e57.idx));
+  pf("reactions.token_pool[].value", (double)(e57.value));
+  }
+  pi("reactions.term_expr.n", (long long)(c.reactions.term_expr).size());
+  for (const auto& e58 : c.reactions.term_expr) {
+  pi("reactions.term_expr[].begin", (long long)(e58.begin));
+  pi("reactions.term_expr[].len", (long long)(e58.len));
+  }
+  pi("reactions.pipe_expr.n", (long long)(c.reactions.pipe_expr).size());
+  for (const auto& e59 : c.reactions.pipe_expr) {
+  pi("reactions.pipe_expr[].begin", (long long)(e59.begin));
+  pi("reactions.pipe_expr[].len", (long long)(e59.len));
+  }
+  pi("reactions.tank_expr.n", (long long)(c.reactions.tank_expr).size());
+  for (const auto& e60 : c.reactions.tank_expr) {
+  pi("reactions.tank_expr[].begin", (long long)(e60.begin));
+  pi("reactions.tank_expr[].len", (long long)(e60.len));
+  }
+  pi("reactions.compiled", (long long)(c.reactions.compiled));
+  pi("reactions.warned_react_failure", (long long)(c.reactions.warned_react_failure));
+  pi("reactions.warned_negative_clamp", (long long)(c.reactions.warned_negative_clamp));
+  { std::vector<double> t; for (auto x : c.reactions.msx_node_conc) t.push_back((double)x); vf("reactions.msx_node_conc", t); }
+  { std::vector<double> t; for (auto x : c.reactions.msx_link_conc) t.push_back((double)x); vf("reactions.msx_link_conc", t); }
+  { std::vector<double> t; for (auto x : c.reactions.msx_ext_mass_in) t.push_back((double)x); vf("reactions.msx_ext_mass_in", t); }
+  { std::vector<double> t; for (auto x : c.reactions.msx_coupling_queue) t.push_back((double)x); vf("reactions.msx_coupling_queue", t); }
+  pi("reactions.msx_ledger.armed", (long long)(c.reactions.msx_ledger.armed));
+  { std::vector<double> t; for (auto x : c.reactions.msx_ledger.init) t.push_back((double)x); vf("reactions.msx_ledger.init", t); }
+  { std::vector<double> t; for (auto x : c.reactions.msx_ledger.inflow) t.push_back((double)x); vf("reactions.msx_ledger.inflow", t); }
+  { std::vector<double> t; for (auto x : c.reactions.msx_ledger.outflow) t.push_back((double)x); vf("reactions.msx_ledger.outflow", t); }
+  { std::vector<double> t; for (auto x : c.reactions.msx_ledger.flooding) t.push_back((double)x); vf("reactions.msx_ledger.flooding", t); }
+  { std::vector<double> t; for (auto x : c.reactions.msx_ledger.seepage) t.push_back((double)x); vf("reactions.msx_ledger.seepage", t); }
+  { std::vector<double> t; for (auto x : c.reactions.msx_ledger.reacted) t.push_back((double)x); vf("reactions.msx_ledger.reacted", t); }
+  { std::vector<double> t; for (auto x : c.reactions.msx_ledger.clamped) t.push_back((double)x); vf("reactions.msx_ledger.clamped", t); }
+  { std::vector<double> t; for (auto x : c.reactions.msx_ledger.final_dry) t.push_back((double)x); vf("reactions.msx_ledger.final_dry", t); }
+  pi("reactions.surface.rows.buildup.n", (long long)(c.reactions.surface.rows.buildup).size());
+  for (const auto& e61 : c.reactions.surface.rows.buildup) {
+  ps("reactions.surface.rows.buildup[].landuse", e61.landuse);
+  ps("reactions.surface.rows.buildup[].species", e61.species);
+  pi("reactions.surface.rows.buildup[].func_type", (long long)(e61.func_type));
+  pf("reactions.surface.rows.buildup[].c1", (double)(e61.c1));
+  pf("reactions.surface.rows.buildup[].c2", (double)(e61.c2));
+  pf("reactions.surface.rows.buildup[].c3", (double)(e61.c3));
+  ps("reactions.surface.rows.buildup[].ts_name", e61.ts_name);
+  pi("reactions.surface.rows.buildup[].normalizer", (long long)(e61.normalizer));
+  }
+  pi("reactions.surface.rows.washoff.n", (long long)(c.reactions.surface.rows.washoff).size());
+  for (const auto& e62 : c.reactions.surface.rows.washoff) {
+  ps("reactions.surface.rows.washoff[].landuse", e62.landuse);
+  ps("reactions.surface.rows.washoff[].species", e62.species);
+  pi("reactions.surface.rows.washoff[].func_type", (long long)(e62.func_type));
+  pf("reactions.surface.rows.washoff[].coeff", (double)(e62.coeff));
+  pf("reactions.surface.rows.washoff[].expon", (double)(e62.expon));
+  pf("reactions.surface.rows.washoff[].sweep_effic", (double)(e62.sweep_effic));
+  pf("reactions.surface.rows.washoff[].bmp_effic", (double)(e62.bmp_effic));
+  }
+  pi("reactions.surface.rows.loadings.n", (long long)(c.reactions.surface.rows.loadings).size());
+  for (const auto& e63 : c.reactions.surface.rows.loadings) {
+  ps("reactions.surface.rows.loadings[].subcatch", e63.subcatch);
+  ps("reactions.surface.rows.loadings[].species", e63.species);
+  pf("reactions.surface.rows.loadings[].value", (double)(e63.value));
+  }
+  pi("reactions.surface.n_landuses", (long long)(c.reactions.surface.n_landuses));
+  pi("reactions.surface.n_species", (long long)(c.reactions.surface.n_species));
+  pi("reactions.surface.n_subcatch", (long long)(c.reactions.surface.n_subcatch));
+  { std::vector<long long> t; for (auto x : c.reactions.surface.bu_type) t.push_back((long long)x); vi("reactions.surface.bu_type", t); }
+  { std::vector<double> t; for (auto x : c.reactions.surface.bu_c1) t.push_back((double)x); vf("reactions.surface.bu_c1", t); }
+  { std::vector<double> t; for (auto x : c.reactions.surface.bu_c2) t.push_back((double)x); vf("reactions.surface.bu_c2", t); }
+  { std::vector<double> t; for (auto x : c.reactions.surface.bu_c3) t.push_back((double)x); vf("reactions.surface.bu_c3", t); }
+  { std::vector<long long> t; for (auto x : c.reactions.surface.bu_normalizer) t.push_back((long long)x); vi("reactions.surface.bu_normalizer", t); }
+  { std::vector<double> t; for (auto x : c.reactions.surface.bu_max_days) t.push_back((double)x); vf("reactions.surface.bu_max_days", t); }
+  { std::vector<long long> t; for (auto x : c.reactions.surface.wo_type) t.push_back((long long)x); vi("reactions.surface.wo_type", t); }
+  { std::vector<double> t; for (auto x : c.reactions.surface.wo_coeff) t.push_back((double)x); vf("reactions.surface.wo_coeff", t); }
+  { std::vector<double> t; for (auto x : c.reactions.surface.wo_expon) t.push_back((double)x); vf("reactions.surface.wo_expon", t); }
+  { std::vector<double> t; for (auto x : c.reactions.surface.wo_sweep_effic) t.push_back((double)x); vf("reactions.surface.wo_sweep_effic", t); }
+  { std::vector<double> t; for (auto x : c.reactions.surface.wo_bmp_effic) t.push_back((double)x); vf("reactions.surface.wo_bmp_effic", t); }
+  { std::vector<double> t; for (auto x : c.reactions.surface.init_loading) t.push_back((double)x); vf("reactions.surface.init_loading", t); }
+  { std::vector<double> t; for (auto x : c.reactions.surface.mcf) t.push_back((double)x); vf("reactions.surface.mcf", t); }
+  { std::vector<double> t; for (auto x : c.reactions.surface.buildup) t.push_back((double)x); vf("reactions.surface.buildup", t); }
+  { std::vector<double> t; for (auto x : c.reactions.surface.washoff_conc) t.push_back((double)x); vf("reactions.surface.washoff_conc", t); }
+  { std::vector<double> t; for (auto x : c.reactions.surface.washoff_conc_old) t.push_back((double)x); vf("reactions.surface.washoff_conc_old", t); }
+  { std::vector<double> t; for (auto x : c.reactions.surface.ponded_qual) t.push_back((double)x); vf("reactions.surface.ponded_qual", t); }
+  { std::vector<double> t; for (auto x : c.reactions.surface.runon_qual_rate) t.push_back((double)x); vf("reactions.surface.runon_qual_rate", t); }
+  { std::vector<double> t; for (auto x : c.reactions.surface.c_rain) t.push_back((double)x); vf("reactions.surface.c_rain", t); }
+  { std::vector<long long> t; for (auto x : c.reactions.surface.snow_only) t.push_back((long long)x); vi("reactions.surface.snow_only", t); }
+  { std::vector<double> t; for (auto x : c.reactions.surface.lid_rmvl) t.push_back((double)x); vf("reactions.surface.lid_rmvl", t); }
+  { std::vector<double> t; for (auto x : c.reactions.surface.lid_drain_load) t.push_back((double)x); vf("reactions.surface.lid_drain_load", t); }
+  { std::vector<double> t; for (auto x : c.reactions.surface.lid_drain_load_old) t.push_back((double)x); vf("reactions.surface.lid_drain_load_old", t); }
+  { std::vector<double> t; for (auto x : c.reactions.surface.lid_drain_runon_load) t.push_back((double)x); vf("reactions.surface.lid_drain_runon_load", t); }
+  { std::vector<double> t; for (auto x : c.reactions.surface.led_init_buildup) t.push_back((double)x); vf("reactions.surface.led_init_buildup", t); }
+  { std::vector<double> t; for (auto x : c.reactions.surface.led_buildup) t.push_back((double)x); vf("reactions.surface.led_buildup", t); }
+  { std::vector<double> t; for (auto x : c.reactions.surface.led_runoff_load) t.push_back((double)x); vf("reactions.surface.led_runoff_load", t); }
+  { std::vector<double> t; for (auto x : c.reactions.surface.led_sweeping) t.push_back((double)x); vf("reactions.surface.led_sweeping", t); }
+  { std::vector<double> t; for (auto x : c.reactions.surface.led_bmp_removal) t.push_back((double)x); vf("reactions.surface.led_bmp_removal", t); }
+  { std::vector<double> t; for (auto x : c.reactions.surface.led_wet_deposition) t.push_back((double)x); vf("reactions.surface.led_wet_deposition", t); }
+  { std::vector<double> t; for (auto x : c.reactions.surface.led_infil_loss) t.push_back((double)x); vf("reactions.surface.led_infil_loss", t); }
+  { std::vector<double> t; for (auto x : c.reactions.surface.led_reacted) t.push_back((double)x); vf("reactions.surface.led_reacted", t); }
+  { std::vector<double> t; for (auto x : c.reactions.surface.led_reaction_clamped) t.push_back((double)x); vf("reactions.surface.led_reaction_clamped", t); }
+  { std::vector<double> t; for (auto x : c.reactions.surface.led_ponded_lost) t.push_back((double)x); vf("reactions.surface.led_ponded_lost", t); }
+  { std::vector<double> t; for (auto x : c.reactions.surface.led_subcatch_load) t.push_back((double)x); vf("reactions.surface.led_subcatch_load", t); }
+  pi("reactions.surface.resolved", (long long)(c.reactions.surface.resolved));
+  pi("reactions.configured", (long long)(c.reactions.configured));
+  pi("heat_config.configured", (long long)(c.heat_config.configured));
+  pi("heat_config.radiative_exchange", (long long)(c.heat_config.radiative_exchange));
+  pf("heat_config.radiative.shortwave_wm2", (double)(c.heat_config.radiative.shortwave_wm2));
+  pf("heat_config.radiative.albedo", (double)(c.heat_config.radiative.albedo));
+  pf("heat_config.radiative.shade_factor", (double)(c.heat_config.radiative.shade_factor));
+  pf("heat_config.radiative.sky_view", (double)(c.heat_config.radiative.sky_view));
+  pf("heat_config.radiative.emiss_water", (double)(c.heat_config.radiative.emiss_water));
+  pf("heat_config.radiative.emiss_landcover", (double)(c.heat_config.radiative.emiss_landcover));
+  pf("heat_config.radiative.atm_emiss_coeff", (double)(c.heat_config.radiative.atm_emiss_coeff));
+  pf("heat_config.radiative.lw_reflection", (double)(c.heat_config.radiative.lw_reflection));
+  pf("heat_config.radiative.landcover_temp", (double)(c.heat_config.radiative.landcover_temp));
+  pi("heat_config.radiative.sw_mode", (long long)(c.heat_config.radiative.sw_mode));
+  pi("heat_config.radiative.sw_ts_index", (long long)(c.heat_config.radiative.sw_ts_index));
+  pi("heat_config.surface_exchange", (long long)(c.heat_config.surface_exchange));
+  pi("heat_config.dry_temp_policy", (long long)(c.heat_config.dry_temp_policy));
+  pi("heat_config.layer_conduction", (long long)(c.heat_config.layer_conduction));
+  pf("heat_config.conduction.water_conductivity", (double)(c.heat_config.conduction.water_conductivity));
+  pf("heat_config.conduction.sed_conductivity", (double)(c.heat_config.conduction.sed_conductivity));
+  pf("heat_config.conduction.sed_density", (double)(c.heat_config.conduction.sed_density));
+  pf("heat_config.conduction.sed_specific_heat", (double)(c.heat_config.conduction.sed_specific_heat));
+  pi("heat_config.sediment_exchange", (long long)(c.heat_config.sediment_exchange));
+  pi("heat_config.sediment.mesh_ground", (long long)(c.heat_config.sediment.mesh_ground));
+  pi("heat_config.sediment.ground_source_configured", (long long)(c.heat_config.sediment.ground_source_configured));
+  pf("heat_config.sediment.mesh_porosity", (double)(c.heat_config.sediment.mesh_porosity));
+  pf("heat_config.sediment.thermal_diffusivity", (double)(c.heat_config.sediment.thermal_diffusivity));
+  pf("heat_config.sediment.solute_diffusivity", (double)(c.heat_config.sediment.solute_diffusivity));
+  pf("heat_config.sediment.bed_thickness", (double)(c.heat_config.sediment.bed_thickness));
+  pf("heat_config.sediment.ground_depth", (double)(c.heat_config.sediment.ground_depth));
+  pf("heat_config.sediment.ground_temp", (double)(c.heat_config.sediment.ground_temp));
+  pi("heat_config.sediment.has_ground_temp", (long long)(c.heat_config.sediment.has_ground_temp));
+  pi("heat_config.sediment.ground_ts_index", (long long)(c.heat_config.sediment.ground_ts_index));
+  pf("heat_config.sediment.hyporheic_velocity", (double)(c.heat_config.sediment.hyporheic_velocity));
+  pf("heat_config.sediment.sed_density", (double)(c.heat_config.sediment.sed_density));
+  pf("heat_config.sediment.sed_specific_heat", (double)(c.heat_config.sediment.sed_specific_heat));
+  pf("heat_config.sediment.initial_temp", (double)(c.heat_config.sediment.initial_temp));
+  pi("heat_config.sediment.has_initial_temp", (long long)(c.heat_config.sediment.has_initial_temp));
+  pi("heat_config.overrides.rows.n", (long long)(c.heat_config.overrides.rows).size());
+  for (const auto& e64 : c.heat_config.overrides.rows) {
+  pi("heat_config.overrides.rows[].attr", (long long)(e64.attr));
+  pi("heat_config.overrides.rows[].scope", (long long)(e64.scope));
+  ps("heat_config.overrides.rows[].name", e64.name);
+  pf("heat_config.overrides.rows[].value", (double)(e64.value));
+  }
+  pi("heat_config.overrides.rad_link.n", (long long)(c.heat_config.overrides.rad_link).size());
+  for (const auto& e65 : c.heat_config.overrides.rad_link) {
+  pf("heat_config.overrides.rad_link[].shortwave_wm2", (double)(e65.shortwave_wm2));
+  pf("heat_config.overrides.rad_link[].albedo", (double)(e65.albedo));
+  pf("heat_config.overrides.rad_link[].shade_factor", (double)(e65.shade_factor));
+  pf("heat_config.overrides.rad_link[].sky_view", (double)(e65.sky_view));
+  pf("heat_config.overrides.rad_link[].emiss_water", (double)(e65.emiss_water));
+  pf("heat_config.overrides.rad_link[].emiss_landcover", (double)(e65.emiss_landcover));
+  pf("heat_config.overrides.rad_link[].atm_emiss_coeff", (double)(e65.atm_emiss_coeff));
+  pf("heat_config.overrides.rad_link[].lw_reflection", (double)(e65.lw_reflection));
+  pf("heat_config.overrides.rad_link[].landcover_temp", (double)(e65.landcover_temp));
+  pi("heat_config.overrides.rad_link[].sw_mode", (long long)(e65.sw_mode));
+  pi("heat_config.overrides.rad_link[].sw_ts_index", (long long)(e65.sw_ts_index));
+  }
+  pi("heat_config.overrides.rad_node.n", (long long)(c.heat_config.overrides.rad_node).size());
+  for (const auto& e66 : c.heat_config.overrides.rad_node) {
+  pf("heat_config.overrides.rad_node[].shortwave_wm2", (double)(e66.shortwave_wm2));
+  pf("heat_config.overrides.rad_node[].albedo", (double)(e66.albedo));
+  pf("heat_config.overrides.rad_node[].shade_factor", (double)(e66.shade_factor));
+  pf("heat_config.overrides.rad_node[].sky_view", (double)(e66.sky_view));
+  pf("heat_config.overrides.rad_node[].emiss_water", (double)(e66.emiss_water));
+  pf("heat_config.overrides.rad_node[].emiss_landcover", (double)(e66.emiss_landcover));
+  pf("heat_config.overrides.rad_node[].atm_emiss_coeff", (double)(e66.atm_emiss_coeff));
+  pf("heat_config.overrides.rad_node[].lw_reflection", (double)(e66.lw_reflection));
+  pf("heat_config.overrides.rad_node[].landcover_temp", (double)(e66.landcover_temp));
+  pi("heat_config.overrides.rad_node[].sw_mode", (long long)(e66.sw_mode));
+  pi("heat_config.overrides.rad_node[].sw_ts_index", (long long)(e66.sw_ts_index));
+  }
+  pi("heat_config.overrides.sed_link.n", (long long)(c.heat_config.overrides.sed_link).size());
+  for (const auto& e67 : c.heat_config.overrides.sed_link) {
+  pi("heat_config.overrides.sed_link[].mesh_ground", (long long)(e67.mesh_ground));
+  pi("heat_config.overrides.sed_link[].ground_source_configured", (long long)(e67.ground_source_configured));
+  pf("heat_config.overrides.sed_link[].mesh_porosity", (double)(e67.mesh_porosity));
+  pf("heat_config.overrides.sed_link[].thermal_diffusivity", (double)(e67.thermal_diffusivity));
+  pf("heat_config.overrides.sed_link[].solute_diffusivity", (double)(e67.solute_diffusivity));
+  pf("heat_config.overrides.sed_link[].bed_thickness", (double)(e67.bed_thickness));
+  pf("heat_config.overrides.sed_link[].ground_depth", (double)(e67.ground_depth));
+  pf("heat_config.overrides.sed_link[].ground_temp", (double)(e67.ground_temp));
+  pi("heat_config.overrides.sed_link[].has_ground_temp", (long long)(e67.has_ground_temp));
+  pi("heat_config.overrides.sed_link[].ground_ts_index", (long long)(e67.ground_ts_index));
+  pf("heat_config.overrides.sed_link[].hyporheic_velocity", (double)(e67.hyporheic_velocity));
+  pf("heat_config.overrides.sed_link[].sed_density", (double)(e67.sed_density));
+  pf("heat_config.overrides.sed_link[].sed_specific_heat", (double)(e67.sed_specific_heat));
+  pf("heat_config.overrides.sed_link[].initial_temp", (double)(e67.initial_temp));
+  pi("heat_config.overrides.sed_link[].has_initial_temp", (long long)(e67.has_initial_temp));
+  }
+  pi("heat_config.overrides.rad_cell.n", (long long)(c.heat_config.overrides.rad_cell).size());
+  for (const auto& e68 : c.heat_config.overrides.rad_cell) {
+  pf("heat_config.overrides.rad_cell[].shortwave_wm2", (double)(e68.shortwave_wm2));
+  pf("heat_config.overrides.rad_cell[].albedo", (double)(e68.albedo));
+  pf("heat_config.overrides.rad_cell[].shade_factor", (double)(e68.shade_factor));
+  pf("heat_config.overrides.rad_cell[].sky_view", (double)(e68.sky_view));
+  pf("heat_config.overrides.rad_cell[].emiss_water", (double)(e68.emiss_water));
+  pf("heat_config.overrides.rad_cell[].emiss_landcover", (double)(e68.emiss_landcover));
+  pf("heat_config.overrides.rad_cell[].atm_emiss_coeff", (double)(e68.atm_emiss_coeff));
+  pf("heat_config.overrides.rad_cell[].lw_reflection", (double)(e68.lw_reflection));
+  pf("heat_config.overrides.rad_cell[].landcover_temp", (double)(e68.landcover_temp));
+  pi("heat_config.overrides.rad_cell[].sw_mode", (long long)(e68.sw_mode));
+  pi("heat_config.overrides.rad_cell[].sw_ts_index", (long long)(e68.sw_ts_index));
+  }
+  pi("heat_config.overrides.sed_cell.n", (long long)(c.heat_config.overrides.sed_cell).size());
+  for (const auto& e69 : c.heat_config.overrides.sed_cell) {
+  pi("heat_config.overrides.sed_cell[].mesh_ground", (long long)(e69.mesh_ground));
+  pi("heat_config.overrides.sed_cell[].ground_source_configured", (long long)(e69.ground_source_configured));
+  pf("heat_config.overrides.sed_cell[].mesh_porosity", (double)(e69.mesh_porosity));
+  pf("heat_config.overrides.sed_cell[].thermal_diffusivity", (double)(e69.thermal_diffusivity));
+  pf("heat_config.overrides.sed_cell[].solute_diffusivity", (double)(e69.solute_diffusivity));
+  pf("heat_config.overrides.sed_cell[].bed_thickness", (double)(e69.bed_thickness));
+  pf("heat_config.overrides.sed_cell[].ground_depth", (double)(e69.ground_depth));
+  pf("heat_config.overrides.sed_cell[].ground_temp", (double)(e69.ground_temp));
+  pi("heat_config.overrides.sed_cell[].has_ground_temp", (long long)(e69.has_ground_temp));
+  pi("heat_config.overrides.sed_cell[].ground_ts_index", (long long)(e69.ground_ts_index));
+  pf("heat_config.overrides.sed_cell[].hyporheic_velocity", (double)(e69.hyporheic_velocity));
+  pf("heat_config.overrides.sed_cell[].sed_density", (double)(e69.sed_density));
+  pf("heat_config.overrides.sed_cell[].sed_specific_heat", (double)(e69.sed_specific_heat));
+  pf("heat_config.overrides.sed_cell[].initial_temp", (double)(e69.initial_temp));
+  pi("heat_config.overrides.sed_cell[].has_initial_temp", (long long)(e69.has_initial_temp));
+  }
+  pi("heat_config.overrides.resolved", (long long)(c.heat_config.overrides.resolved));
+  pf("heat_config.solar.latitude_deg", (double)(c.heat_config.solar.latitude_deg));
+  pf("heat_config.solar.longitude_deg", (double)(c.heat_config.solar.longitude_deg));
+  pf("heat_config.solar.timezone_hours", (double)(c.heat_config.solar.timezone_hours));
+  pi("heat_config.solar.has_latitude", (long long)(c.heat_config.solar.has_latitude));
+  pi("heat_config.solar.has_longitude", (long long)(c.heat_config.solar.has_longitude));
+  pi("heat_config.solar.has_timezone", (long long)(c.heat_config.solar.has_timezone));
+  pf("heat_config.solar.elevation_m", (double)(c.heat_config.solar.elevation_m));
+  pi("heat_config.solar.has_elevation", (long long)(c.heat_config.solar.has_elevation));
+  pf("heat_config.solar.aod380", (double)(c.heat_config.solar.aod380));
+  pf("heat_config.solar.aod500", (double)(c.heat_config.solar.aod500));
+  pf("heat_config.solar.precip_water_cm", (double)(c.heat_config.solar.precip_water_cm));
+  pf("heat_config.solar.ozone_cm", (double)(c.heat_config.solar.ozone_cm));
+  pf("heat_config.solar.ground_albedo", (double)(c.heat_config.solar.ground_albedo));
+  pi("heat_config.cloud.configured", (long long)(c.heat_config.cloud.configured));
+  pi("heat_config.cloud.use_timeseries", (long long)(c.heat_config.cloud.use_timeseries));
+  pi("heat_config.cloud.ts_index", (long long)(c.heat_config.cloud.ts_index));
+  pf("heat_config.cloud.fraction", (double)(c.heat_config.cloud.fraction));
+  pf("heat_config.cloud.sw_atten_k", (double)(c.heat_config.cloud.sw_atten_k));
+  pf("heat_config.cloud.sw_atten_n", (double)(c.heat_config.cloud.sw_atten_n));
+  pf("heat_config.cloud.lw_cloud_k", (double)(c.heat_config.cloud.lw_cloud_k));
+  { std::vector<long long> t; for (auto x : c.heat_config.node_over_source) t.push_back((long long)x); vi("heat_config.node_over_source", t); }
+  { std::vector<long long> t; for (auto x : c.heat_config.node_over_node) t.push_back((long long)x); vi("heat_config.node_over_node", t); }
+  { std::vector<double> t; for (auto x : c.heat_config.node_over_temp) t.push_back((double)x); vf("heat_config.node_over_temp", t); }
+  pi("ard_config.configured", (long long)(c.ard_config.configured));
+  pi("ard_config.dispersion_mode", (long long)(c.ard_config.dispersion_mode));
+  pf("ard_config.dispersion_value", (double)(c.ard_config.dispersion_value));
+  { std::vector<long long> t; for (auto x : c.ard_config.conduit_disp_link) t.push_back((long long)x); vi("ard_config.conduit_disp_link", t); }
+  { std::vector<double> t; for (auto x : c.ard_config.conduit_disp_value) t.push_back((double)x); vf("ard_config.conduit_disp_value", t); }
+  pi("ard_config.boundary_rows.n", (long long)(c.ard_config.boundary_rows).size());
+  for (const auto& e70 : c.ard_config.boundary_rows) {
+  ps("ard_config.boundary_rows[].element", e70.element);
+  ps("ard_config.boundary_rows[].species", e70.species);
+  pi("ard_config.boundary_rows[].is_ts", (long long)(e70.is_ts));
+  pf("ard_config.boundary_rows[].value", (double)(e70.value));
+  ps("ard_config.boundary_rows[].ts_name", e70.ts_name);
+  }
+  pi("ard_config.source_rows.n", (long long)(c.ard_config.source_rows).size());
+  for (const auto& e71 : c.ard_config.source_rows) {
+  ps("ard_config.source_rows[].element", e71.element);
+  ps("ard_config.source_rows[].species", e71.species);
+  pi("ard_config.source_rows[].is_ts", (long long)(e71.is_ts));
+  pf("ard_config.source_rows[].value", (double)(e71.value));
+  ps("ard_config.source_rows[].ts_name", e71.ts_name);
+  }
+  { std::vector<long long> t; for (auto x : c.ard_config.bc_node) t.push_back((long long)x); vi("ard_config.bc_node", t); }
+  { std::vector<long long> t; for (auto x : c.ard_config.bc_msx) t.push_back((long long)x); vi("ard_config.bc_msx", t); }
+  { std::vector<double> t; for (auto x : c.ard_config.bc_value) t.push_back((double)x); vf("ard_config.bc_value", t); }
+  { std::vector<long long> t; for (auto x : c.ard_config.bc_ts) t.push_back((long long)x); vi("ard_config.bc_ts", t); }
+  { std::vector<long long> t; for (auto x : c.ard_config.src_link) t.push_back((long long)x); vi("ard_config.src_link", t); }
+  { std::vector<long long> t; for (auto x : c.ard_config.src_msx) t.push_back((long long)x); vi("ard_config.src_msx", t); }
+  { std::vector<double> t; for (auto x : c.ard_config.src_value) t.push_back((double)x); vf("ard_config.src_value", t); }
+  { std::vector<long long> t; for (auto x : c.ard_config.src_ts) t.push_back((long long)x); vi("ard_config.src_ts", t); }
+  pi("ard_config.transport_rows_resolved", (long long)(c.ard_config.transport_rows_resolved));
+  pf("ard_config.target_dx", (double)(c.ard_config.target_dx));
+  pi("ard_config.sets_scalar_scheme", (long long)(c.ard_config.sets_scalar_scheme));
+  pi("ard_config.sets_limiter", (long long)(c.ard_config.sets_limiter));
+  ps("ard_config.detailed_output_path", c.ard_config.detailed_output_path);
+  pi("water_age_config.configured", (long long)(c.water_age_config.configured));
+  { std::vector<long long> t; for (auto x : c.water_age_config.node_over_source) t.push_back((long long)x); vi("water_age_config.node_over_source", t); }
+  { std::vector<long long> t; for (auto x : c.water_age_config.node_over_node) t.push_back((long long)x); vi("water_age_config.node_over_node", t); }
+  { std::vector<double> t; for (auto x : c.water_age_config.node_over_age) t.push_back((double)x); vf("water_age_config.node_over_age", t); }
   { std::vector<long long> t; for (auto x : c.initial_quality.is_link) t.push_back((long long)x); vi("initial_quality.is_link", t); }
   vs("initial_quality.elem_name", c.initial_quality.elem_name);
   { std::vector<long long> t; for (auto x : c.initial_quality.elem_idx) t.push_back((long long)x); vi("initial_quality.elem_idx", t); }
@@ -1239,10 +1613,10 @@ inline void dump(const openswmm::SimulationContext& c) {
   { std::vector<long long> t; for (auto x : c.node_coupling_2d.node) t.push_back((long long)x); vi("node_coupling_2d.node", t); }
   { std::vector<long long> t; for (auto x : c.node_coupling_2d.type) t.push_back((long long)x); vi("node_coupling_2d.type", t); }
   pi("node_coupling_2d.params.n", (long long)(c.node_coupling_2d.params).size());
-  for (const auto& e51 : c.node_coupling_2d.params) {
-  pi("node_coupling_2d.params[].n", (long long)(e51).size());
-  for (const auto& e52 : e51) {
-  pf("node_coupling_2d.params[][]", (double)(e52));
+  for (const auto& e72 : c.node_coupling_2d.params) {
+  pi("node_coupling_2d.params[].n", (long long)(e72).size());
+  for (const auto& e73 : e72) {
+  pf("node_coupling_2d.params[][]", (double)(e73));
   }
   }
   pi("transect_tables.n", (long long)c.transect_tables.size());
@@ -1279,9 +1653,49 @@ inline void dump(const openswmm::SimulationContext& c) {
   }
   }
   pi("met.n", (long long)c.snowpacks.meteorology.records().size()); for (auto& r : c.snowpacks.meteorology.records()) { pf("met.date", r.date); for (double v : r.values) pf("met.value", v); }
-  { std::vector<long long> t; for (auto x : c.reactions.init_elem_is_link) t.push_back((long long)x); vi("reactions.init_elem_is_link", t); }
-  { std::vector<long long> t; for (auto x : c.reactions.init_elem_idx) t.push_back((long long)x); vi("reactions.init_elem_idx", t); }
-  { std::vector<long long> t; for (auto x : c.reactions.init_elem_species) t.push_back((long long)x); vi("reactions.init_elem_species", t); }
-  { std::vector<double> t; for (auto x : c.reactions.init_elem_value) t.push_back((double)x); vf("reactions.init_elem_value", t); }
+  pi("species.n", c.species_registry.count()); pi("species.pollutants", c.species_registry.pollutant_count()); for (int i = 0; i < c.species_registry.count(); ++i) { ps("species.name", c.species_registry.name(i)); pi("species.kind", (long long)c.species_registry.kind(i)); ps("species.units", c.species_registry.units(i)); }
 }
 } // namespace ctxdump
+#ifdef CTXDUMP_ENGINE
+#include "core/SWMMEngine.hpp"
+#include "plugins/DefaultInputPlugin.hpp"
+#include "plugins/DefaultOutputPlugin.hpp"
+#include "plugins/DefaultReportPlugin.hpp"
+#include "plugins/DefaultStateIOPlugin.hpp"
+namespace ctxdump_access {
+template <typename Tag, typename Tag::type M> struct Rob { friend typename Tag::type get(Tag) { return M; } };
+struct T_lenient_open_ { typedef bool openswmm::SWMMEngine::*type; friend type get(T_lenient_open_); };
+template struct Rob<T_lenient_open_, &openswmm::SWMMEngine::lenient_open_>;
+struct T_metadata_only_ { typedef bool openswmm::SWMMEngine::*type; friend type get(T_metadata_only_); };
+template struct Rob<T_metadata_only_, &openswmm::SWMMEngine::metadata_only_>;
+struct T_rpt_path_ { typedef std::string openswmm::SWMMEngine::*type; friend type get(T_rpt_path_); };
+template struct Rob<T_rpt_path_, &openswmm::SWMMEngine::rpt_path_>;
+struct T_out_path_ { typedef std::string openswmm::SWMMEngine::*type; friend type get(T_out_path_); };
+template struct Rob<T_out_path_, &openswmm::SWMMEngine::out_path_>;
+struct T_DefaultOutputPlugin_out_path_ { typedef std::string openswmm::DefaultOutputPlugin::*type; friend type get(T_DefaultOutputPlugin_out_path_); };
+template struct Rob<T_DefaultOutputPlugin_out_path_, &openswmm::DefaultOutputPlugin::out_path_>;
+struct T_DefaultReportPlugin_rpt_path_ { typedef std::string openswmm::DefaultReportPlugin::*type; friend type get(T_DefaultReportPlugin_rpt_path_); };
+template struct Rob<T_DefaultReportPlugin_rpt_path_, &openswmm::DefaultReportPlugin::rpt_path_>;
+struct T_binary_output_plugin_ { typedef openswmm::DefaultOutputPlugin* openswmm::SWMMEngine::*type; friend type get(T_binary_output_plugin_); };
+template struct Rob<T_binary_output_plugin_, &openswmm::SWMMEngine::binary_output_plugin_>;
+} // namespace ctxdump_access
+namespace ctxdump {
+inline void engdump(openswmm::SWMMEngine& e) {
+  using namespace ctxdump_access;
+  pi("engine.lenient_open_", (long long)((e.*get(T_lenient_open_()))));
+  pi("engine.metadata_only_", (long long)((e.*get(T_metadata_only_()))));
+  ps("engine.rpt_path_", (e.*get(T_rpt_path_())));
+  ps("engine.out_path_", (e.*get(T_out_path_())));
+  const auto& pf = e.plugin_factory();
+  pi("engine.plugins.input.n", (long long)pf.input_plugins().size());
+  for (auto* p : pf.input_plugins()) { pi("engine.plugins.input.state", (long long)p->state()); auto* d = dynamic_cast<openswmm::DefaultInputPlugin*>(p); pi("engine.plugins.input.default", d != nullptr); if (d) { vs("engine.plugins.input.skipped", d->skipped_sections()); ps("engine.plugins.input.last_error", d->last_error_message()); } }
+  pi("engine.plugins.output.n", (long long)pf.output_plugins().size());
+  for (auto* p : pf.output_plugins()) { pi("engine.plugins.output.state", (long long)p->state()); auto* d = dynamic_cast<openswmm::DefaultOutputPlugin*>(p); pi("engine.plugins.output.default", d != nullptr); if (d) ps("engine.plugins.output.path", d->*get(T_DefaultOutputPlugin_out_path_())); }
+  pi("engine.plugins.report.n", (long long)pf.report_plugins().size());
+  for (auto* p : pf.report_plugins()) { pi("engine.plugins.report.state", (long long)p->state()); auto* d = dynamic_cast<openswmm::DefaultReportPlugin*>(p); pi("engine.plugins.report.default", d != nullptr); if (d) ps("engine.plugins.report.path", d->*get(T_DefaultReportPlugin_rpt_path_())); }
+  pi("engine.plugins.state_io.n", (long long)pf.state_io_plugins().size());
+  for (auto* p : pf.state_io_plugins()) { pi("engine.plugins.state_io.state", (long long)p->state()); pi("engine.plugins.state_io.default", dynamic_cast<openswmm::DefaultStateIOPlugin*>(p) != nullptr); }
+  { long long k = -1; for (std::size_t i = 0; i < pf.output_plugins().size(); ++i) if (pf.output_plugins()[i] == e.*get(T_binary_output_plugin_())) k = (long long)i; pi("engine.binary_output_plugin_", k); }
+}
+} // namespace ctxdump
+#endif // CTXDUMP_ENGINE

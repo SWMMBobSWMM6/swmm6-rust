@@ -75,6 +75,8 @@ pub fn dump(c: &SimulationContext) -> Vec<u8> {
     pi(o, "lid_node_outlets[].layer", ((*e5).layer) as i64);
     pi(o, "lid_node_outlets[].top", ((*e5).top) as i64);
     }
+    pi(o, "state", (c.state) as i64);
+    vs(o, "reported_species_names", &c.reported_species_names);
     pi(o, "tables.n", c.tables.tables.len() as i64);
     for t in &c.tables.tables { ps(o, "table.id", &t.id); pi(o, "table.type", t.type_ as i64); ps(o, "table.comment", &t.comment); vf(o, "table.x", &t.x); vf(o, "table.y", &t.y); pi(o, "table.n_relative", t.n_relative as i64); pf(o, "table.rel_anchor", t.rel_anchor); pi(o, "table.is_file", t.is_file_based as i64); ps(o, "table.file", &t.file_path.original); ps(o, "table.file.abs", &t.file_path.absolute); }
     for h in &c.unknown_section_headers { ps(o, "unknown_header", &h.0); pi(o, "unknown_header.line", h.1); }
@@ -1197,33 +1199,405 @@ pub fn dump(c: &SimulationContext) -> Vec<u8> {
     ps(o, "files.hotstart_use_path", &(c.files.hotstart_use_path).original);
     ps(o, "files.hotstart_use_path.abs", &(c.files.hotstart_use_path).absolute);
     sk(o, "files.hotstart_saves");
-    pi(o, "msx_rows.buildup.n", (c.reactions.surface.rows.buildup).len() as i64);
-    for e48 in (c.reactions.surface.rows.buildup).iter() {
-    ps(o, "msx_rows.buildup[].landuse", &(*e48).landuse);
-    ps(o, "msx_rows.buildup[].species", &(*e48).species);
-    pi(o, "msx_rows.buildup[].func_type", ((*e48).func_type) as i64);
-    pf(o, "msx_rows.buildup[].c1", ((*e48).c1) as f64);
-    pf(o, "msx_rows.buildup[].c2", ((*e48).c2) as f64);
-    pf(o, "msx_rows.buildup[].c3", ((*e48).c3) as f64);
-    ps(o, "msx_rows.buildup[].ts_name", &(*e48).ts_name);
-    pi(o, "msx_rows.buildup[].normalizer", ((*e48).normalizer) as i64);
+    pi(o, "reactions.solver", (c.reactions.solver) as i64);
+    pi(o, "reactions.coupling", (c.reactions.coupling) as i64);
+    pi(o, "reactions.rate_units", (c.reactions.rate_units) as i64);
+    pi(o, "reactions.area_units", (c.reactions.area_units) as i64);
+    pi(o, "reactions.wall_geometry", (c.reactions.wall_geometry) as i64);
+    pf(o, "reactions.timestep", (c.reactions.timestep) as f64);
+    pf(o, "reactions.atol", (c.reactions.atol) as f64);
+    pf(o, "reactions.rtol", (c.reactions.rtol) as f64);
+    pf(o, "reactions.default_temp_c", (c.reactions.default_temp_c) as f64);
+    pi(o, "reactions.registry_base", (c.reactions.registry_base) as i64);
+    vs(o, "reactions.species_name", &c.reactions.species_name);
+    vi(o, "reactions.species_is_wall", &(c.reactions.species_is_wall).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vs(o, "reactions.species_units", &c.reactions.species_units);
+    vf(o, "reactions.species_atol", &(c.reactions.species_atol).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.species_rtol", &(c.reactions.species_rtol).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vs(o, "reactions.coef_name", &c.reactions.coef_name);
+    vi(o, "reactions.coef_is_param", &(c.reactions.coef_is_param).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "reactions.coef_value", &(c.reactions.coef_value).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pi(o, "reactions.parameter_overrides.n", (c.reactions.parameter_overrides).len() as i64);
+    for e48 in (c.reactions.parameter_overrides).iter() {
+    pi(o, "reactions.parameter_overrides[].link", ((*e48).link) as i64);
+    pi(o, "reactions.parameter_overrides[].element", ((*e48).element) as i64);
+    pi(o, "reactions.parameter_overrides[].coefficient", ((*e48).coefficient) as i64);
+    pf(o, "reactions.parameter_overrides[].value", ((*e48).value) as f64);
     }
-    pi(o, "msx_rows.washoff.n", (c.reactions.surface.rows.washoff).len() as i64);
-    for e49 in (c.reactions.surface.rows.washoff).iter() {
-    ps(o, "msx_rows.washoff[].landuse", &(*e49).landuse);
-    ps(o, "msx_rows.washoff[].species", &(*e49).species);
-    pi(o, "msx_rows.washoff[].func_type", ((*e49).func_type) as i64);
-    pf(o, "msx_rows.washoff[].coeff", ((*e49).coeff) as f64);
-    pf(o, "msx_rows.washoff[].expon", ((*e49).expon) as f64);
-    pf(o, "msx_rows.washoff[].sweep_effic", ((*e49).sweep_effic) as f64);
-    pf(o, "msx_rows.washoff[].bmp_effic", ((*e49).bmp_effic) as f64);
+    pi(o, "reactions.wall_areas.n", (c.reactions.wall_areas).len() as i64);
+    for e49 in (c.reactions.wall_areas).iter() {
+    pi(o, "reactions.wall_areas[].link", ((*e49).link) as i64);
+    pi(o, "reactions.wall_areas[].element", ((*e49).element) as i64);
+    pf(o, "reactions.wall_areas[].area", ((*e49).area) as f64);
     }
-    pi(o, "msx_rows.loadings.n", (c.reactions.surface.rows.loadings).len() as i64);
-    for e50 in (c.reactions.surface.rows.loadings).iter() {
-    ps(o, "msx_rows.loadings[].subcatch", &(*e50).subcatch);
-    ps(o, "msx_rows.loadings[].species", &(*e50).species);
-    pf(o, "msx_rows.loadings[].value", ((*e50).value) as f64);
+    vi(o, "reactions.lid_controls", &(c.reactions.lid_controls).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    pi(o, "reactions.lid_laws.n", (c.reactions.lid_laws).len() as i64);
+    for e50 in (c.reactions.lid_laws).iter() {
+    pi(o, "reactions.lid_laws[].control", ((*e50).control) as i64);
+    pi(o, "reactions.lid_laws[].layer", ((*e50).layer) as i64);
+    pi(o, "reactions.lid_laws[].species", ((*e50).species) as i64);
+    pi(o, "reactions.lid_laws[].form", ((*e50).form) as i64);
+    ps(o, "reactions.lid_laws[].expression", &(*e50).expression);
+    pi(o, "reactions.lid_laws[].compiled.begin", ((*e50).compiled.begin) as i64);
+    pi(o, "reactions.lid_laws[].compiled.len", ((*e50).compiled.len) as i64);
     }
+    vf(o, "reactions.booster_mass", &(c.reactions.booster_mass).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pf(o, "reactions.pattern_timestep", (c.reactions.pattern_timestep) as f64);
+    pi(o, "reactions.source_patterns.n", (c.reactions.source_patterns).len() as i64);
+    for e51 in (c.reactions.source_patterns).iter() {
+    ps(o, "reactions.source_patterns[].name", &(*e51).name);
+    vf(o, "reactions.source_patterns[].factors", &((*e51).factors).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    }
+    pi(o, "reactions.sources.n", (c.reactions.sources).len() as i64);
+    for e52 in (c.reactions.sources).iter() {
+    pi(o, "reactions.sources[].mass", ((*e52).mass) as i64);
+    pi(o, "reactions.sources[].node", ((*e52).node) as i64);
+    pi(o, "reactions.sources[].species", ((*e52).species) as i64);
+    pi(o, "reactions.sources[].pattern", ((*e52).pattern) as i64);
+    pf(o, "reactions.sources[].value", ((*e52).value) as f64);
+    pi(o, "reactions.sources[].booster", ((*e52).booster) as i64);
+    }
+    vi(o, "reactions.report_enabled", &(c.reactions.report_enabled).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "reactions.reported_species", &(c.reactions.reported_species).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vs(o, "reactions.term_name", &c.reactions.term_name);
+    vs(o, "reactions.term_expr_src", &c.reactions.term_expr_src);
+    pi(o, "reactions.subsurface_laws.n", (c.reactions.subsurface_laws).len() as i64);
+    for e53 in (c.reactions.subsurface_laws).iter() {
+    pi(o, "reactions.subsurface_laws[].scope", ((*e53).scope) as i64);
+    pi(o, "reactions.subsurface_laws[].cell", ((*e53).cell) as i64);
+    pi(o, "reactions.subsurface_laws[].zone", ((*e53).zone) as i64);
+    pi(o, "reactions.subsurface_laws[].layer", ((*e53).layer) as i64);
+    pi(o, "reactions.subsurface_laws[].species", ((*e53).species) as i64);
+    ps(o, "reactions.subsurface_laws[].tag", &(*e53).tag);
+    ps(o, "reactions.subsurface_laws[].expression", &(*e53).expression);
+    pi(o, "reactions.subsurface_laws[].form", ((*e53).form) as i64);
+    pi(o, "reactions.subsurface_laws[].compiled.begin", ((*e53).compiled.begin) as i64);
+    pi(o, "reactions.subsurface_laws[].compiled.len", ((*e53).compiled.len) as i64);
+    }
+    vi(o, "reactions.pipe_form", &(c.reactions.pipe_form).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vs(o, "reactions.pipe_expr_src", &c.reactions.pipe_expr_src);
+    vi(o, "reactions.tank_form", &(c.reactions.tank_form).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vs(o, "reactions.tank_expr_src", &c.reactions.tank_expr_src);
+    pi(o, "reactions.wet_laws.n", (c.reactions.wet_laws).len() as i64);
+    for e54 in (c.reactions.wet_laws).iter() {
+    pi(o, "reactions.wet_laws[].subcatchment", ((*e54).subcatchment) as i64);
+    pi(o, "reactions.wet_laws[].landuse", ((*e54).landuse) as i64);
+    pi(o, "reactions.wet_laws[].species", ((*e54).species) as i64);
+    pi(o, "reactions.wet_laws[].form", ((*e54).form) as i64);
+    ps(o, "reactions.wet_laws[].expression", &(*e54).expression);
+    pi(o, "reactions.wet_laws[].compiled.begin", ((*e54).compiled.begin) as i64);
+    pi(o, "reactions.wet_laws[].compiled.len", ((*e54).compiled.len) as i64);
+    }
+    pi(o, "reactions.buildup_laws.n", (c.reactions.buildup_laws).len() as i64);
+    for e55 in (c.reactions.buildup_laws).iter() {
+    pi(o, "reactions.buildup_laws[].subcatchment", ((*e55).subcatchment) as i64);
+    pi(o, "reactions.buildup_laws[].landuse", ((*e55).landuse) as i64);
+    pi(o, "reactions.buildup_laws[].species", ((*e55).species) as i64);
+    pi(o, "reactions.buildup_laws[].form", ((*e55).form) as i64);
+    ps(o, "reactions.buildup_laws[].expression", &(*e55).expression);
+    pi(o, "reactions.buildup_laws[].compiled.begin", ((*e55).compiled.begin) as i64);
+    pi(o, "reactions.buildup_laws[].compiled.len", ((*e55).compiled.len) as i64);
+    }
+    vi(o, "reactions.subcatch_form", &(c.reactions.subcatch_form).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vs(o, "reactions.subcatch_expr_src", &c.reactions.subcatch_expr_src);
+    pi(o, "reactions.subcatch_expr.n", (c.reactions.subcatch_expr).len() as i64);
+    for e56 in (c.reactions.subcatch_expr).iter() {
+    pi(o, "reactions.subcatch_expr[].begin", ((*e56).begin) as i64);
+    pi(o, "reactions.subcatch_expr[].len", ((*e56).len) as i64);
+    }
+    vf(o, "reactions.init_global", &(c.reactions.init_global).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.rain_conc", &(c.reactions.rain_conc).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vi(o, "reactions.init_elem_is_link", &(c.reactions.init_elem_is_link).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "reactions.init_elem_idx", &(c.reactions.init_elem_idx).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "reactions.init_elem_species", &(c.reactions.init_elem_species).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "reactions.init_elem_value", &(c.reactions.init_elem_value).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pi(o, "reactions.token_pool.n", (c.reactions.token_pool).len() as i64);
+    for e57 in (c.reactions.token_pool).iter() {
+    pi(o, "reactions.token_pool[].op", ((*e57).op) as i64);
+    pi(o, "reactions.token_pool[].idx", ((*e57).idx) as i64);
+    pf(o, "reactions.token_pool[].value", ((*e57).value) as f64);
+    }
+    pi(o, "reactions.term_expr.n", (c.reactions.term_expr).len() as i64);
+    for e58 in (c.reactions.term_expr).iter() {
+    pi(o, "reactions.term_expr[].begin", ((*e58).begin) as i64);
+    pi(o, "reactions.term_expr[].len", ((*e58).len) as i64);
+    }
+    pi(o, "reactions.pipe_expr.n", (c.reactions.pipe_expr).len() as i64);
+    for e59 in (c.reactions.pipe_expr).iter() {
+    pi(o, "reactions.pipe_expr[].begin", ((*e59).begin) as i64);
+    pi(o, "reactions.pipe_expr[].len", ((*e59).len) as i64);
+    }
+    pi(o, "reactions.tank_expr.n", (c.reactions.tank_expr).len() as i64);
+    for e60 in (c.reactions.tank_expr).iter() {
+    pi(o, "reactions.tank_expr[].begin", ((*e60).begin) as i64);
+    pi(o, "reactions.tank_expr[].len", ((*e60).len) as i64);
+    }
+    pi(o, "reactions.compiled", (c.reactions.compiled) as i64);
+    pi(o, "reactions.warned_react_failure", (c.reactions.warned_react_failure) as i64);
+    pi(o, "reactions.warned_negative_clamp", (c.reactions.warned_negative_clamp) as i64);
+    vf(o, "reactions.msx_node_conc", &(c.reactions.msx_node_conc).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.msx_link_conc", &(c.reactions.msx_link_conc).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.msx_ext_mass_in", &(c.reactions.msx_ext_mass_in).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.msx_coupling_queue", &(c.reactions.msx_coupling_queue).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pi(o, "reactions.msx_ledger.armed", (c.reactions.msx_ledger.armed) as i64);
+    vf(o, "reactions.msx_ledger.init", &(c.reactions.msx_ledger.init).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.msx_ledger.inflow", &(c.reactions.msx_ledger.inflow).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.msx_ledger.outflow", &(c.reactions.msx_ledger.outflow).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.msx_ledger.flooding", &(c.reactions.msx_ledger.flooding).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.msx_ledger.seepage", &(c.reactions.msx_ledger.seepage).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.msx_ledger.reacted", &(c.reactions.msx_ledger.reacted).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.msx_ledger.clamped", &(c.reactions.msx_ledger.clamped).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.msx_ledger.final_dry", &(c.reactions.msx_ledger.final_dry).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pi(o, "reactions.surface.rows.buildup.n", (c.reactions.surface.rows.buildup).len() as i64);
+    for e61 in (c.reactions.surface.rows.buildup).iter() {
+    ps(o, "reactions.surface.rows.buildup[].landuse", &(*e61).landuse);
+    ps(o, "reactions.surface.rows.buildup[].species", &(*e61).species);
+    pi(o, "reactions.surface.rows.buildup[].func_type", ((*e61).func_type) as i64);
+    pf(o, "reactions.surface.rows.buildup[].c1", ((*e61).c1) as f64);
+    pf(o, "reactions.surface.rows.buildup[].c2", ((*e61).c2) as f64);
+    pf(o, "reactions.surface.rows.buildup[].c3", ((*e61).c3) as f64);
+    ps(o, "reactions.surface.rows.buildup[].ts_name", &(*e61).ts_name);
+    pi(o, "reactions.surface.rows.buildup[].normalizer", ((*e61).normalizer) as i64);
+    }
+    pi(o, "reactions.surface.rows.washoff.n", (c.reactions.surface.rows.washoff).len() as i64);
+    for e62 in (c.reactions.surface.rows.washoff).iter() {
+    ps(o, "reactions.surface.rows.washoff[].landuse", &(*e62).landuse);
+    ps(o, "reactions.surface.rows.washoff[].species", &(*e62).species);
+    pi(o, "reactions.surface.rows.washoff[].func_type", ((*e62).func_type) as i64);
+    pf(o, "reactions.surface.rows.washoff[].coeff", ((*e62).coeff) as f64);
+    pf(o, "reactions.surface.rows.washoff[].expon", ((*e62).expon) as f64);
+    pf(o, "reactions.surface.rows.washoff[].sweep_effic", ((*e62).sweep_effic) as f64);
+    pf(o, "reactions.surface.rows.washoff[].bmp_effic", ((*e62).bmp_effic) as f64);
+    }
+    pi(o, "reactions.surface.rows.loadings.n", (c.reactions.surface.rows.loadings).len() as i64);
+    for e63 in (c.reactions.surface.rows.loadings).iter() {
+    ps(o, "reactions.surface.rows.loadings[].subcatch", &(*e63).subcatch);
+    ps(o, "reactions.surface.rows.loadings[].species", &(*e63).species);
+    pf(o, "reactions.surface.rows.loadings[].value", ((*e63).value) as f64);
+    }
+    pi(o, "reactions.surface.n_landuses", (c.reactions.surface.n_landuses) as i64);
+    pi(o, "reactions.surface.n_species", (c.reactions.surface.n_species) as i64);
+    pi(o, "reactions.surface.n_subcatch", (c.reactions.surface.n_subcatch) as i64);
+    vi(o, "reactions.surface.bu_type", &(c.reactions.surface.bu_type).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "reactions.surface.bu_c1", &(c.reactions.surface.bu_c1).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.surface.bu_c2", &(c.reactions.surface.bu_c2).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.surface.bu_c3", &(c.reactions.surface.bu_c3).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vi(o, "reactions.surface.bu_normalizer", &(c.reactions.surface.bu_normalizer).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "reactions.surface.bu_max_days", &(c.reactions.surface.bu_max_days).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vi(o, "reactions.surface.wo_type", &(c.reactions.surface.wo_type).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "reactions.surface.wo_coeff", &(c.reactions.surface.wo_coeff).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.surface.wo_expon", &(c.reactions.surface.wo_expon).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.surface.wo_sweep_effic", &(c.reactions.surface.wo_sweep_effic).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.surface.wo_bmp_effic", &(c.reactions.surface.wo_bmp_effic).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.surface.init_loading", &(c.reactions.surface.init_loading).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.surface.mcf", &(c.reactions.surface.mcf).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.surface.buildup", &(c.reactions.surface.buildup).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.surface.washoff_conc", &(c.reactions.surface.washoff_conc).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.surface.washoff_conc_old", &(c.reactions.surface.washoff_conc_old).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.surface.ponded_qual", &(c.reactions.surface.ponded_qual).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.surface.runon_qual_rate", &(c.reactions.surface.runon_qual_rate).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.surface.c_rain", &(c.reactions.surface.c_rain).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vi(o, "reactions.surface.snow_only", &(c.reactions.surface.snow_only).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "reactions.surface.lid_rmvl", &(c.reactions.surface.lid_rmvl).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.surface.lid_drain_load", &(c.reactions.surface.lid_drain_load).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.surface.lid_drain_load_old", &(c.reactions.surface.lid_drain_load_old).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.surface.lid_drain_runon_load", &(c.reactions.surface.lid_drain_runon_load).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.surface.led_init_buildup", &(c.reactions.surface.led_init_buildup).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.surface.led_buildup", &(c.reactions.surface.led_buildup).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.surface.led_runoff_load", &(c.reactions.surface.led_runoff_load).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.surface.led_sweeping", &(c.reactions.surface.led_sweeping).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.surface.led_bmp_removal", &(c.reactions.surface.led_bmp_removal).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.surface.led_wet_deposition", &(c.reactions.surface.led_wet_deposition).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.surface.led_infil_loss", &(c.reactions.surface.led_infil_loss).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.surface.led_reacted", &(c.reactions.surface.led_reacted).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.surface.led_reaction_clamped", &(c.reactions.surface.led_reaction_clamped).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.surface.led_ponded_lost", &(c.reactions.surface.led_ponded_lost).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "reactions.surface.led_subcatch_load", &(c.reactions.surface.led_subcatch_load).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pi(o, "reactions.surface.resolved", (c.reactions.surface.resolved) as i64);
+    pi(o, "reactions.configured", (c.reactions.configured) as i64);
+    pi(o, "heat_config.configured", (c.heat_config.configured) as i64);
+    pi(o, "heat_config.radiative_exchange", (c.heat_config.radiative_exchange) as i64);
+    pf(o, "heat_config.radiative.shortwave_wm2", (c.heat_config.radiative.shortwave_wm2) as f64);
+    pf(o, "heat_config.radiative.albedo", (c.heat_config.radiative.albedo) as f64);
+    pf(o, "heat_config.radiative.shade_factor", (c.heat_config.radiative.shade_factor) as f64);
+    pf(o, "heat_config.radiative.sky_view", (c.heat_config.radiative.sky_view) as f64);
+    pf(o, "heat_config.radiative.emiss_water", (c.heat_config.radiative.emiss_water) as f64);
+    pf(o, "heat_config.radiative.emiss_landcover", (c.heat_config.radiative.emiss_landcover) as f64);
+    pf(o, "heat_config.radiative.atm_emiss_coeff", (c.heat_config.radiative.atm_emiss_coeff) as f64);
+    pf(o, "heat_config.radiative.lw_reflection", (c.heat_config.radiative.lw_reflection) as f64);
+    pf(o, "heat_config.radiative.landcover_temp", (c.heat_config.radiative.landcover_temp) as f64);
+    pi(o, "heat_config.radiative.sw_mode", (c.heat_config.radiative.sw_mode) as i64);
+    pi(o, "heat_config.radiative.sw_ts_index", (c.heat_config.radiative.sw_ts_index) as i64);
+    pi(o, "heat_config.surface_exchange", (c.heat_config.surface_exchange) as i64);
+    pi(o, "heat_config.dry_temp_policy", (c.heat_config.dry_temp_policy) as i64);
+    pi(o, "heat_config.layer_conduction", (c.heat_config.layer_conduction) as i64);
+    pf(o, "heat_config.conduction.water_conductivity", (c.heat_config.conduction.water_conductivity) as f64);
+    pf(o, "heat_config.conduction.sed_conductivity", (c.heat_config.conduction.sed_conductivity) as f64);
+    pf(o, "heat_config.conduction.sed_density", (c.heat_config.conduction.sed_density) as f64);
+    pf(o, "heat_config.conduction.sed_specific_heat", (c.heat_config.conduction.sed_specific_heat) as f64);
+    pi(o, "heat_config.sediment_exchange", (c.heat_config.sediment_exchange) as i64);
+    pi(o, "heat_config.sediment.mesh_ground", (c.heat_config.sediment.mesh_ground) as i64);
+    pi(o, "heat_config.sediment.ground_source_configured", (c.heat_config.sediment.ground_source_configured) as i64);
+    pf(o, "heat_config.sediment.mesh_porosity", (c.heat_config.sediment.mesh_porosity) as f64);
+    pf(o, "heat_config.sediment.thermal_diffusivity", (c.heat_config.sediment.thermal_diffusivity) as f64);
+    pf(o, "heat_config.sediment.solute_diffusivity", (c.heat_config.sediment.solute_diffusivity) as f64);
+    pf(o, "heat_config.sediment.bed_thickness", (c.heat_config.sediment.bed_thickness) as f64);
+    pf(o, "heat_config.sediment.ground_depth", (c.heat_config.sediment.ground_depth) as f64);
+    pf(o, "heat_config.sediment.ground_temp", (c.heat_config.sediment.ground_temp) as f64);
+    pi(o, "heat_config.sediment.has_ground_temp", (c.heat_config.sediment.has_ground_temp) as i64);
+    pi(o, "heat_config.sediment.ground_ts_index", (c.heat_config.sediment.ground_ts_index) as i64);
+    pf(o, "heat_config.sediment.hyporheic_velocity", (c.heat_config.sediment.hyporheic_velocity) as f64);
+    pf(o, "heat_config.sediment.sed_density", (c.heat_config.sediment.sed_density) as f64);
+    pf(o, "heat_config.sediment.sed_specific_heat", (c.heat_config.sediment.sed_specific_heat) as f64);
+    pf(o, "heat_config.sediment.initial_temp", (c.heat_config.sediment.initial_temp) as f64);
+    pi(o, "heat_config.sediment.has_initial_temp", (c.heat_config.sediment.has_initial_temp) as i64);
+    pi(o, "heat_config.overrides.rows.n", (c.heat_config.overrides.rows).len() as i64);
+    for e64 in (c.heat_config.overrides.rows).iter() {
+    pi(o, "heat_config.overrides.rows[].attr", ((*e64).attr) as i64);
+    pi(o, "heat_config.overrides.rows[].scope", ((*e64).scope) as i64);
+    ps(o, "heat_config.overrides.rows[].name", &(*e64).name);
+    pf(o, "heat_config.overrides.rows[].value", ((*e64).value) as f64);
+    }
+    pi(o, "heat_config.overrides.rad_link.n", (c.heat_config.overrides.rad_link).len() as i64);
+    for e65 in (c.heat_config.overrides.rad_link).iter() {
+    pf(o, "heat_config.overrides.rad_link[].shortwave_wm2", ((*e65).shortwave_wm2) as f64);
+    pf(o, "heat_config.overrides.rad_link[].albedo", ((*e65).albedo) as f64);
+    pf(o, "heat_config.overrides.rad_link[].shade_factor", ((*e65).shade_factor) as f64);
+    pf(o, "heat_config.overrides.rad_link[].sky_view", ((*e65).sky_view) as f64);
+    pf(o, "heat_config.overrides.rad_link[].emiss_water", ((*e65).emiss_water) as f64);
+    pf(o, "heat_config.overrides.rad_link[].emiss_landcover", ((*e65).emiss_landcover) as f64);
+    pf(o, "heat_config.overrides.rad_link[].atm_emiss_coeff", ((*e65).atm_emiss_coeff) as f64);
+    pf(o, "heat_config.overrides.rad_link[].lw_reflection", ((*e65).lw_reflection) as f64);
+    pf(o, "heat_config.overrides.rad_link[].landcover_temp", ((*e65).landcover_temp) as f64);
+    pi(o, "heat_config.overrides.rad_link[].sw_mode", ((*e65).sw_mode) as i64);
+    pi(o, "heat_config.overrides.rad_link[].sw_ts_index", ((*e65).sw_ts_index) as i64);
+    }
+    pi(o, "heat_config.overrides.rad_node.n", (c.heat_config.overrides.rad_node).len() as i64);
+    for e66 in (c.heat_config.overrides.rad_node).iter() {
+    pf(o, "heat_config.overrides.rad_node[].shortwave_wm2", ((*e66).shortwave_wm2) as f64);
+    pf(o, "heat_config.overrides.rad_node[].albedo", ((*e66).albedo) as f64);
+    pf(o, "heat_config.overrides.rad_node[].shade_factor", ((*e66).shade_factor) as f64);
+    pf(o, "heat_config.overrides.rad_node[].sky_view", ((*e66).sky_view) as f64);
+    pf(o, "heat_config.overrides.rad_node[].emiss_water", ((*e66).emiss_water) as f64);
+    pf(o, "heat_config.overrides.rad_node[].emiss_landcover", ((*e66).emiss_landcover) as f64);
+    pf(o, "heat_config.overrides.rad_node[].atm_emiss_coeff", ((*e66).atm_emiss_coeff) as f64);
+    pf(o, "heat_config.overrides.rad_node[].lw_reflection", ((*e66).lw_reflection) as f64);
+    pf(o, "heat_config.overrides.rad_node[].landcover_temp", ((*e66).landcover_temp) as f64);
+    pi(o, "heat_config.overrides.rad_node[].sw_mode", ((*e66).sw_mode) as i64);
+    pi(o, "heat_config.overrides.rad_node[].sw_ts_index", ((*e66).sw_ts_index) as i64);
+    }
+    pi(o, "heat_config.overrides.sed_link.n", (c.heat_config.overrides.sed_link).len() as i64);
+    for e67 in (c.heat_config.overrides.sed_link).iter() {
+    pi(o, "heat_config.overrides.sed_link[].mesh_ground", ((*e67).mesh_ground) as i64);
+    pi(o, "heat_config.overrides.sed_link[].ground_source_configured", ((*e67).ground_source_configured) as i64);
+    pf(o, "heat_config.overrides.sed_link[].mesh_porosity", ((*e67).mesh_porosity) as f64);
+    pf(o, "heat_config.overrides.sed_link[].thermal_diffusivity", ((*e67).thermal_diffusivity) as f64);
+    pf(o, "heat_config.overrides.sed_link[].solute_diffusivity", ((*e67).solute_diffusivity) as f64);
+    pf(o, "heat_config.overrides.sed_link[].bed_thickness", ((*e67).bed_thickness) as f64);
+    pf(o, "heat_config.overrides.sed_link[].ground_depth", ((*e67).ground_depth) as f64);
+    pf(o, "heat_config.overrides.sed_link[].ground_temp", ((*e67).ground_temp) as f64);
+    pi(o, "heat_config.overrides.sed_link[].has_ground_temp", ((*e67).has_ground_temp) as i64);
+    pi(o, "heat_config.overrides.sed_link[].ground_ts_index", ((*e67).ground_ts_index) as i64);
+    pf(o, "heat_config.overrides.sed_link[].hyporheic_velocity", ((*e67).hyporheic_velocity) as f64);
+    pf(o, "heat_config.overrides.sed_link[].sed_density", ((*e67).sed_density) as f64);
+    pf(o, "heat_config.overrides.sed_link[].sed_specific_heat", ((*e67).sed_specific_heat) as f64);
+    pf(o, "heat_config.overrides.sed_link[].initial_temp", ((*e67).initial_temp) as f64);
+    pi(o, "heat_config.overrides.sed_link[].has_initial_temp", ((*e67).has_initial_temp) as i64);
+    }
+    pi(o, "heat_config.overrides.rad_cell.n", (c.heat_config.overrides.rad_cell).len() as i64);
+    for e68 in (c.heat_config.overrides.rad_cell).iter() {
+    pf(o, "heat_config.overrides.rad_cell[].shortwave_wm2", ((*e68).shortwave_wm2) as f64);
+    pf(o, "heat_config.overrides.rad_cell[].albedo", ((*e68).albedo) as f64);
+    pf(o, "heat_config.overrides.rad_cell[].shade_factor", ((*e68).shade_factor) as f64);
+    pf(o, "heat_config.overrides.rad_cell[].sky_view", ((*e68).sky_view) as f64);
+    pf(o, "heat_config.overrides.rad_cell[].emiss_water", ((*e68).emiss_water) as f64);
+    pf(o, "heat_config.overrides.rad_cell[].emiss_landcover", ((*e68).emiss_landcover) as f64);
+    pf(o, "heat_config.overrides.rad_cell[].atm_emiss_coeff", ((*e68).atm_emiss_coeff) as f64);
+    pf(o, "heat_config.overrides.rad_cell[].lw_reflection", ((*e68).lw_reflection) as f64);
+    pf(o, "heat_config.overrides.rad_cell[].landcover_temp", ((*e68).landcover_temp) as f64);
+    pi(o, "heat_config.overrides.rad_cell[].sw_mode", ((*e68).sw_mode) as i64);
+    pi(o, "heat_config.overrides.rad_cell[].sw_ts_index", ((*e68).sw_ts_index) as i64);
+    }
+    pi(o, "heat_config.overrides.sed_cell.n", (c.heat_config.overrides.sed_cell).len() as i64);
+    for e69 in (c.heat_config.overrides.sed_cell).iter() {
+    pi(o, "heat_config.overrides.sed_cell[].mesh_ground", ((*e69).mesh_ground) as i64);
+    pi(o, "heat_config.overrides.sed_cell[].ground_source_configured", ((*e69).ground_source_configured) as i64);
+    pf(o, "heat_config.overrides.sed_cell[].mesh_porosity", ((*e69).mesh_porosity) as f64);
+    pf(o, "heat_config.overrides.sed_cell[].thermal_diffusivity", ((*e69).thermal_diffusivity) as f64);
+    pf(o, "heat_config.overrides.sed_cell[].solute_diffusivity", ((*e69).solute_diffusivity) as f64);
+    pf(o, "heat_config.overrides.sed_cell[].bed_thickness", ((*e69).bed_thickness) as f64);
+    pf(o, "heat_config.overrides.sed_cell[].ground_depth", ((*e69).ground_depth) as f64);
+    pf(o, "heat_config.overrides.sed_cell[].ground_temp", ((*e69).ground_temp) as f64);
+    pi(o, "heat_config.overrides.sed_cell[].has_ground_temp", ((*e69).has_ground_temp) as i64);
+    pi(o, "heat_config.overrides.sed_cell[].ground_ts_index", ((*e69).ground_ts_index) as i64);
+    pf(o, "heat_config.overrides.sed_cell[].hyporheic_velocity", ((*e69).hyporheic_velocity) as f64);
+    pf(o, "heat_config.overrides.sed_cell[].sed_density", ((*e69).sed_density) as f64);
+    pf(o, "heat_config.overrides.sed_cell[].sed_specific_heat", ((*e69).sed_specific_heat) as f64);
+    pf(o, "heat_config.overrides.sed_cell[].initial_temp", ((*e69).initial_temp) as f64);
+    pi(o, "heat_config.overrides.sed_cell[].has_initial_temp", ((*e69).has_initial_temp) as i64);
+    }
+    pi(o, "heat_config.overrides.resolved", (c.heat_config.overrides.resolved) as i64);
+    pf(o, "heat_config.solar.latitude_deg", (c.heat_config.solar.latitude_deg) as f64);
+    pf(o, "heat_config.solar.longitude_deg", (c.heat_config.solar.longitude_deg) as f64);
+    pf(o, "heat_config.solar.timezone_hours", (c.heat_config.solar.timezone_hours) as f64);
+    pi(o, "heat_config.solar.has_latitude", (c.heat_config.solar.has_latitude) as i64);
+    pi(o, "heat_config.solar.has_longitude", (c.heat_config.solar.has_longitude) as i64);
+    pi(o, "heat_config.solar.has_timezone", (c.heat_config.solar.has_timezone) as i64);
+    pf(o, "heat_config.solar.elevation_m", (c.heat_config.solar.elevation_m) as f64);
+    pi(o, "heat_config.solar.has_elevation", (c.heat_config.solar.has_elevation) as i64);
+    pf(o, "heat_config.solar.aod380", (c.heat_config.solar.aod380) as f64);
+    pf(o, "heat_config.solar.aod500", (c.heat_config.solar.aod500) as f64);
+    pf(o, "heat_config.solar.precip_water_cm", (c.heat_config.solar.precip_water_cm) as f64);
+    pf(o, "heat_config.solar.ozone_cm", (c.heat_config.solar.ozone_cm) as f64);
+    pf(o, "heat_config.solar.ground_albedo", (c.heat_config.solar.ground_albedo) as f64);
+    pi(o, "heat_config.cloud.configured", (c.heat_config.cloud.configured) as i64);
+    pi(o, "heat_config.cloud.use_timeseries", (c.heat_config.cloud.use_timeseries) as i64);
+    pi(o, "heat_config.cloud.ts_index", (c.heat_config.cloud.ts_index) as i64);
+    pf(o, "heat_config.cloud.fraction", (c.heat_config.cloud.fraction) as f64);
+    pf(o, "heat_config.cloud.sw_atten_k", (c.heat_config.cloud.sw_atten_k) as f64);
+    pf(o, "heat_config.cloud.sw_atten_n", (c.heat_config.cloud.sw_atten_n) as f64);
+    pf(o, "heat_config.cloud.lw_cloud_k", (c.heat_config.cloud.lw_cloud_k) as f64);
+    vi(o, "heat_config.node_over_source", &(c.heat_config.node_over_source).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "heat_config.node_over_node", &(c.heat_config.node_over_node).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "heat_config.node_over_temp", &(c.heat_config.node_over_temp).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pi(o, "ard_config.configured", (c.ard_config.configured) as i64);
+    pi(o, "ard_config.dispersion_mode", (c.ard_config.dispersion_mode) as i64);
+    pf(o, "ard_config.dispersion_value", (c.ard_config.dispersion_value) as f64);
+    vi(o, "ard_config.conduit_disp_link", &(c.ard_config.conduit_disp_link).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "ard_config.conduit_disp_value", &(c.ard_config.conduit_disp_value).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pi(o, "ard_config.boundary_rows.n", (c.ard_config.boundary_rows).len() as i64);
+    for e70 in (c.ard_config.boundary_rows).iter() {
+    ps(o, "ard_config.boundary_rows[].element", &(*e70).element);
+    ps(o, "ard_config.boundary_rows[].species", &(*e70).species);
+    pi(o, "ard_config.boundary_rows[].is_ts", ((*e70).is_ts) as i64);
+    pf(o, "ard_config.boundary_rows[].value", ((*e70).value) as f64);
+    ps(o, "ard_config.boundary_rows[].ts_name", &(*e70).ts_name);
+    }
+    pi(o, "ard_config.source_rows.n", (c.ard_config.source_rows).len() as i64);
+    for e71 in (c.ard_config.source_rows).iter() {
+    ps(o, "ard_config.source_rows[].element", &(*e71).element);
+    ps(o, "ard_config.source_rows[].species", &(*e71).species);
+    pi(o, "ard_config.source_rows[].is_ts", ((*e71).is_ts) as i64);
+    pf(o, "ard_config.source_rows[].value", ((*e71).value) as f64);
+    ps(o, "ard_config.source_rows[].ts_name", &(*e71).ts_name);
+    }
+    vi(o, "ard_config.bc_node", &(c.ard_config.bc_node).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard_config.bc_msx", &(c.ard_config.bc_msx).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "ard_config.bc_value", &(c.ard_config.bc_value).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vi(o, "ard_config.bc_ts", &(c.ard_config.bc_ts).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard_config.src_link", &(c.ard_config.src_link).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard_config.src_msx", &(c.ard_config.src_msx).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "ard_config.src_value", &(c.ard_config.src_value).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vi(o, "ard_config.src_ts", &(c.ard_config.src_ts).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    pi(o, "ard_config.transport_rows_resolved", (c.ard_config.transport_rows_resolved) as i64);
+    pf(o, "ard_config.target_dx", (c.ard_config.target_dx) as f64);
+    pi(o, "ard_config.sets_scalar_scheme", (c.ard_config.sets_scalar_scheme) as i64);
+    pi(o, "ard_config.sets_limiter", (c.ard_config.sets_limiter) as i64);
+    ps(o, "ard_config.detailed_output_path", &c.ard_config.detailed_output_path);
+    pi(o, "water_age_config.configured", (c.water_age_config.configured) as i64);
+    vi(o, "water_age_config.node_over_source", &(c.water_age_config.node_over_source).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "water_age_config.node_over_node", &(c.water_age_config.node_over_node).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "water_age_config.node_over_age", &(c.water_age_config.node_over_age).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vi(o, "initial_quality.is_link", &(c.initial_quality.is_link).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     vs(o, "initial_quality.elem_name", &c.initial_quality.elem_name);
     vi(o, "initial_quality.elem_idx", &(c.initial_quality.elem_idx).iter().map(|x| *x as i64).collect::<Vec<i64>>());
@@ -1235,10 +1609,10 @@ pub fn dump(c: &SimulationContext) -> Vec<u8> {
     vi(o, "node_coupling_2d.node", &(c.node_coupling_2d.node).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     vi(o, "node_coupling_2d.type", &(c.node_coupling_2d.type_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     pi(o, "node_coupling_2d.params.n", (c.node_coupling_2d.params).len() as i64);
-    for e51 in (c.node_coupling_2d.params).iter() {
-    pi(o, "node_coupling_2d.params[].n", ((*e51)).len() as i64);
-    for e52 in ((*e51)).iter() {
-    pf(o, "node_coupling_2d.params[][]", ((*e52)) as f64);
+    for e72 in (c.node_coupling_2d.params).iter() {
+    pi(o, "node_coupling_2d.params[].n", ((*e72)).len() as i64);
+    for e73 in ((*e72)).iter() {
+    pf(o, "node_coupling_2d.params[][]", ((*e73)) as f64);
     }
     }
     pi(o, "transect_tables.n", c.transect_tables.len() as i64);
@@ -1275,9 +1649,26 @@ pub fn dump(c: &SimulationContext) -> Vec<u8> {
     }
     }
     pi(o, "met.n", c.snowpacks.meteorology.records().len() as i64); for r in c.snowpacks.meteorology.records().iter() { pf(o, "met.date", r.date); for v in r.values.iter() { pf(o, "met.value", *v); } }
-    vi(o, "reactions.init_elem_is_link", &(c.reactions.init_elem_is_link).iter().map(|x| *x as i64).collect::<Vec<i64>>());
-    vi(o, "reactions.init_elem_idx", &(c.reactions.init_elem_idx).iter().map(|x| *x as i64).collect::<Vec<i64>>());
-    vi(o, "reactions.init_elem_species", &(c.reactions.init_elem_species).iter().map(|x| *x as i64).collect::<Vec<i64>>());
-    vf(o, "reactions.init_elem_value", &(c.reactions.init_elem_value).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pi(o, "species.n", c.species_registry.count() as i64); pi(o, "species.pollutants", c.species_registry.pollutant_count() as i64); for i in 0..c.species_registry.count() { ps(o, "species.name", c.species_registry.name(i)); pi(o, "species.kind", c.species_registry.kind(i) as i64); ps(o, "species.units", c.species_registry.units(i)); }
+    std::mem::take(o)
+}
+use swmm6_rust::core::engine::SwmmEngine;
+pub fn engdump(e: &SwmmEngine) -> Vec<u8> {
+    let mut o: Vec<u8> = Vec::new();
+    let o = &mut o;
+    pi(o, "engine.lenient_open_", (e.lenient_open()) as i64);
+    pi(o, "engine.metadata_only_", (e.metadata_only()) as i64);
+    ps(o, "engine.rpt_path_", &e.rpt_path());
+    ps(o, "engine.out_path_", &e.out_path());
+    let pf = e.plugin_factory();
+    pi(o, "engine.plugins.input.n", pf.input_plugins().len() as i64);
+    for p in pf.input_plugins() { pi(o, "engine.plugins.input.state", p.state() as i64); pi(o, "engine.plugins.input.default", 1); vs(o, "engine.plugins.input.skipped", &p.skipped_sections()); ps(o, "engine.plugins.input.last_error", p.last_error_message()); }
+    pi(o, "engine.plugins.output.n", pf.output_plugins().len() as i64);
+    for p in pf.output_plugins() { pi(o, "engine.plugins.output.state", p.state() as i64); pi(o, "engine.plugins.output.default", 1); ps(o, "engine.plugins.output.path", p.out_path()); }
+    pi(o, "engine.plugins.report.n", pf.report_plugins().len() as i64);
+    for p in pf.report_plugins() { pi(o, "engine.plugins.report.state", p.state() as i64); pi(o, "engine.plugins.report.default", 1); ps(o, "engine.plugins.report.path", p.rpt_path()); }
+    pi(o, "engine.plugins.state_io.n", pf.state_io_plugins().len() as i64);
+    for p in pf.state_io_plugins() { pi(o, "engine.plugins.state_io.state", p.state() as i64); pi(o, "engine.plugins.state_io.default", 1); }
+    pi(o, "engine.binary_output_plugin_", e.binary_output_plugin().map(|k| k as i64).unwrap_or(-1));
     std::mem::take(o)
 }
