@@ -35,3 +35,9 @@ These are things in OpenSWMM 6 (swmm6_rel @ 88329d6) that looked wrong or odd du
 | U29 | `data/TableData.cpp` | `bool is_csv = has_named_columns(tbl.column_ids);`: a CSV whose header is "Date,1,2" loads its cache as .dat, and every lookup returns 0. | Yes, for numeric column names |
 | U30 | `data/TableData.cpp` | `tbl.last_boundary = tbl.first_boundary;` for a small file, so every small ascending file draws WARNING 102. | Warning only |
 | U31 | `data/TableData.cpp` | The format `"%d-%d-%d %d:%d:%d"` turns "2020-01-01T01:00" into midnight, and a year of "4294969316" reads as 2020 (`%d` through strtol, truncated). | Yes, for ISO "T" times |
+| U32 | `hydraulics/XSectKernels.hpp` rect_round_getRofY | `return 0.5 * xs.r_bot * (1.0 - std::sin(theta1)) / theta1;`, inherited from legacy; probably meant to be `1 - sinθ/θ`. | Yes: hydraulic radius of RECT_ROUND near the bottom |
+| U33 | `hydraulics/XSection.cpp` FILLED_CIRCULAR | `xs.s_bot = getWofY(xs, xs.y_bot);` reaches a branch that adds y_bot again, so the width is taken at 2·y_bot/(D+y_bot). | Yes: FILLED_CIRCULAR bottom width |
+| U34 | `hydraulics/XSectKernels.hpp` invLookup | In the declining-top branch, `i = n_items - 2/-3` is always followed by the `i >= n - 1` return, so its interpolation is dead code. | No |
+| U35 | `hydraulics/XSectKernels.hpp` powerfunc_getRofA | The guard `a <= 0.0` lets NaN through to the perimeter loop, which never ends when `0.02*y_full == 0`. | Hang on degenerate input |
+| U36 | `hydraulics/XSection.cpp` | getSofA and getRofA call each other without end for DUMMY or unknown shape codes when a > 0 or a is NaN. | Hang on such input |
+| U37 | `hydraulics/XSectBatch.hpp` | `build(const SimulationContext&)` is declared but never defined. | No |

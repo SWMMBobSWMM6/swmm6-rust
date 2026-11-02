@@ -68,6 +68,7 @@ The step-trace harness was checked against the CLI on `orif_legacy.inp`: running
   * `SectionRegistry::registered_tags` iterates two maps; whether anything uses that order has not been checked yet.
   
   Each such loop on the run path must either be shown not to reach a result, or reproduce libstdc++'s `std::hash<std::string>` (`_Hash_bytes`, seed 0xc70f6907) and its bucket growth.
+* **NaN sign when both operands are NaN.** x86 `mulsd` returns the first operand's NaN. g++ keeps source order; LLVM may commute a multiply. When both operands of `a * b` are NaN with different signs, the result's sign bit can differ. The geometry differential showed exactly this: 47 of 3,222,094 values, all from degenerate (NaN) dimensions. Safe Rust cannot pin the operand order. It matters only when a NaN would reach the output, which a valid model does not produce.
 * **Errors as exceptions.** Upstream throws (`std::invalid_argument`, `length_error`) where the translation returns `Err` or treats a negative count as empty. This only matters on paths upstream itself fails on. The one known path is U1, which aborts upstream.
 
 ## Size
@@ -136,12 +137,13 @@ Each phase ends on a gate run. A deck enters the gate set when every section it 
 | Section handlers (all 1D sections but LID node, 2D coupling and REACTION_*) | input/handlers/*.cpp, DefaultInputPlugin's table | **parse gate: 572 decks (corpus + every upstream test deck), every store of the context identical** (`gate/ctxgate.sh`) |
 | InputReader, SectionRegistry, SectionParser, Constants | the matching files | inside the parse gate |
 | C-library input calls (strtod, atof, atoi) | glibc | 486,499 strings identical to glibc |
+| External series files | TableData.cpp, MultiColumnSeriesFile | 138 files (82 real, 53 adversarial, 3 error cases), 62,175 lines |
+| Cross-section geometry core | xsect_tables.hpp, XSectKernels.hpp, XSection.cpp, XSectBatch | 3,222,094 values from 338 parameter sets × every function, plus the batch and kernel APIs: identical but for the NaN-sign hazard (47 values) |
 
 Rust so far: see `git log`; about 23,500 lines in `crates/engine` (2 Nov).
 
 ## Next
 
 1. TableData.cpp and MultiColumnSeriesFile (external series files) — in progress; then swap the stub in catchment_handler.rs.
-2. Cross-section geometry core (xsect_tables, XSectKernels, XSection, XSectBatch) — in progress.
 3. The remaining section readers: LID node sections (hydrology/LidNode.cpp readers), 2D_NODE_COUPLING (core/NodeCoupling2D.cpp), REACTION_* (reactionSectionTags).
 4. PostParseResolver (2,500 code lines; needs Transect.cpp, Street, ForceMain, Link, the geometry core, LidNode::validate, VirtualJunctionOps, MsxInitialQuality, PathResolver). Gate: extend ctxread to run upstream's resolver from the reference library after parsing, and the translation's after its parse.
