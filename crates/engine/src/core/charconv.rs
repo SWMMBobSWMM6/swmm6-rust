@@ -100,6 +100,60 @@ pub fn from_chars_double(s: &[u8]) -> (Result<f64, Errc>, usize) {
     (Ok(if neg { -mag } else { mag }), i)
 }
 
+
+/// `std::from_chars` for `int` (base 10): an optional '-', then the longest run of digits.
+/// No digits: `InvalidArgument`, 0 used. Out of range: `ResultOutOfRange`, the digit run used.
+pub fn from_chars_i32(s: &[u8]) -> (Result<i32, Errc>, usize) {
+    from_chars_integer(s, true, i32::MIN as i128, i32::MAX as i128).map_ok(|v| v as i32)
+}
+
+/// `std::from_chars` for `unsigned` (base 10): no sign at all, not even '-0'.
+pub fn from_chars_u32(s: &[u8]) -> (Result<u32, Errc>, usize) {
+    from_chars_integer(s, false, 0, u32::MAX as i128).map_ok(|v| v as u32)
+}
+
+/// `std::from_chars` for `long` (64-bit on the reference build).
+pub fn from_chars_i64(s: &[u8]) -> (Result<i64, Errc>, usize) {
+    from_chars_integer(s, true, i64::MIN as i128, i64::MAX as i128).map_ok(|v| v as i64)
+}
+
+trait MapOk<T> {
+    fn map_ok<U>(self, f: impl FnOnce(T) -> U) -> (Result<U, Errc>, usize);
+}
+impl<T> MapOk<T> for (Result<T, Errc>, usize) {
+    fn map_ok<U>(self, f: impl FnOnce(T) -> U) -> (Result<U, Errc>, usize) {
+        (self.0.map(f), self.1)
+    }
+}
+
+fn from_chars_integer(s: &[u8], signed: bool, lo: i128, hi: i128) -> (Result<i128, Errc>, usize) {
+    let mut i = 0;
+    let neg = signed && !s.is_empty() && s[0] == b'-';
+    if neg {
+        i = 1;
+    }
+    let start = i;
+    let mut v: i128 = 0;
+    let mut overflow = false;
+    while i < s.len() && s[i].is_ascii_digit() {
+        if !overflow {
+            v = v * 10 + (s[i] - b'0') as i128;
+            if v > hi + 1 {
+                overflow = true;
+            }
+        }
+        i += 1;
+    }
+    if i == start {
+        return (Err(Errc::InvalidArgument), 0);
+    }
+    let v = if neg { -v } else { v };
+    if overflow || v < lo || v > hi {
+        return (Err(Errc::ResultOutOfRange), i);
+    }
+    (Ok(v), i)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -151,5 +205,33 @@ mod tests {
         ok("0e999999", 8, 0.0);
         ok("00012", 5, 12.0);
         ok("1e-310", 6, 9.9999999999999694e-311);
+    }
+
+    // Recorded from std::from_chars<int> and <unsigned> on the reference build.
+    #[test]
+    fn integers_match_libstdcxx() {
+        use Errc::*;
+        let i = |s: &str| from_chars_i32(s.as_bytes());
+        let u = |s: &str| from_chars_u32(s.as_bytes());
+        assert_eq!(i("12"), (Ok(12), 2));
+        assert_eq!(i("-12"), (Ok(-12), 3));
+        assert_eq!(u("-12"), (Err(InvalidArgument), 0));
+        assert_eq!(i("+12"), (Err(InvalidArgument), 0));
+        assert_eq!(i(" 12"), (Err(InvalidArgument), 0));
+        assert_eq!(i("2147483647"), (Ok(2147483647), 10));
+        assert_eq!(i("2147483648"), (Err(ResultOutOfRange), 10));
+        assert_eq!(u("2147483648"), (Ok(2147483648), 10));
+        assert_eq!(i("-2147483648"), (Ok(-2147483648), 11));
+        assert_eq!(i("-2147483649"), (Err(ResultOutOfRange), 11));
+        assert_eq!(u("4294967295"), (Ok(4294967295), 10));
+        assert_eq!(u("4294967296"), (Err(ResultOutOfRange), 10));
+        assert_eq!(i("007"), (Ok(7), 3));
+        assert_eq!(i("-"), (Err(InvalidArgument), 0));
+        assert_eq!(i("-0"), (Ok(0), 2));
+        assert_eq!(u("-0"), (Err(InvalidArgument), 0));
+        assert_eq!(i("12abc"), (Ok(12), 2));
+        assert_eq!(i("99999999999999999999x"), (Err(ResultOutOfRange), 20));
+        assert_eq!(u("99999999999999999999x"), (Err(ResultOutOfRange), 20));
+        assert_eq!(i(""), (Err(InvalidArgument), 0));
     }
 }
