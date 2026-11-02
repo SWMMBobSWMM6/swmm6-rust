@@ -2,3 +2,5 @@ target/
 gate/diff/tokdump
 gate/diff/*.txt
 gate/steptrace
+gate/diff/tabdump
+gate/diff/tables.bin

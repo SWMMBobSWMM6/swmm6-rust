@@ -37,7 +37,28 @@ The step-trace harness was checked against the CLI on `orif_legacy.inp`: running
    * the input-property codes. OpenSWMM's enum adds OUTPUT_INVERT, OUTPUT_MAX_DEPTH and OUTPUT_OFFSET, so node codes are 0,2,4 rather than 0,2,3, and link codes are 0,6,7,4,8 rather than 0,4,4,3,5.
    
    The values after the codes are the same quantities in the same order. `gate/outnorm.py` rewrites the seven bytes; after it, `orif_legacy.inp` is byte-identical between the two engines.
-2. **OpenSWMM 6 is not EPA 5.2.4 with a new header.** The SWMM5 corpus census (`census/`, 221 models, header normalized) appears in the census table below. OpenSWMM's legacy baseline is 5.2.4 plus its own "Build 5.3.0" fixes in 23 legacy files (dynwave, xsect, infil, node, routing, lid and others), and the new engine is held to that baseline, not to EPA. So the reference is OpenSWMM 6 itself, and swmm5-rust cannot stand in for it.
+2. **OpenSWMM 6 is not EPA 5.2.4 with a new header.** The SWMM5 corpus census ran 221 models through both engines, with the `.out` header normalized:
+
+   | Outcome | Models |
+   |---|---|
+   | both run, results byte-identical | 64 |
+   | both run, results differ | 112 |
+   | only OpenSWMM 6 runs (EPA 5.2.4 stops with an error) | 22 |
+   | only EPA 5.2.4 runs | 4 |
+   | neither runs | 19 |
+
+   Of the 4 models only EPA runs, 3 are inputs OpenSWMM 6 now rejects on purpose (code-review decks NUM-35, CON-12, API-18). The fourth is a crash (finding 4).
+   
+   198 models run in OpenSWMM 6 and are gate candidates. OpenSWMM's legacy baseline is 5.2.4 plus its own "Build 5.3.0" fixes in 23 legacy files (dynwave, xsect, infil, node, routing, lid and others), and the new engine is held to that baseline, not to EPA. So the reference is OpenSWMM 6 itself, and swmm5-rust cannot stand in for it.
+4. **OpenSWMM 6 aborts on `IO-41_point.inp`** (`[CONTROLS] EXPRESSION E1 = 2 + .`), with "terminate called after throwing an instance of 'std::invalid_argument' what(): stod". In `src/engine/math/MathExpr.cpp`, the scanner takes a lone `.` as the start of a number and converts it unguarded:
+
+   ```cpp
+           if (std::isdigit(c) || c == '.') {
+   ...
+               t.value = std::stod(s.substr(start, i - start));
+   ```
+
+   `ControlEngine::addExpression` (`Controls.cpp:738`) calls `mathexpr::parse` with no `try`, so the exception ends the process. EPA 5.2.4 runs the deck. The translation must reproduce upstream's behavior up to this point, and must not abort.
 3. **The `.inp` tokenizer is not SWMM5's.** A comma separates fields on a line with no white space, or where it touches white space; between two other characters it is part of a name. A quote groups text inside a token. Empty CSV fields are kept. Numbers are read with `std::from_chars`, which rejects a leading `+`, accepts `nan(...)`, and treats `2e-324` as out of range (so not a number) while `2.5e-324` is the smallest subnormal.
 
 ## Size
@@ -85,4 +106,4 @@ Each phase ends on a gate run. A deck enters the gate set when every section it 
 
 * Native reference built; corpus reproducibility measured.
 * `gate/steptrace.c`, `gate/trcmp.py`, `gate/outnorm.py`.
-* `core::charconv` (std::from_chars, 30 cases recorded from libstdc++) and `input::tokenizer`. G4: identical to upstream's own Tokenizer on 584,895 lines from 643 files (the SWMM5 corpus, every upstream `.inp`, upstream test data).
+* `core::charconv` (std::from_chars, 30 cases recorded from libstdc++), `core::cmath` (std::min/max/clamp with C++ NaN and signed-zero behavior), `core::options`, `data::name_index`, `data::table` (in-memory tables and every lookup; G4: 134,703 query rows, identical bits on all ten lookup functions and the cursors), and `input::tokenizer`. G4: identical to upstream's own Tokenizer on 584,895 lines from 643 files (the SWMM5 corpus, every upstream `.inp`, upstream test data).
