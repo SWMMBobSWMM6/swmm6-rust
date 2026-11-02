@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 pub mod gage;
+pub mod inflow;
+pub mod infra;
+pub mod lid_node;
 pub mod link;
 pub mod link_subtypes;
 pub mod name_index;
 pub mod node;
+pub mod node_subtypes;
 pub mod pollutant;
 pub mod subcatch;
 pub mod table;

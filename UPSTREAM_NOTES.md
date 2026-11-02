@@ -13,3 +13,7 @@ These are things in OpenSWMM 6 (swmm6_rel @ 88329d6) that looked wrong or odd du
 | U7 | `data/LinkData.hpp` `reserve_to` | `r(stat_flow_class);` reserves `un`, where the array holds `un * N_FLOW_CLASSES` (compare `stat_lstep_bin_time`, reserved at `un * N_LSTEP_BINS`). | No (capacity only) |
 | U8 | `data/LinkData.hpp` `resize` | `pump_curve_name.resize(un);` keeps old entries where the other columns are `assign`ed; `stat_pump_periods.assign(un, 0.0);` assigns a double to a `vector<long>`. | Only on a second `resize` of a populated store |
 | U9 | `data/LinkSubtypes.hpp` `ConduitData::erase_at` | Leaves the five `gw_*` columns unerased (the doc comment says so). | Only through the edit API |
+| U10 | `data/NodeSubtypes.hpp` `set_node_type` | Zeroes `storage_area` before the same-type early return, so setting STORAGE again on a storage node still clears its area: `if (t != NodeType::JUNCTION && ui < nodes.storage_area.size()) nodes.storage_area[ui] = 0.0;` (the differential shows it: area 7 becomes 0). | Only through the edit API |
+| U11 | `data/NodeSubtypes.hpp` `set_node_type` | `shifted = true;` follows `switch (old)` even when `old` is JUNCTION with a row, a state that should not exist. | No |
+| U12 | `data/InfraData.hpp` `InletUsageStore` | `add_row` does not grow the stat columns, but `erase_row` erases from them. | Only through the edit API |
+| U13 | `data/NodeSubtypes.hpp` `erase_node` | `drop(storages) \|\| drop(outfalls) \|\| drop(dividers);` drops only the first matching row. | No, if a node has one subtype row, as it should |
