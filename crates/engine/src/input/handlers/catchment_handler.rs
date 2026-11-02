@@ -13,10 +13,8 @@
 // the same value GageData's own sizing uses. Assigning a std::string to a FilePathPair is
 // FilePathPair::set (original = token, absolute cleared).
 //
-// STUB: `split_series_file_token` below stands in for
-// MultiColumnSeriesFile.cpp's function of that name, which another translation owns. It is
-// transcribed from upstream so this handler can be gated now; when
-// crate::input::multi_column_series_file lands, call its split_series_file_token instead.
+// `split_series_file_token` is MultiColumnSeriesFile.cpp's, from
+// crate::input::multi_column_series_file.
 
 use crate::core::cmath::{cmin, cvt_i32};
 use crate::core::context::SimulationContext;
@@ -28,35 +26,7 @@ use crate::input::parse_utils::{add_unique, parse_date, parse_time_seconds, to_d
 use crate::input::section_parser::parse_section;
 use crate::input::tokenizer;
 
-/// STUB for MultiColumnSeriesFile.cpp `split_series_file_token` (see the file notes):
-/// split the last eligible column-suffix colon. `path_out` gets the whole token when there
-/// is none; a sole alphabetic drive colon at index 1, or a suffix holding '/' or '\\', is
-/// not a separator.
-fn split_series_file_token(token: &[u8], path_out: &mut Bytes, column_out: &mut Bytes) -> bool {
-    *path_out = token.to_vec();
-    column_out.clear();
-
-    let colon = match token.iter().rposition(|&c| c == b':') {
-        Some(c) => c,
-        None => return false,
-    };
-
-    // Windows drive letter ("C:\dir\f.csv"): not a column separator.
-    if colon == 1 && token[0].is_ascii_alphabetic() {
-        return false;
-    }
-
-    // A colon inside a directory name ("/data/Rich:2024/f.csv"): the text after it is
-    // still path, not a column name.
-    let suffix = &token[colon + 1..];
-    if suffix.contains(&b'/') || suffix.contains(&b'\\') {
-        return false;
-    }
-
-    *path_out = token[..colon].to_vec();
-    *column_out = suffix.to_vec();
-    true
-}
+use crate::input::multi_column_series_file::split_series_file_token;
 
 /// Extend base subcatchment columns through a registered row index.
 fn ensure_subcatch_capacity(ctx: &mut SimulationContext, idx: i32) {

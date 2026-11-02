@@ -18,3 +18,4 @@ gate/diff/pudump
 gate/diff/hydtypes
 gate/diff/xslookup
 gate/diff/strtod
+gate/diff/tabfile
