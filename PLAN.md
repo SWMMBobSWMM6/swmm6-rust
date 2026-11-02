@@ -113,6 +113,30 @@ Each phase ends on a gate run. A deck enters the gate set when every section it 
 
 ## Done
 
-* Native reference built; corpus reproducibility measured.
-* `gate/steptrace.c`, `gate/trcmp.py`, `gate/outnorm.py`.
-* `core::charconv` (std::from_chars, 30 cases recorded from libstdc++), `core::cmath` (std::min/max/clamp with C++ NaN and signed-zero behavior), `core::options`, `data::name_index`, `data::table` (in-memory tables and every lookup; G4: 134,703 query rows, identical bits on all ten lookup functions and the cursors), and `input::tokenizer`. G4: identical to upstream's own Tokenizer on 584,895 lines from 643 files (the SWMM5 corpus, every upstream `.inp`, upstream test data).
+| Piece | Upstream | Check (identical to upstream compiled from source unless noted) |
+|---|---|---|
+| Reference build, corpus reproducibility, census | — | 27 parity decks repeatable on 1 and 2 threads; 221-model census |
+| Gate tools | — | `gate/steptrace.c` + `trcmp.py` (C API run == CLI run on orif_legacy); `outnorm.py` |
+| `core::charconv` | charconv_compat.hpp + std::from_chars | 30 double and 20 integer cases recorded from libstdc++ |
+| `core::cmath` | std::min/max/clamp | NaN and signed-zero cases |
+| `core::datetime` | DateTime.hpp | 200,002 lines |
+| `core::error_codes` | ErrorCodes.hpp/.cpp | 85,456 lines (every code, every formatter) |
+| `core::unit_conversion` | UnitConversion.hpp/.cpp | 178 lines (every factor, as bits) |
+| `core::options`, `spatial_frame`, `user_flags` | SimulationOptions, FvOptions, FilePathPair, SpatialFrame, UserFlags | compiles; defaults transcribed |
+| `input::tokenizer` | Tokenizer.cpp | 584,895 corpus lines |
+| `input::parse_utils` | InputParseUtils.hpp | 447,009 lines (every distinct corpus token) |
+| `data::table` (in-memory) | TableData.hpp | 134,703 query rows, all ten lookups |
+| `data::name_index` | NameIndex.hpp, StringCase.hpp | unit test |
+| Node, link, subcatchment, gage, pollutant stores | NodeData, LinkData, SubcatchData, GageData, PollutantData | sizing after every method in a sequence: 3,196 lines |
+| Link and node subtypes, inlet usage | LinkSubtypes, NodeSubtypes, InfraData | row bookkeeping through build/retype/erase: 360 + 386 lines |
+| Storage geometry | StorageGeometry.hpp | 60,009 lines |
+| Inflow, infra, LID node, quality, treatment types, 2D coupling data | InflowData, InfraData, LidNodeData, QualityData, Treatment.hpp, NodeCoupling2DData | compiles; sizing checked by the agents' scripts |
+| SWMM6-only data: heat, water age, ARD, bed zone, channel thermal, LID layer species, MSX surface, reactions, species registry, initial quality, forcing | the 13 headers | compiles |
+
+Rust so far: about 12,300 lines in `crates/engine`.
+
+## Next
+
+1. `SimulationContext` (core/SimulationContext.hpp, 922 code lines), with the types it still needs: `climate::ClimateState`, `Transect`, `HydrologyData` (+ UEB and mesh-snow config types), and placeholders for the 2D objects a 1D build never creates.
+2. TableData.cpp (external time-series files).
+3. InputReader, SectionRegistry, DefaultInputPlugin's section table, the handlers, PostParseResolver. Gate: compare the parsed state through the C API getters.
