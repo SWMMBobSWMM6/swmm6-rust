@@ -1,4 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
+pub mod culvert;
+pub mod force_main;
+pub mod hyd_closure_kernels;
+pub mod link;
+pub mod street;
+pub mod transect;
 pub mod transect_types;
 pub mod xsect_batch;
 pub mod xsect_kernels;

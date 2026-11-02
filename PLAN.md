@@ -138,6 +138,7 @@ Each phase ends on a gate run. A deck enters the gate set when every section it 
 | InputReader, SectionRegistry, SectionParser, Constants | the matching files | inside the parse gate |
 | C-library input calls (strtod, atof, atoi) | glibc | 486,499 strings identical to glibc |
 | External series files | TableData.cpp, MultiColumnSeriesFile | 138 files (82 real, 53 adversarial, 3 error cases), 62,175 lines |
+| Transect, street, force main, link, culvert, FindRoot | Transect.cpp, Street.cpp, ForceMain.cpp, HydClosureKernels.hpp, Link.cpp, Culvert.cpp, FindRoot | 7,629,922 values (every corpus transect, street and shape curve; every culvert code): identical but for the NaN-sign hazard (13 lines) |
 | Cross-section geometry core | xsect_tables.hpp, XSectKernels.hpp, XSection.cpp, XSectBatch | 3,222,094 values from 338 parameter sets × every function, plus the batch and kernel APIs: identical but for the NaN-sign hazard (47 values) |
 
 Rust so far: see `git log`; about 23,500 lines in `crates/engine` (2 Nov).

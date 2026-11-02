@@ -91,7 +91,8 @@ impl Default for TransectData {
     }
 }
 
-// Declared in Transect.hpp, defined in Transect.cpp; translated with Transect.cpp:
+// Declared in Transect.hpp, defined in Transect.cpp; translated with Transect.cpp in
+// hydraulics::transect (build_tables, build_custom_tables, build_from_store):
 //
 //   void buildTables(TransectData& td, bool add_end_walls = true);
 //       Build tabulated geometry (area, hydraulic radius, width at N_TRANSECT_TBL equal

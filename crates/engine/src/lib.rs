@@ -12,3 +12,4 @@ pub mod data;
 pub mod hydraulics;
 pub mod hydrology;
 pub mod input;
+pub mod math;
