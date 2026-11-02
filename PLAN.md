@@ -50,6 +50,7 @@ The step-trace harness was checked against the CLI on `orif_legacy.inp`: running
    Of the 4 models only EPA runs, 3 are inputs OpenSWMM 6 now rejects on purpose (code-review decks NUM-35, CON-12, API-18). The fourth is a crash (finding 4).
    
    198 models run in OpenSWMM 6 and are gate candidates. OpenSWMM's legacy baseline is 5.2.4 plus its own "Build 5.3.0" fixes in 23 legacy files (dynwave, xsect, infil, node, routing, lid and others), and the new engine is held to that baseline, not to EPA. So the reference is OpenSWMM 6 itself, and swmm5-rust cannot stand in for it.
+3. **The `.inp` tokenizer is not SWMM5's.** A comma separates fields on a line with no white space, or where it touches white space; between two other characters it is part of a name. A quote groups text inside a token. Empty CSV fields are kept. Numbers are read with `std::from_chars`, which rejects a leading `+`, accepts `nan(...)`, and treats `2e-324` as out of range (so not a number) while `2.5e-324` is the smallest subnormal.
 4. **OpenSWMM 6 aborts on `IO-41_point.inp`** (`[CONTROLS] EXPRESSION E1 = 2 + .`), with "terminate called after throwing an instance of 'std::invalid_argument' what(): stod". In `src/engine/math/MathExpr.cpp`, the scanner takes a lone `.` as the start of a number and converts it unguarded:
 
    ```cpp
@@ -59,7 +60,6 @@ The step-trace harness was checked against the CLI on `orif_legacy.inp`: running
    ```
 
    `ControlEngine::addExpression` (`Controls.cpp:738`) calls `mathexpr::parse` with no `try`, so the exception ends the process. EPA 5.2.4 runs the deck. The translation must reproduce upstream's behavior up to this point, and must not abort.
-3. **The `.inp` tokenizer is not SWMM5's.** A comma separates fields on a line with no white space, or where it touches white space; between two other characters it is part of a name. A quote groups text inside a token. Empty CSV fields are kept. Numbers are read with `std::from_chars`, which rejects a leading `+`, accepts `nan(...)`, and treats `2e-324` as out of range (so not a number) while `2.5e-324` is the smallest subnormal.
 
 ## Size
 
