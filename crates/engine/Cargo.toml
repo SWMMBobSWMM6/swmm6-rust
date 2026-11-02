@@ -1,0 +1,10 @@
+[package]
+name = "swmm6-rust"
+description = "The OpenSWMM 6 1D engine translated into safe Rust, gated byte for byte against OpenSWMM 6"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "swmm6_rust"
+path = "src/lib.rs"

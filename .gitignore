@@ -1,0 +1,4 @@
+target/
+gate/diff/tokdump
+gate/diff/*.txt
+gate/steptrace
