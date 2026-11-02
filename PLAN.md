@@ -61,6 +61,15 @@ The step-trace harness was checked against the CLI on `orif_legacy.inp`: running
 
    `ControlEngine::addExpression` (`Controls.cpp:738`) calls `mathexpr::parse` with no `try`, so the exception ends the process. EPA 5.2.4 runs the deck. The translation must reproduce upstream's behavior up to this point, and must not abort.
 
+## Translation hazards found so far
+
+* **Iterating an `unordered_map`.** Wherever upstream loops over a `std::unordered_map` and the order reaches output, the line order is libstdc++'s internal hash-table order. Two cases so far:
+  * `InpWriter.cpp` writes `[USER_FLAG_VALUES]` by looping over `ctx.user_flags.all_values()`. The `.inp` writer is off the run path, so this is not urgent.
+  * `SectionRegistry::registered_tags` iterates two maps; whether anything uses that order has not been checked yet.
+  
+  Each such loop on the run path must either be shown not to reach a result, or reproduce libstdc++'s `std::hash<std::string>` (`_Hash_bytes`, seed 0xc70f6907) and its bucket growth.
+* **Errors as exceptions.** Upstream throws (`std::invalid_argument`, `length_error`) where the translation returns `Err` or treats a negative count as empty. This only matters on paths upstream itself fails on. The one known path is U1, which aborts upstream.
+
 ## Size
 
 Counted by the module survey: lines a SWMM5-equivalent deck runs through, excluding the C API, 2D, GeoPackage, checkpoints and the `.inp` writer.
