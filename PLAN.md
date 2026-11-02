@@ -137,7 +137,7 @@ Each phase ends on a gate run. A deck enters the gate set when every section it 
 | InputReader, SectionRegistry, SectionParser, Constants | the matching files | inside the parse gate |
 | C-library input calls (strtod, atof, atoi) | glibc | 486,499 strings identical to glibc |
 
-Rust so far: see `git log`; about 25,000 lines in `crates/engine`.
+Rust so far: see `git log`; about 23,500 lines in `crates/engine` (2 Nov).
 
 ## Next
 
