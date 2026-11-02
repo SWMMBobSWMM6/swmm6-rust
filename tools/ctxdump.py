@@ -11,7 +11,7 @@ on both sides, and the skip list is reported, so nothing is silently unchecked.
 import re, os, sys
 
 UP = '/root/work/swmm6src/upstream/src/engine'
-ROOT = '/root/work/swmm6-rust'
+ROOT = os.environ.get('CTXDUMP_ROOT', '/root/work/swmm6-rust')
 RUST_KEYWORDS = {'type', 'match', 'loop', 'move', 'ref', 'self', 'fn', 'mod', 'use', 'impl', 'in', 'where', 'box', 'crate', 'super'}
 
 INTS = {'int', 'long', 'bool', 'char', 'uint8_t', 'int8_t', 'int16_t', 'uint16_t', 'int32_t', 'uint32_t', 'int64_t',
@@ -45,11 +45,24 @@ def struct_body(header, struct):
         d += {'{': 1, '}': -1}.get(src[i], 0); i += 1
     return src[m.end():i - 1]
 
+def split_top(s, sep=','):
+    """Split on `sep` outside <>, () and []."""
+    out = []; d = 0; cur = ''
+    for ch in s:
+        if ch in '<([': d += 1
+        elif ch in '>)]': d -= 1
+        if ch == sep and d == 0:
+            out.append(cur); cur = ''
+        else:
+            cur += ch
+    out.append(cur)
+    return out
+
 def fields(header, struct):
     """(name, type, arraylen) for every data member at depth 0, in order."""
     body = struct_body(header, struct)
     # remove nested braces (methods, nested structs) to depth 0 text, keeping ';' structure
-    out_txt = []; depth = 0; buf = ''
+    depth = 0; buf = ''
     for ch in body:
         if ch == '{':
             depth += 1
@@ -66,21 +79,19 @@ def fields(header, struct):
     res = []
     for stmt in buf.split(';'):
         s = ' '.join(stmt.split())
-        if not s or '(' in s.split('=')[0] or s.startswith(('using ', 'static ', 'friend ', 'template', 'public:', 'private:', 'protected:', 'enum ', 'struct ', 'class ', 'typedef')):
-            if s.startswith(('public:', 'private:', 'protected:')):
-                s = s.split(':', 1)[1].strip()
-                if not s:
-                    continue
-            else:
-                continue
-        s = re.sub(r'\s*=\s*.*$', '', s)          # drop initializer
-        s = re.sub(r'\s*\{\}\s*$', '', s)
-        m = re.fullmatch(r'((?:const\s+)?[\w:]+(?:<.+>)?(?:\s+long)?)\s+(.+)', s)
+        if s.startswith(('public:', 'private:', 'protected:')):
+            s = s.split(':', 1)[1].strip()
+        if not s or s.startswith(('using ', 'static ', 'friend ', 'template', 'enum ', 'struct ', 'class ', 'typedef')):
+            continue
+        if '(' in s.split('=')[0]:
+            continue
+        m = re.fullmatch(r'((?:const\s+)?[\w:]+(?:<.+?>+)?(?:\s+long)?)\s+([A-Za-z_].*)', s)
         if not m:
             continue
         ty, names = m.group(1), m.group(2)
-        for nm in names.split(','):
-            nm = nm.strip()
+        for nm in split_top(names):          # each declarator, initializer dropped
+            nm = re.sub(r'\s*=\s*.*$', '', nm.strip())
+            nm = re.sub(r'\s*\{\}\s*$', '', nm).strip()
             am = re.fullmatch(r'(\w+)\s*\[\s*(\w+)\s*\]', nm)
             if am:
                 res.append((am.group(1), ty, am.group(2)))
@@ -93,19 +104,53 @@ SKIPS = []
 def rname(n):
     return n + '_' if n in RUST_KEYWORDS else n
 
+# Aggregate member types dumped member by member: type text as written -> (header, struct).
+STRUCTS = {
+    'ueb::Parameters': ('hydrology/surface/UebSnow.hpp', 'Parameters'),
+    'ueb::Site': ('hydrology/surface/UebSnow.hpp', 'Site'),
+    'SnowpackConfig': ('hydrology/surface/UebConfig.hpp', 'SnowpackConfig'),
+    'RadiationSource': ('hydrology/surface/UebConfig.hpp', 'RadiationSource'),
+    'ClimateSite': ('hydrology/surface/UebConfig.hpp', 'ClimateSite'),
+    'surface::SnowConfig': ('hydrology/surface/UebConfig.hpp', 'SnowConfig'),
+    'MeshSnowRow': ('hydrology/surface/MeshSnowConfig.hpp', 'MeshSnowRow'),
+    'surface::MeshSnowConfig': ('hydrology/surface/MeshSnowConfig.hpp', 'MeshSnowConfig'),
+    'LidNodeLayer': ('data/LidNodeData.hpp', 'LidNodeLayer'),
+    'LidLayerTreatment': ('data/LidNodeData.hpp', 'LidLayerTreatment'),
+    'richards::Material': ('hydrology/RichardsColumn.hpp', 'Material'),
+    'richards::Options': ('hydrology/RichardsColumn.hpp', 'Options'),
+    'Buildup': ('data/MsxSurfaceData.hpp', 'Buildup'),
+    'Washoff': ('data/MsxSurfaceData.hpp', 'Washoff'),
+    'Loading': ('data/MsxSurfaceData.hpp', 'Loading'),
+    'openswmm::treatment::TreatExpr': ('quality/Treatment.hpp', 'TreatExpr'),
+    'Token': ('quality/Treatment.hpp', 'Token'),
+}
+
 def kind(ty):
     ty = ty.replace('const ', '').strip()
     if ty in FLOATS: return ('f', ty)
     if ty in INTS or ty in ENUMS or ty.split('::')[-1] in ENUMS: return ('i', ty)
     if ty in STRINGS: return ('s', ty)
+    if ty in STRUCTS: return ('struct',) + STRUCTS[ty]
     m = re.fullmatch(r'std::vector<std::array<double,\s*(\w+)>>', ty)
     if m:
         return ('va', m.group(1))
-    m = re.fullmatch(r'std::vector<(.+)>', ty)
-    if m:
-        inner = kind(m.group(1))
-        return ('v', inner) if inner and inner[0] in 'fis' else (('vv', inner) if inner and inner[0] == 'v' else None)
-    return None
+    m = re.fullmatch(r'std::(vector|optional|array|map|pair)<(.+)>', ty)
+    if not m:
+        return None
+    args = [a.strip() for a in split_top(m.group(2))]
+    sub = [kind(a) for a in args]
+    if m.group(1) in ('vector', 'optional'):
+        return (m.group(1)[0] if m.group(1) == 'vector' else 'opt', sub[0]) if sub[0] else None
+    if m.group(1) == 'array':
+        return ('arr', sub[0], args[1]) if sub[0] else None
+    if None in sub:
+        return None
+    return (m.group(1), sub[0], sub[1])
+
+CNT = [0]
+def fresh(p):
+    CNT[0] += 1
+    return f'{p}{CNT[0]}'
 
 def emit(path_c, path_r, label, k, C, R):
     """Append code printing one value of kind k."""
@@ -117,9 +162,8 @@ def emit(path_c, path_r, label, k, C, R):
         sc = f'std::string({path_c})' if k[1] == 'FilePathPair' else path_c
         sr = f'&({path_r}).original' if k[1] == 'FilePathPair' else f'&{path_r}'
         C.append(f'  ps("{label}", {sc});'); R.append(f'    ps(o, "{label}", {sr});')
-    elif k[0] == 'v':
+    elif k[0] == 'v' and k[1][0] in 'fis':
         ik = k[1]
-        fn = {'f': 'vf', 'i': 'vi', 's': 'vs'}[ik[0]]
         if ik[0] == 'i':
             C.append(f'  {{ std::vector<long long> t; for (auto x : {path_c}) t.push_back((long long)x); vi("{label}", t); }}')
             R.append(f'    vi(o, "{label}", &({path_r}).iter().map(|x| *x as i64).collect::<Vec<i64>>());')
@@ -135,13 +179,30 @@ def emit(path_c, path_r, label, k, C, R):
     elif k[0] == 'va':
         C.append(f'  {{ std::vector<double> t; for (auto& a : {path_c}) for (double x : a) t.push_back(x); vf("{label}", t); }}')
         R.append(f'    vf(o, "{label}", &({path_r}).iter().flat_map(|a| a.iter().copied()).collect::<Vec<f64>>());')
-    elif k[0] == 'vv':
-        inner = k[1][1]
+    elif k[0] in ('v', 'arr'):
+        # count, then each element (nested vectors, arrays, structs, pairs)
+        e = fresh('e')
         C.append(f'  pi("{label}.n", (long long)({path_c}).size());'); R.append(f'    pi(o, "{label}.n", ({path_r}).len() as i64);')
-        C.append(f'  for (std::size_t q = 0; q < ({path_c}).size(); ++q) {{')
-        R.append(f'    for q in 0..({path_r}).len() {{')
-        emit(f'({path_c})[q]', f'({path_r})[q]', label + '[]', ('v', inner), C, R)
+        C.append(f'  for (const auto& {e} : {path_c}) {{'); R.append(f'    for {e} in ({path_r}).iter() {{')
+        emit(e, f'(*{e})', label + '[]', k[1], C, R)
         C.append('  }'); R.append('    }')
+    elif k[0] == 'opt':
+        e = fresh('e')
+        C.append(f'  if ({path_c}) {{'); R.append(f'    match &({path_r}) {{ Some({e}) => {{')
+        emit(f'(*({path_c}))', f'(*{e})', label, k[1], C, R)
+        C.append(f'  }} else pn("{label}");'); R.append(f'    }} None => pn(o, "{label}") }}')
+    elif k[0] == 'map':
+        e = fresh('e')
+        C.append(f'  pi("{label}.n", (long long)({path_c}).size());'); R.append(f'    pi(o, "{label}.n", ({path_r}).len() as i64);')
+        C.append(f'  for (const auto& {e} : {path_c}) {{'); R.append(f'    for {e} in ({path_r}).iter() {{')
+        emit(f'{e}.first', f'(*{e}.0)', label + '.key', k[1], C, R)
+        emit(f'{e}.second', f'(*{e}.1)', label + '.val', k[2], C, R)
+        C.append('  }'); R.append('    }')
+    elif k[0] == 'pair':
+        emit(f'{path_c}.first', f'{path_r}.0', label + '.first', k[1], C, R)
+        emit(f'{path_c}.second', f'{path_r}.1', label + '.second', k[2], C, R)
+    elif k[0] == 'struct':
+        dump_struct(k[1], k[2], path_c, path_r, label, C, R)
 
 def dump_struct(header, struct, path_c, path_r, label, C, R):
     for name, ty, arr in fields(header, struct):
@@ -209,13 +270,16 @@ STORES = [
     ('core/SimulationOptions.hpp', 'SimulationOptions', 'c.options', 'c.options', 'options'),
     ('hydraulics/fv/FvOptions.hpp', 'FvOptions', 'c.options.fv', 'c.options.fv', 'options.fv'),
     ('core/SimulationContext.hpp', 'FilesSpec', 'c.files', 'c.files', 'files'),
+    ('data/MsxSurfaceData.hpp', 'MsxSurfaceRows', 'c.reactions.surface.rows', 'c.reactions.surface.rows', 'msx_rows'),
+    ('data/InitialQualityData.hpp', 'InitialQualityData', 'c.initial_quality', 'c.initial_quality', 'initial_quality'),
 ]
 NAMES = ['node_names', 'link_names', 'subcatch_names', 'gage_names', 'pollutant_names', 'landuse_names',
          'snowpack_names', 'aquifer_names', 'lid_names']
 CTX_SCALARS = ['error_code', 'warning_code', 'error_message', 'warnings', 'errors', 'title_notes',
                'adjust_temp', 'adjust_evap', 'adjust_rain', 'adjust_hydcon', 'subcatch_n_perv_pattern',
                'subcatch_d_store_pattern', 'subcatch_infil_pattern', 'base_n_perv', 'base_ds_perv',
-               'has_subcatch_adj_patterns', 'xsect_generation', 'gpkg_units_internal']
+               'has_subcatch_adj_patterns', 'xsect_generation', 'gpkg_units_internal',
+               'pending_gw_nodes', 'pending_gw_aquifers', 'deferred_section_rows']
 
 def main():
     collect_enums()
@@ -229,6 +293,7 @@ def main():
          'static void vi(const char* l, const std::vector<long long>& v){ std::printf("%s n=%zu\\n", l, v.size()); for (long long x : v) std::printf(" %lld", x); if(!v.empty()) std::printf("\\n"); }',
          'static void vs(const char* l, const std::vector<std::string>& v){ std::printf("%s n=%zu\\n", l, v.size()); for (auto& s : v){ std::printf(" %zu:", s.size()); std::fwrite(s.data(),1,s.size(),stdout);} if(!v.empty()) std::printf("\\n"); }',
          'static void sk(const char* l){ std::printf("skip %s\\n", l); }',
+         'static void pn(const char* l){ std::printf("%s none\\n", l); }',
          'inline void dump(const openswmm::SimulationContext& c) {']
     R = ['// generated by tools/ctxdump.py: Rust twin of gate/diff/ctxdump.hpp', '#![allow(dead_code, unused_parens, clippy::all)]',
          'use std::io::Write;', 'use swmm6_rust::core::context::SimulationContext;',
@@ -239,6 +304,7 @@ def main():
          'fn vi(o: &mut Vec<u8>, l: &str, v: &[i64]) { writeln!(o, "{} n={}", l, v.len()).unwrap(); for x in v { write!(o, " {}", x).unwrap(); } if !v.is_empty() { o.push(b\'\\n\'); } }',
          'fn vs(o: &mut Vec<u8>, l: &str, v: &[Vec<u8>]) { writeln!(o, "{} n={}", l, v.len()).unwrap(); for s in v { write!(o, " {}:", s.len()).unwrap(); o.extend_from_slice(s); } if !v.is_empty() { o.push(b\'\\n\'); } }',
          'fn sk(o: &mut Vec<u8>, l: &str) { writeln!(o, "skip {}", l).unwrap(); }',
+         'fn pn(o: &mut Vec<u8>, l: &str) { writeln!(o, "{} none", l).unwrap(); }',
          'pub fn dump(c: &SimulationContext) -> Vec<u8> {', '    let mut o: Vec<u8> = Vec::new();', '    let o = &mut o;']
     for n in NAMES:
         C.append(f'  vs("{n}", c.{n}.names());'); R.append(f'    vs(o, "{n}", c.{n}.names());')

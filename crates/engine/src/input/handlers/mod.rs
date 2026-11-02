@@ -4,10 +4,13 @@
 // DefaultInputPlugin::register_builtin_handlers. Each handler module carries its own
 // derivation notice.
 
+pub mod catchment_handler;
+pub mod hydrology_handler;
 pub mod infra_handler;
 pub mod inflows_handler;
 pub mod links_handler;
 pub mod nodes_handler;
+pub mod quality_handler;
 pub mod tables_handler;
 
 use crate::core::context::SimulationContext;
@@ -62,4 +65,30 @@ pub fn register_reference_handlers(reg: &mut SectionRegistry, on: &[String], all
     r("STREETS", infra_handler::handle_streets);
     r("INLETS", infra_handler::handle_inlets);
     r("INLET_USAGE", infra_handler::handle_inlet_usage);
+
+    // Subcatchments, hydrology, quality
+    r("SUBCATCHMENTS", catchment_handler::handle_subcatchments);
+    r("SUBAREAS", catchment_handler::handle_subareas);
+    r("INFILTRATION", catchment_handler::handle_infiltration);
+    r("LID_CONTROLS", hydrology_handler::handle_lid_controls);
+    r("LID_USAGE", hydrology_handler::handle_lid_usage);
+    r("AQUIFERS", hydrology_handler::handle_aquifers);
+    r("GROUNDWATER", hydrology_handler::handle_groundwater);
+    r("GWF", hydrology_handler::handle_gwf);
+    r("RAINGAGES", catchment_handler::handle_raingages);
+    r("EVAPORATION", hydrology_handler::handle_evaporation);
+    r("TEMPERATURE", hydrology_handler::handle_temperature);
+    r("SNOWPACKS", hydrology_handler::handle_snowpacks);
+    r("UEB_OPTIONS", hydrology_handler::handle_ueb_options);
+    r("2D_SNOW_OPTIONS", hydrology_handler::handle_mesh_snow_options);
+    r("2D_SNOW_DEFAULTS", hydrology_handler::handle_mesh_snow_defaults);
+    r("2D_SNOW", hydrology_handler::handle_mesh_snow_cells);
+    r("LOADINGS", quality_handler::handle_loadings);
+    r("POLLUTANTS", quality_handler::handle_pollutants);
+    r("LANDUSES", quality_handler::handle_landuses);
+    r("COVERAGES", quality_handler::handle_coverages);
+    r("BUILDUP", quality_handler::handle_buildup);
+    r("WASHOFF", quality_handler::handle_washoff);
+    r("TREATMENT", quality_handler::handle_treatment);
+    r("INITIAL_QUALITY", quality_handler::handle_initial_quality);
 }

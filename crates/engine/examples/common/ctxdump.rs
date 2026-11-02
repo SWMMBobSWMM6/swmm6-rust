@@ -9,6 +9,7 @@ fn vf(o: &mut Vec<u8>, l: &str, v: &[f64]) { writeln!(o, "{} n={}", l, v.len()).
 fn vi(o: &mut Vec<u8>, l: &str, v: &[i64]) { writeln!(o, "{} n={}", l, v.len()).unwrap(); for x in v { write!(o, " {}", x).unwrap(); } if !v.is_empty() { o.push(b'\n'); } }
 fn vs(o: &mut Vec<u8>, l: &str, v: &[Vec<u8>]) { writeln!(o, "{} n={}", l, v.len()).unwrap(); for s in v { write!(o, " {}:", s.len()).unwrap(); o.extend_from_slice(s); } if !v.is_empty() { o.push(b'\n'); } }
 fn sk(o: &mut Vec<u8>, l: &str) { writeln!(o, "skip {}", l).unwrap(); }
+fn pn(o: &mut Vec<u8>, l: &str) { writeln!(o, "{} none", l).unwrap(); }
 pub fn dump(c: &SimulationContext) -> Vec<u8> {
     let mut o: Vec<u8> = Vec::new();
     let o = &mut o;
@@ -47,6 +48,21 @@ pub fn dump(c: &SimulationContext) -> Vec<u8> {
     pi(o, "has_subcatch_adj_patterns", (c.has_subcatch_adj_patterns) as i64);
     pi(o, "xsect_generation", (c.xsect_generation) as i64);
     pi(o, "gpkg_units_internal", (c.gpkg_units_internal) as i64);
+    pi(o, "pending_gw_nodes.n", (c.pending_gw_nodes).len() as i64);
+    for e1 in (c.pending_gw_nodes).iter() {
+    pi(o, "pending_gw_nodes[].first", ((*e1).0) as i64);
+    ps(o, "pending_gw_nodes[].second", &(*e1).1);
+    }
+    pi(o, "pending_gw_aquifers.n", (c.pending_gw_aquifers).len() as i64);
+    for e2 in (c.pending_gw_aquifers).iter() {
+    pi(o, "pending_gw_aquifers[].first", ((*e2).0) as i64);
+    ps(o, "pending_gw_aquifers[].second", &(*e2).1);
+    }
+    pi(o, "deferred_section_rows.n", (c.deferred_section_rows).len() as i64);
+    for e3 in (c.deferred_section_rows).iter() {
+    ps(o, "deferred_section_rows[].first", &(*e3).0);
+    ps(o, "deferred_section_rows[].second", &(*e3).1);
+    }
     pi(o, "tables.n", c.tables.tables.len() as i64);
     for t in &c.tables.tables { ps(o, "table.id", &t.id); pi(o, "table.type", t.type_ as i64); ps(o, "table.comment", &t.comment); vf(o, "table.x", &t.x); vf(o, "table.y", &t.y); pi(o, "table.n_relative", t.n_relative as i64); pf(o, "table.rel_anchor", t.rel_anchor); pi(o, "table.is_file", t.is_file_based as i64); ps(o, "table.file", &t.file_path.original); }
     for h in &c.unknown_section_headers { ps(o, "unknown_header", &h.0); pi(o, "unknown_header.line", h.1); }
@@ -501,7 +517,18 @@ pub fn dump(c: &SimulationContext) -> Vec<u8> {
     vs(o, "treatment.expressions", &c.treatment.expressions);
     pi(o, "treatment.n_nodes", (c.treatment.n_nodes) as i64);
     pi(o, "treatment.n_pollutants", (c.treatment.n_pollutants) as i64);
-    sk(o, "treatment.compiled");
+    pi(o, "treatment.compiled.n", (c.treatment.compiled).len() as i64);
+    for e4 in (c.treatment.compiled).iter() {
+    pi(o, "treatment.compiled[].tokens.n", ((*e4).tokens).len() as i64);
+    for e5 in ((*e4).tokens).iter() {
+    pi(o, "treatment.compiled[].tokens[].type", ((*e5).type_) as i64);
+    pf(o, "treatment.compiled[].tokens[].value", ((*e5).value) as f64);
+    pi(o, "treatment.compiled[].tokens[].var", ((*e5).var) as i64);
+    pi(o, "treatment.compiled[].tokens[].pollut_ref", ((*e5).pollut_ref) as i64);
+    }
+    pi(o, "treatment.compiled[].pollutant_idx", ((*e4).pollutant_idx) as i64);
+    pi(o, "treatment.compiled[].is_removal", ((*e4).is_removal) as i64);
+    }
     vi(o, "treatment.has_treatment", &(c.treatment.has_treatment).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     vf(o, "treatment.cin", &(c.treatment.cin).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "treatment.removal", &(c.treatment.removal).iter().map(|x| *x as f64).collect::<Vec<f64>>());
@@ -529,8 +556,8 @@ pub fn dump(c: &SimulationContext) -> Vec<u8> {
     vs(o, "patterns.names", &c.patterns.names);
     vi(o, "patterns.types", &(c.patterns.types).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     pi(o, "patterns.factors.n", (c.patterns.factors).len() as i64);
-    for q in 0..(c.patterns.factors).len() {
-    vf(o, "patterns.factors[]", &((c.patterns.factors)[q]).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    for e6 in (c.patterns.factors).iter() {
+    vf(o, "patterns.factors[]", &((*e6)).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     }
     pi(o, "unit_hyds.entries.n", (c.unit_hyds.entries).len() as i64);
     for el in &c.unit_hyds.entries {
@@ -574,12 +601,12 @@ pub fn dump(c: &SimulationContext) -> Vec<u8> {
     vf(o, "transects.y_factor", &(c.transects.y_factor).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "transects.length_factor", &(c.transects.length_factor).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     pi(o, "transects.stations.n", (c.transects.stations).len() as i64);
-    for q in 0..(c.transects.stations).len() {
-    vf(o, "transects.stations[]", &((c.transects.stations)[q]).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    for e7 in (c.transects.stations).iter() {
+    vf(o, "transects.stations[]", &((*e7)).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     }
     pi(o, "transects.elevations.n", (c.transects.elevations).len() as i64);
-    for q in 0..(c.transects.elevations).len() {
-    vf(o, "transects.elevations[]", &((c.transects.elevations)[q]).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    for e8 in (c.transects.elevations).iter() {
+    vf(o, "transects.elevations[]", &((*e8)).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     }
     vs(o, "streets.names", &c.streets.names);
     vf(o, "streets.t_crown", &(c.streets.t_crown).iter().map(|x| *x as f64).collect::<Vec<f64>>());
@@ -624,10 +651,122 @@ pub fn dump(c: &SimulationContext) -> Vec<u8> {
     vf(o, "inlet_usages.stat_backflow_vol", &(c.inlet_usages.stat_backflow_vol).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "inlet_usages.stat_peak_flow", &(c.inlet_usages.stat_peak_flow).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vs(o, "control_rules.rule_text", &c.control_rules.rule_text);
-    sk(o, "snowpacks.report_values");
+    pi(o, "snowpacks.report_values.n", (c.snowpacks.report_values).len() as i64);
+    for e9 in (c.snowpacks.report_values).iter() {
+    ps(o, "snowpacks.report_values[].first", &(*e9).0);
+    pf(o, "snowpacks.report_values[].second", ((*e9).1) as f64);
+    }
     sk(o, "snowpacks.runtime");
-    sk(o, "snowpacks.config");
-    sk(o, "snowpacks.mesh_config");
+    pi(o, "snowpacks.config.model", (c.snowpacks.config.model) as i64);
+    pi(o, "snowpacks.config.model_authored", (c.snowpacks.config.model_authored) as i64);
+    pi(o, "snowpacks.config.division_temperature", (c.snowpacks.config.division_temperature) as i64);
+    pf(o, "snowpacks.config.step", (c.snowpacks.config.step) as f64);
+    pi(o, "snowpacks.config.parameters.temperature", (c.snowpacks.config.parameters.temperature) as i64);
+    pf(o, "snowpacks.config.parameters.rain_temperature", (c.snowpacks.config.parameters.rain_temperature) as f64);
+    pf(o, "snowpacks.config.parameters.snow_temperature", (c.snowpacks.config.parameters.snow_temperature) as f64);
+    pf(o, "snowpacks.config.parameters.emissivity", (c.snowpacks.config.parameters.emissivity) as f64);
+    pf(o, "snowpacks.config.parameters.roughness", (c.snowpacks.config.parameters.roughness) as f64);
+    pf(o, "snowpacks.config.parameters.measurement_height", (c.snowpacks.config.parameters.measurement_height) as f64);
+    pf(o, "snowpacks.config.parameters.snow_density", (c.snowpacks.config.parameters.snow_density) as f64);
+    pf(o, "snowpacks.config.parameters.soil_density", (c.snowpacks.config.parameters.soil_density) as f64);
+    pf(o, "snowpacks.config.parameters.soil_heat_capacity", (c.snowpacks.config.parameters.soil_heat_capacity) as f64);
+    pf(o, "snowpacks.config.parameters.active_soil_depth", (c.snowpacks.config.parameters.active_soil_depth) as f64);
+    pf(o, "snowpacks.config.parameters.liquid_retention", (c.snowpacks.config.parameters.liquid_retention) as f64);
+    pf(o, "snowpacks.config.parameters.drainage_conductivity", (c.snowpacks.config.parameters.drainage_conductivity) as f64);
+    pf(o, "snowpacks.config.parameters.equilibrium_conductance", (c.snowpacks.config.parameters.equilibrium_conductance) as f64);
+    pf(o, "snowpacks.config.parameters.snow_conductivity", (c.snowpacks.config.parameters.snow_conductivity) as f64);
+    pf(o, "snowpacks.config.parameters.soil_conductivity", (c.snowpacks.config.parameters.soil_conductivity) as f64);
+    pf(o, "snowpacks.config.parameters.low_frequency", (c.snowpacks.config.parameters.low_frequency) as f64);
+    pf(o, "snowpacks.config.parameters.amplitude", (c.snowpacks.config.parameters.amplitude) as f64);
+    pf(o, "snowpacks.config.parameters.stability", (c.snowpacks.config.parameters.stability) as f64);
+    pf(o, "snowpacks.config.parameters.ground_albedo", (c.snowpacks.config.parameters.ground_albedo) as f64);
+    pf(o, "snowpacks.config.parameters.visible_albedo", (c.snowpacks.config.parameters.visible_albedo) as f64);
+    pf(o, "snowpacks.config.parameters.infrared_albedo", (c.snowpacks.config.parameters.infrared_albedo) as f64);
+    pf(o, "snowpacks.config.parameters.new_snow_depth", (c.snowpacks.config.parameters.new_snow_depth) as f64);
+    pf(o, "snowpacks.config.parameters.age_dust", (c.snowpacks.config.parameters.age_dust) as f64);
+    pf(o, "snowpacks.config.parameters.visible_age", (c.snowpacks.config.parameters.visible_age) as f64);
+    pf(o, "snowpacks.config.parameters.infrared_age", (c.snowpacks.config.parameters.infrared_age) as f64);
+    pf(o, "snowpacks.config.parameters.max_step", (c.snowpacks.config.parameters.max_step) as f64);
+    pf(o, "snowpacks.config.bc_a", (c.snowpacks.config.bc_a) as f64);
+    pf(o, "snowpacks.config.bc_c", (c.snowpacks.config.bc_c) as f64);
+    pi(o, "snowpacks.config.monthly_range.n", (c.snowpacks.config.monthly_range).len() as i64);
+    for e10 in (c.snowpacks.config.monthly_range).iter() {
+    match &((*e10)) { Some(e11) => {
+    pf(o, "snowpacks.config.monthly_range[]", ((*e11)) as f64);
+    } None => pn(o, "snowpacks.config.monthly_range[]") }
+    }
+    match &(c.snowpacks.config.site) { Some(e12) => {
+    pf(o, "snowpacks.config.site.latitude", ((*e12).latitude) as f64);
+    pf(o, "snowpacks.config.site.longitude", ((*e12).longitude) as f64);
+    pf(o, "snowpacks.config.site.timezone", ((*e12).timezone) as f64);
+    pf(o, "snowpacks.config.site.elevation", ((*e12).elevation) as f64);
+    } None => pn(o, "snowpacks.config.site") }
+    pi(o, "snowpacks.config.shortwave.mode", (c.snowpacks.config.shortwave.mode) as i64);
+    ps(o, "snowpacks.config.shortwave.series", &c.snowpacks.config.shortwave.series);
+    pi(o, "snowpacks.config.shortwave.authored", (c.snowpacks.config.shortwave.authored) as i64);
+    pi(o, "snowpacks.config.longwave.mode", (c.snowpacks.config.longwave.mode) as i64);
+    ps(o, "snowpacks.config.longwave.series", &c.snowpacks.config.longwave.series);
+    pi(o, "snowpacks.config.longwave.authored", (c.snowpacks.config.longwave.authored) as i64);
+    ps(o, "snowpacks.config.met_file", &(c.snowpacks.config.met_file).original);
+    pi(o, "snowpacks.config.packs.n", (c.snowpacks.config.packs).len() as i64);
+    for e13 in (c.snowpacks.config.packs).iter() {
+    pi(o, "snowpacks.config.packs.key", ((*e13.0)) as i64);
+    pi(o, "snowpacks.config.packs.val.model", ((*e13.1).model) as i64);
+    pf(o, "snowpacks.config.packs.val.site.forest", ((*e13.1).site.forest) as f64);
+    pf(o, "snowpacks.config.packs.val.site.drift", ((*e13.1).site.drift) as f64);
+    pf(o, "snowpacks.config.packs.val.site.pressure", ((*e13.1).site.pressure) as f64);
+    pf(o, "snowpacks.config.packs.val.site.ground_heat", ((*e13.1).site.ground_heat) as f64);
+    pf(o, "snowpacks.config.packs.val.site.extinction_depth", ((*e13.1).site.extinction_depth) as f64);
+    pf(o, "snowpacks.config.packs.val.initial_energy", ((*e13.1).initial_energy) as f64);
+    }
+    pi(o, "snowpacks.mesh_config.mode", (c.snowpacks.mesh_config.mode) as i64);
+    pf(o, "snowpacks.mesh_config.step", (c.snowpacks.mesh_config.step) as f64);
+    pi(o, "snowpacks.mesh_config.defaults.n", (c.snowpacks.mesh_config.defaults).len() as i64);
+    for e14 in (c.snowpacks.mesh_config.defaults).iter() {
+    ps(o, "snowpacks.mesh_config.defaults.key", &(*e14.0));
+    ps(o, "snowpacks.mesh_config.defaults.val.pack", &(*e14.1).pack);
+    match &((*e14.1).forest) { Some(e15) => {
+    pf(o, "snowpacks.mesh_config.defaults.val.forest", ((*e15)) as f64);
+    } None => pn(o, "snowpacks.mesh_config.defaults.val.forest") }
+    match &((*e14.1).drift) { Some(e16) => {
+    pf(o, "snowpacks.mesh_config.defaults.val.drift", ((*e16)) as f64);
+    } None => pn(o, "snowpacks.mesh_config.defaults.val.drift") }
+    match &((*e14.1).ground_heat) { Some(e17) => {
+    pf(o, "snowpacks.mesh_config.defaults.val.ground_heat", ((*e17)) as f64);
+    } None => pn(o, "snowpacks.mesh_config.defaults.val.ground_heat") }
+    match &((*e14.1).extinction_depth) { Some(e18) => {
+    pf(o, "snowpacks.mesh_config.defaults.val.extinction_depth", ((*e18)) as f64);
+    } None => pn(o, "snowpacks.mesh_config.defaults.val.extinction_depth") }
+    match &((*e14.1).slope) { Some(e19) => {
+    pf(o, "snowpacks.mesh_config.defaults.val.slope", ((*e19)) as f64);
+    } None => pn(o, "snowpacks.mesh_config.defaults.val.slope") }
+    match &((*e14.1).aspect) { Some(e20) => {
+    pf(o, "snowpacks.mesh_config.defaults.val.aspect", ((*e20)) as f64);
+    } None => pn(o, "snowpacks.mesh_config.defaults.val.aspect") }
+    }
+    pi(o, "snowpacks.mesh_config.cells.n", (c.snowpacks.mesh_config.cells).len() as i64);
+    for e21 in (c.snowpacks.mesh_config.cells).iter() {
+    pi(o, "snowpacks.mesh_config.cells.key", ((*e21.0)) as i64);
+    ps(o, "snowpacks.mesh_config.cells.val.pack", &(*e21.1).pack);
+    match &((*e21.1).forest) { Some(e22) => {
+    pf(o, "snowpacks.mesh_config.cells.val.forest", ((*e22)) as f64);
+    } None => pn(o, "snowpacks.mesh_config.cells.val.forest") }
+    match &((*e21.1).drift) { Some(e23) => {
+    pf(o, "snowpacks.mesh_config.cells.val.drift", ((*e23)) as f64);
+    } None => pn(o, "snowpacks.mesh_config.cells.val.drift") }
+    match &((*e21.1).ground_heat) { Some(e24) => {
+    pf(o, "snowpacks.mesh_config.cells.val.ground_heat", ((*e24)) as f64);
+    } None => pn(o, "snowpacks.mesh_config.cells.val.ground_heat") }
+    match &((*e21.1).extinction_depth) { Some(e25) => {
+    pf(o, "snowpacks.mesh_config.cells.val.extinction_depth", ((*e25)) as f64);
+    } None => pn(o, "snowpacks.mesh_config.cells.val.extinction_depth") }
+    match &((*e21.1).slope) { Some(e26) => {
+    pf(o, "snowpacks.mesh_config.cells.val.slope", ((*e26)) as f64);
+    } None => pn(o, "snowpacks.mesh_config.cells.val.slope") }
+    match &((*e21.1).aspect) { Some(e27) => {
+    pf(o, "snowpacks.mesh_config.cells.val.aspect", ((*e27)) as f64);
+    } None => pn(o, "snowpacks.mesh_config.cells.val.aspect") }
+    }
     sk(o, "snowpacks.meteorology");
     sk(o, "snowpacks.daily_weather");
     vs(o, "snowpacks.names", &c.snowpacks.names);
@@ -650,7 +789,34 @@ pub fn dump(c: &SimulationContext) -> Vec<u8> {
     vf(o, "aquifers.water_table_elev", &(c.aquifers.water_table_elev).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "aquifers.upper_moist", &(c.aquifers.upper_moist).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vs(o, "aquifers.upper_evap_pat", &c.aquifers.upper_evap_pat);
-    sk(o, "lid_controls.node_layers");
+    pi(o, "lid_controls.node_layers.n", (c.lid_controls.node_layers).len() as i64);
+    for e28 in (c.lid_controls.node_layers).iter() {
+    pi(o, "lid_controls.node_layers[].n", ((*e28)).len() as i64);
+    for e29 in ((*e28)).iter() {
+    pi(o, "lid_controls.node_layers[][].kind", ((*e29).kind) as i64);
+    pi(o, "lid_controls.node_layers[][].params.n", ((*e29).params).len() as i64);
+    for e30 in ((*e29).params).iter() {
+    pf(o, "lid_controls.node_layers[][].params[]", ((*e30)) as f64);
+    }
+    pi(o, "lid_controls.node_layers[][].treatment.n", ((*e29).treatment).len() as i64);
+    for e31 in ((*e29).treatment).iter() {
+    ps(o, "lid_controls.node_layers[][].treatment[].pollutant", &(*e31).pollutant);
+    pf(o, "lid_controls.node_layers[][].treatment[].removal", ((*e31).removal) as f64);
+    pf(o, "lid_controls.node_layers[][].treatment[].decay", ((*e31).decay) as f64);
+    ps(o, "lid_controls.node_layers[][].treatment[].expression", &(*e31).expression);
+    }
+    pf(o, "lid_controls.node_layers[][].retention.theta_r", ((*e29).retention.theta_r) as f64);
+    pf(o, "lid_controls.node_layers[][].retention.alpha", ((*e29).retention.alpha) as f64);
+    pf(o, "lid_controls.node_layers[][].retention.n", ((*e29).retention.n) as f64);
+    pf(o, "lid_controls.node_layers[][].retention.l", ((*e29).retention.l) as f64);
+    pf(o, "lid_controls.node_layers[][].retention.specific_storage", ((*e29).retention.specific_storage) as f64);
+    pi(o, "lid_controls.node_layers[][].flow.enabled", ((*e29).flow.enabled) as i64);
+    pi(o, "lid_controls.node_layers[][].flow.cells_per_layer", ((*e29).flow.cells_per_layer) as i64);
+    pf(o, "lid_controls.node_layers[][].flow.atol", ((*e29).flow.atol) as f64);
+    pf(o, "lid_controls.node_layers[][].flow.rtol", ((*e29).flow.rtol) as f64);
+    pf(o, "lid_controls.node_layers[][].flow.max_step", ((*e29).flow.max_step) as f64);
+    }
+    }
     vs(o, "lid_controls.names", &c.lid_controls.names);
     vs(o, "lid_controls.lid_type", &c.lid_controls.lid_type);
     vf(o, "lid_controls.surface", &(c.lid_controls.surface).iter().flat_map(|a| a.iter().copied()).collect::<Vec<f64>>());
@@ -660,8 +826,22 @@ pub fn dump(c: &SimulationContext) -> Vec<u8> {
     vf(o, "lid_controls.drain", &(c.lid_controls.drain).iter().flat_map(|a| a.iter().copied()).collect::<Vec<f64>>());
     vs(o, "lid_controls.drain_curve", &c.lid_controls.drain_curve);
     vf(o, "lid_controls.drainmat", &(c.lid_controls.drainmat).iter().flat_map(|a| a.iter().copied()).collect::<Vec<f64>>());
-    sk(o, "lid_controls.removals");
-    sk(o, "lid_controls.removals_by_name");
+    pi(o, "lid_controls.removals.n", (c.lid_controls.removals).len() as i64);
+    for e32 in (c.lid_controls.removals).iter() {
+    pi(o, "lid_controls.removals[].n", ((*e32)).len() as i64);
+    for e33 in ((*e32)).iter() {
+    pi(o, "lid_controls.removals[][].first", ((*e33).0) as i64);
+    pf(o, "lid_controls.removals[][].second", ((*e33).1) as f64);
+    }
+    }
+    pi(o, "lid_controls.removals_by_name.n", (c.lid_controls.removals_by_name).len() as i64);
+    for e34 in (c.lid_controls.removals_by_name).iter() {
+    pi(o, "lid_controls.removals_by_name[].n", ((*e34)).len() as i64);
+    for e35 in ((*e34)).iter() {
+    ps(o, "lid_controls.removals_by_name[][].first", &(*e35).0);
+    pf(o, "lid_controls.removals_by_name[][].second", ((*e35).1) as f64);
+    }
+    }
     vi(o, "lid_usage.subcatch_index", &(c.lid_usage.subcatch_index).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     vi(o, "lid_usage.lid_index", &(c.lid_usage.lid_index).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     vi(o, "lid_usage.number", &(c.lid_usage.number).iter().map(|x| *x as i64).collect::<Vec<i64>>());
@@ -695,20 +875,20 @@ pub fn dump(c: &SimulationContext) -> Vec<u8> {
     vf(o, "spatial.subcatch_x", &(c.spatial.subcatch_x).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "spatial.subcatch_y", &(c.spatial.subcatch_y).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     pi(o, "spatial.link_vertices_x.n", (c.spatial.link_vertices_x).len() as i64);
-    for q in 0..(c.spatial.link_vertices_x).len() {
-    vf(o, "spatial.link_vertices_x[]", &((c.spatial.link_vertices_x)[q]).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    for e36 in (c.spatial.link_vertices_x).iter() {
+    vf(o, "spatial.link_vertices_x[]", &((*e36)).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     }
     pi(o, "spatial.link_vertices_y.n", (c.spatial.link_vertices_y).len() as i64);
-    for q in 0..(c.spatial.link_vertices_y).len() {
-    vf(o, "spatial.link_vertices_y[]", &((c.spatial.link_vertices_y)[q]).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    for e37 in (c.spatial.link_vertices_y).iter() {
+    vf(o, "spatial.link_vertices_y[]", &((*e37)).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     }
     pi(o, "spatial.subcatch_polygon_x.n", (c.spatial.subcatch_polygon_x).len() as i64);
-    for q in 0..(c.spatial.subcatch_polygon_x).len() {
-    vf(o, "spatial.subcatch_polygon_x[]", &((c.spatial.subcatch_polygon_x)[q]).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    for e38 in (c.spatial.subcatch_polygon_x).iter() {
+    vf(o, "spatial.subcatch_polygon_x[]", &((*e38)).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     }
     pi(o, "spatial.subcatch_polygon_y.n", (c.spatial.subcatch_polygon_y).len() as i64);
-    for q in 0..(c.spatial.subcatch_polygon_y).len() {
-    vf(o, "spatial.subcatch_polygon_y[]", &((c.spatial.subcatch_polygon_y)[q]).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    for e39 in (c.spatial.subcatch_polygon_y).iter() {
+    vf(o, "spatial.subcatch_polygon_y[]", &((*e39)).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     }
     vf(o, "spatial.gage_x", &(c.spatial.gage_x).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "spatial.gage_y", &(c.spatial.gage_y).iter().map(|x| *x as f64).collect::<Vec<f64>>());
@@ -866,5 +1046,40 @@ pub fn dump(c: &SimulationContext) -> Vec<u8> {
     ps(o, "files.outflows_path", &(c.files.outflows_path).original);
     ps(o, "files.hotstart_use_path", &(c.files.hotstart_use_path).original);
     sk(o, "files.hotstart_saves");
+    pi(o, "msx_rows.buildup.n", (c.reactions.surface.rows.buildup).len() as i64);
+    for e40 in (c.reactions.surface.rows.buildup).iter() {
+    ps(o, "msx_rows.buildup[].landuse", &(*e40).landuse);
+    ps(o, "msx_rows.buildup[].species", &(*e40).species);
+    pi(o, "msx_rows.buildup[].func_type", ((*e40).func_type) as i64);
+    pf(o, "msx_rows.buildup[].c1", ((*e40).c1) as f64);
+    pf(o, "msx_rows.buildup[].c2", ((*e40).c2) as f64);
+    pf(o, "msx_rows.buildup[].c3", ((*e40).c3) as f64);
+    ps(o, "msx_rows.buildup[].ts_name", &(*e40).ts_name);
+    pi(o, "msx_rows.buildup[].normalizer", ((*e40).normalizer) as i64);
+    }
+    pi(o, "msx_rows.washoff.n", (c.reactions.surface.rows.washoff).len() as i64);
+    for e41 in (c.reactions.surface.rows.washoff).iter() {
+    ps(o, "msx_rows.washoff[].landuse", &(*e41).landuse);
+    ps(o, "msx_rows.washoff[].species", &(*e41).species);
+    pi(o, "msx_rows.washoff[].func_type", ((*e41).func_type) as i64);
+    pf(o, "msx_rows.washoff[].coeff", ((*e41).coeff) as f64);
+    pf(o, "msx_rows.washoff[].expon", ((*e41).expon) as f64);
+    pf(o, "msx_rows.washoff[].sweep_effic", ((*e41).sweep_effic) as f64);
+    pf(o, "msx_rows.washoff[].bmp_effic", ((*e41).bmp_effic) as f64);
+    }
+    pi(o, "msx_rows.loadings.n", (c.reactions.surface.rows.loadings).len() as i64);
+    for e42 in (c.reactions.surface.rows.loadings).iter() {
+    ps(o, "msx_rows.loadings[].subcatch", &(*e42).subcatch);
+    ps(o, "msx_rows.loadings[].species", &(*e42).species);
+    pf(o, "msx_rows.loadings[].value", ((*e42).value) as f64);
+    }
+    vi(o, "initial_quality.is_link", &(c.initial_quality.is_link).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vs(o, "initial_quality.elem_name", &c.initial_quality.elem_name);
+    vi(o, "initial_quality.elem_idx", &(c.initial_quality.elem_idx).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vs(o, "initial_quality.constituent", &c.initial_quality.constituent);
+    vi(o, "initial_quality.kind", &(c.initial_quality.kind).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "initial_quality.value", &(c.initial_quality.value).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vi(o, "initial_quality.from_file", &(c.initial_quality.from_file).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    ps(o, "initial_quality.file", &c.initial_quality.file);
     std::mem::take(o)
 }

@@ -12,15 +12,15 @@
 // hydrology::snow_config_parse, gwf_validate in hydrology::groundwater_parse.
 //
 // Differences in form only: the generic `grow` lambdas are written out per column.
-// `std::strtod` (NODE LID layer values) is `strtod_c` below: glibc's C-locale strtod as far
-// as the handler's test observes it (leading white space, sign, inf/nan, hex and decimal
-// forms; the text ends at the first NUL, as c_str() does). Assigning a std::string to a
-// FilePathPair is FilePathPair::set; constructing one from a string sets `original` only.
+// `std::strtod` (NODE LID layer values) is core::cstdlib::strtod, given the token up to its
+// first NUL as c_str() would; `end != c_str` is "consumed > 0" and `*end == '\0'` is
+// "consumed everything". Assigning a std::string to a FilePathPair is FilePathPair::set;
+// constructing one from a string sets `original` only.
 
-use crate::core::charconv::{from_chars_double, Errc};
 use crate::core::cmath::{cmax, cmin};
 use crate::core::constants;
 use crate::core::context::SimulationContext;
+use crate::core::cstdlib::strtod;
 use crate::core::error_codes::{format_error, format_error_detail, ERR_DATETIME, ERR_ITEMS, ERR_KEYWORD, ERR_MATH_EXPR, ERR_NUMBER};
 use crate::core::options::{Bytes, FilePathPair};
 use crate::data::hydrology::{AquiferStore, LidControlStore, SnowpackStore};
@@ -599,167 +599,6 @@ pub fn handle_gwf(ctx: &mut SimulationContext, lines: &[Bytes]) {
 }
 
 // ============================================================================
-// std::strtod (C locale, glibc) for the NODE LID layer values
-// ============================================================================
-
-/// `v = std::strtod(s.c_str(), &end)` followed by the handler's test
-/// `end != s.c_str() && *end == '\0' && std::isfinite(v)`: Some(v) when it passes.
-fn strtod_c(tok: &[u8]) -> Option<f64> {
-    // c_str(): the text ends at the first NUL
-    let s = match tok.iter().position(|&c| c == 0) {
-        Some(z) => &tok[..z],
-        None => tok,
-    };
-    let n = s.len();
-    let mut i = 0usize;
-    while i < n && matches!(s[i], b' ' | b'\t' | b'\n' | 0x0b | 0x0c | b'\r') {
-        i += 1;
-    }
-    let mut neg = false;
-    if i < n && (s[i] == b'+' || s[i] == b'-') {
-        neg = s[i] == b'-';
-        i += 1;
-    }
-    if i >= n {
-        return None; // no conversion
-    }
-    // inf / infinity / nan[(...)]: either nonfinite or no conversion; both fail the test
-    if matches!(s[i], b'i' | b'I' | b'n' | b'N') {
-        return None;
-    }
-    // hexadecimal floating point
-    let is_hex = |c: u8| c.is_ascii_hexdigit();
-    if s[i] == b'0'
-        && i + 1 < n
-        && (s[i + 1] == b'x' || s[i + 1] == b'X')
-        && ((i + 2 < n && is_hex(s[i + 2])) || (i + 3 < n && s[i + 2] == b'.' && is_hex(s[i + 3])))
-    {
-        let (mag, used) = strtod_hex(&s[i + 2..]);
-        if i + 2 + used != n || !mag.is_finite() {
-            return None;
-        }
-        return Some(if neg { -mag } else { mag });
-    }
-    if !(s[i].is_ascii_digit() || s[i] == b'.') {
-        return None;
-    }
-    let (r, used) = from_chars_double(&s[i..]);
-    let mag = match r {
-        Ok(v) => v,
-        Err(Errc::InvalidArgument) => return None,
-        // out of range: overflow (nonfinite, fails) or a nonzero literal that underflows
-        // to zero, which strtod returns (with ERANGE)
-        Err(Errc::ResultOutOfRange) => {
-            let text = std::str::from_utf8(&s[i..i + used]).ok()?;
-            let v: f64 = text.parse().ok()?;
-            if !v.is_finite() {
-                return None;
-            }
-            v
-        }
-    };
-    if i + used != n {
-        return None;
-    }
-    Some(if neg { -mag } else { mag })
-}
-
-/// The magnitude of a hex significand (after "0x") with an optional complete binary
-/// exponent, rounded to nearest-even (subnormals included), and the bytes consumed.
-fn strtod_hex(s: &[u8]) -> (f64, usize) {
-    let n = s.len();
-    let hexval = |c: u8| -> u64 { (c as char).to_digit(16).unwrap() as u64 };
-    let mut i = 0usize;
-    let mut m: u64 = 0;
-    let mut kept = 0; // significant hex digits kept in m (at most 16)
-    let mut sticky = false;
-    let mut e2: i64 = 0;
-    let mut seen_point = false;
-    while i < n {
-        let c = s[i];
-        if c == b'.' && !seen_point {
-            seen_point = true;
-            i += 1;
-            continue;
-        }
-        if !c.is_ascii_hexdigit() {
-            break;
-        }
-        let d = hexval(c);
-        if kept == 0 && d == 0 {
-            if seen_point {
-                e2 -= 4; // leading zero after the point
-            }
-        } else if kept < 16 {
-            m = (m << 4) | d;
-            kept += 1;
-            if seen_point {
-                e2 -= 4;
-            }
-        } else {
-            sticky |= d != 0;
-            if !seen_point {
-                e2 += 4;
-            }
-        }
-        i += 1;
-    }
-    // exponent, only if complete
-    if i < n && (s[i] == b'p' || s[i] == b'P') {
-        let mut j = i + 1;
-        let mut eneg = false;
-        if j < n && (s[j] == b'+' || s[j] == b'-') {
-            eneg = s[j] == b'-';
-            j += 1;
-        }
-        let k = j;
-        let mut ev: i64 = 0;
-        while j < n && s[j].is_ascii_digit() {
-            ev = (ev * 10 + (s[j] - b'0') as i64).min(1_000_000);
-            j += 1;
-        }
-        if j > k {
-            i = j;
-            e2 += if eneg { -ev } else { ev };
-        }
-    }
-    if m == 0 {
-        return (0.0, i);
-    }
-    let lz = m.leading_zeros() as i64;
-    let mm = (m as u128) << lz; // leading bit at 63
-    let top = e2 - lz + 63; // exponent of the leading bit
-    if top > 1023 {
-        return (f64::INFINITY, i);
-    }
-    let shift: i64 = if top >= -1022 { 11 } else { 11 + (-1022 - top) };
-    if shift > 64 {
-        return (0.0, i); // below half the smallest subnormal
-    }
-    let sh = shift as u32;
-    let mut q = mm >> sh;
-    let r = mm & ((1u128 << sh) - 1);
-    let half = 1u128 << (sh - 1);
-    if r > half || (r == half && (sticky || (q & 1) == 1)) {
-        q += 1;
-    }
-    let bits: u64 = if top >= -1022 {
-        let mut exp = top;
-        if q == (1u128 << 53) {
-            q >>= 1;
-            exp += 1;
-        }
-        if exp > 1023 {
-            return (f64::INFINITY, i);
-        }
-        (((exp + 1023) as u64) << 52) | ((q as u64) & ((1u64 << 52) - 1))
-    } else {
-        q as u64 // subnormal (q == 2^52 is DBL_MIN)
-    };
-    (f64::from_bits(bits), i)
-}
-
-// ============================================================================
 // handle_lid_controls()
 // ============================================================================
 
@@ -812,10 +651,12 @@ pub fn handle_lid_controls(ctx: &mut SimulationContext, lines: &[Bytes]) {
             let mut valid = tok.len() == count + 2;
             let mut k = 0usize;
             while valid && k < count {
-                match strtod_c(&tok[k + 2]) {
-                    Some(v) => row.params[k] = v,
-                    None => valid = false,
-                }
+                // std::strtod(tok.c_str(), &end): the C string ends at the first NUL
+                let t: &[u8] = &tok[k + 2];
+                let cstr = &t[..t.iter().position(|&c| c == 0).unwrap_or(t.len())];
+                let (v, end) = strtod(cstr);
+                row.params[k] = v;
+                valid = end != 0 && end == cstr.len() && row.params[k].is_finite();
                 k += 1;
             }
             if !valid {
