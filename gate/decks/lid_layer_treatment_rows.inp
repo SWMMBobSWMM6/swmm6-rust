@@ -1,0 +1,84 @@
+[TITLE]
+synthetic: [LID_LAYER_TREATMENT], every branch of lidnode::readTreatment and
+lidnode::validTreatment (istringstream extraction, treatment::validate messages)
+
+[OPTIONS]
+FLOW_UNITS CFS
+FLOW_ROUTING DYNWAVE
+
+[POLLUTANTS]
+TSS MG/L 0 0 0 0 NO * 0 0 0
+Lead UG/L 0 0 0 0 NO * 0 0 0
+
+[LID_LAYER_TREATMENT]
+Train 2 TSS 50 0 -
+Train 2 Late 10 0 -
+Nope 1 TSS 10 0 -
+Train 2 Ghost 10 0 -
+
+[LID_CONTROLS]
+Train NODE
+Train SURFACE 6 .1
+Train MEDIA 12 .45 .20 .08 5 3 3
+Train AGGREGATE 12 .40 100
+Train BOTTOM 0 0
+Bio BC
+Bio SURFACE 6 0.1 0.1 1.0 5
+Bio SOIL 12 0.5 0.2 0.1 0.5 10 3.5
+
+[POLLUTANTS]
+Late MG/L 0 0 0 0 NO * 0 0 0
+
+[LID_LAYER_TREATMENT]
+;; a comment line is not skipped by this reader
+Train 1 TSS 0 0 -
+Train 1 Lead 25 0.5 C = 0.5*C
+Train 3 TSS 80 1.5 R = 0.3	  
+Train 3 Lead 10 0   r = exp(-0.1*HRT) * min(DT, 2)^2 / max(FLOW, DEPTH) + AREA - Q*V*D
+Train 3 Late 1e1 1e-400 C=sqrt(abs(sgn(step(C))))
+Train 1 TSS 10 0 -
+Train 1 tss 10 0 -
+Train 4 TSS 10 0 -
+Train 0 TSS 10 0 -
+Train 5 TSS 10 0 -
+Train -1 TSS 10 0 -
+Train 1.5 TSS 10 0
+Train x TSS 10 0
+Train 2 TSS
+Train 2 TSS 10
+Train 2
+Train
+Train 2 TSS 1e999 0
+Train 2 TSS 10 -1e999
+Train 2 TSS 0x10 0
+Train 2 TSS inf 0
+Train 2 TSS 101 0
+Train 2 TSS -1 0
+Train 2 TSS 10 -0.5
+Train 2 TSS 10 0 C = TSS*0.5
+Train 2 TSS 10 0 C = R_Lead
+Train 2 TSS 10 0 C = c_Lead
+Train 2 TSS 10 0 C = 1e-400
+Train 2 TSS 10 0 C = 1e999
+Train 2 TSS 10 0 C = .
+Train 2 TSS 10 0 C = (1
+Train 2 TSS 10 0 C = 1)
+Train 2 TSS 10 0 C = 1,2
+Train 2 TSS 10 0 C = 1 +
+Train 2 TSS 10 0 C = min(1)
+Train 2 TSS 10 0 C = 1 2
+Train 2 TSS 10 0 X = 1
+Train 2 TSS 10 0 CR = 1
+Train 2 TSS 10 0 = 1
+Train 2 TSS 10 0 C 1
+Train 2 TSS 10 0 C = 1 @
+Train 2 TSS 10 0 C =
+Train 2 TSS 10 0 C = x
+Train 2 TSS 10 0 C = 2.2250738585072011e-308
+Train 2 TSS 10 0 C = 2.22507385850720138e-308
+Train 2 Lead 10 0 C = 1.2.3
+Train 2 TSS 10 0 --
+Bio 1 TSS 10 0 -
+Train +2 Lead 1e1 0 -
+Train 02 Lead 5 0 -
+Train	2	TSS	10	0	-

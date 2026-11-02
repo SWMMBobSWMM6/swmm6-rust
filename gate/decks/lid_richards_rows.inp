@@ -1,0 +1,79 @@
+[TITLE]
+synthetic: [LID_RICHARDS], every branch of lidnode::readRichards
+
+[OPTIONS]
+FLOW_UNITS CFS
+FLOW_ROUTING DYNWAVE
+
+[LID_RICHARDS]
+;; ahead of its control: deferred, replayed after the later OPTIONS row (duplicate then)
+Stack OPTIONS 4 1e-7 1e-5 30
+Stack 3 .03 2 1.6 .5 .0001
+
+[LID_CONTROLS]
+Stack NODE
+Stack SURFACE 6 .1
+Stack MEDIA 12 .45 .2 .08 2 10 3
+Stack AGGREGATE 6 .4 100
+Stack BOTTOM .5 0
+Other NODE
+Other SURFACE 6 .1
+Other MEDIA 12 .45 .2 .08 2 10 3
+Other AGGREGATE 6 .4 100
+"Stack Q" NODE
+"Stack Q" SURFACE 6 .1
+"Stack Q" MEDIA 12 .45 .2 .08 2 10 3
+Bio BC
+Bio SURFACE 6 0.1 0.1 1.0 5
+Opt2 NODE
+Opt2 SURFACE 6 .1
+Opt2 MEDIA 12 .45 .2 .08 2 10 3
+Opt3 NODE
+Opt3 SURFACE 6 .1
+Opt3 MEDIA 12 .45 .2 .08 2 10 3
+Opt4 NODE
+Opt4 MEDIA 12 .45 .2 .08 2 10 3
+
+[LID_RICHARDS]
+; comment
+Stack OPTIONS 4 1e-7 1e-5 30
+Stack 2 .03 2 1.6 .5 .0001
+Stack 2 .03 2 1.6 .5 .0001
+Stack 1 .03 2 1.6 .5 .0001
+Stack 4 .03 2 1.6 .5 .0001
+Stack 5 .03 2 1.6 .5 .0001
+Stack 0 .03 2 1.6 .5 .0001
+Stack -1 .03 2 1.6 .5 .0001
+Stack 2x .03 2 1.6 .5 .0001
+Stack 2.0 .03 2 1.6 .5 .0001
+Other 2 .03 2 1.6 .5 .0001 extra
+Other 2 .03 2 1.6 .5
+Other 2 .45 2 1.6 .5 .0001
+Other 2 .03 0 1.6 .5 .0001
+Other 2 .03 2 1 .5 .0001
+Other 2 .03 2 1.6 -1 .0001
+Other 2 .03 2 1.6 .5 0
+Other 2 .03 2 1.6 .5 1e999
+Other 2 nan 2 1.6 .5 .0001
+Other 02 1e-400 2e0 +1.6 .5 1e-4
+Other +3 .03 2 1.6 0 .0001
+Other OPTIONS 0 1e-7 1e-5 30
+Other OPTIONS 257 1e-7 1e-5 30
+Other OPTIONS 4 0 1e-5 30
+Other OPTIONS 4 1e-7 -1 30
+Other OPTIONS 4 1e-7 1e-5 1e999
+Other OPTIONS 4 1e-7 1e-5 30 extra
+Other OPTIONS 4 1e-7 1e-5
+Other OPTIONS 4.5 1e-7 1e-5 30
+Other OPTIONS 99999999999 1e-7 1e-5 30
+Other options 256 1e-7 1e-5 30
+Other OPTIONS 1 1 1 1
+Opt2 OPTIONS +1 .5 .5 .5
+Opt3 Options 0008 1e-12 1e-1 1e5
+Opt4 OPTIONS 2 1e-7 1e-5 30
+Opt4 1 .03 2 1.6 .5 .0001
+"Stack Q" OPTIONS 4 1e-7 1e-5 30
+"Stack Q" 2 .03 2 1.6 .5 .0001
+Bio OPTIONS 4 1e-7 1e-5 30
+Nobody OPTIONS 4 1e-7 1e-5 30
+Stack

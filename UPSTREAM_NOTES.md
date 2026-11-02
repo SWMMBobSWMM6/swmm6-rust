@@ -41,3 +41,6 @@ These are things in OpenSWMM 6 (swmm6_rel @ 88329d6) that looked wrong or odd du
 | U35 | `hydraulics/XSectKernels.hpp` powerfunc_getRofA | The guard `a <= 0.0` lets NaN through to the perimeter loop, which never ends when `0.02*y_full == 0`. | Hang on degenerate input |
 | U36 | `hydraulics/XSection.cpp` | getSofA and getRofA call each other without end for DUMMY or unknown shape codes when a > 0 or a is NaN. | Hang on such input |
 | U37 | `hydraulics/XSectBatch.hpp` | `build(const SimulationContext&)` is declared but never defined. | No |
+| U38 | `hydrology/LidNode.cpp` readTreatment | Reads rows with `std::istringstream stream(line);` rather than the Tokenizer, so a comment line kept in the section becomes "Invalid [LID_LAYER_TREATMENT] row", and quotes and commas are not handled. | Yes: a commented deck is refused |
+| U39 | `hydrology/LidNode.cpp` | `if (treatment::validate(rule.expression, error, col) != 0 \|\|` accepts built-in names only, so a pollutant reference (`TSS`, `R_TSS`) is rejected, and co-treatment cannot be reached from a deck. | Yes: the feature is unreachable |
+| U40 | `hydrology/LidNode.cpp` readRichards | Finds the control with `ctx.lid_names.find(t[0])`, then re-reads with `in >> name >> tag;`, so a quoted name with a space fails as a material row. | Only for such names |

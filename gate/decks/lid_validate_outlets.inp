@@ -1,0 +1,79 @@
+[TITLE]
+synthetic: lidnode::validate over [LID_NODE_OUTLETS] anchors: weir and outlet crests,
+conduit offsets at either end, two-LID and no-LID links, layers outside the stack
+
+[OPTIONS]
+FLOW_UNITS CFS
+FLOW_ROUTING DYNWAVE
+
+[STORAGE]
+A 10.3 2.5 0 FUNCTIONAL 0 0 1000 0 0
+B 10 2.5 0 FUNCTIONAL 0 0 1000 0 0
+P 9 2.5 0 FUNCTIONAL 0 0 1000 0 0
+
+[JUNCTIONS]
+J 11.5 5 0 0 0
+K 8 5 0 0 0
+
+[OUTFALLS]
+FA 0 FREE NO
+FB 0 FREE NO
+
+[CONDUITS]
+C_top A K 100 0.01 1.0 0 0 0
+C_in K A 100 0.01 0 1.0 0 0
+C_off A K 100 0.01 1.5 0 0 0
+C_two A B 100 0.01 0 0 0 0
+C_none J K 100 0.01 0 0 0 0
+C_far A K 100 0.01 0 0 0 0
+C_bot A K 100 0.01 0 0 0 0
+
+[WEIRS]
+W_A A FA TRANSVERSE 2.0 3.3 NO 0 0 NO
+W_JB J B TRANSVERSE 0.5 3.3 NO 0 0 NO
+W_bad B FB TRANSVERSE 1.2 3.3 NO 0 0 NO
+
+[OUTLETS]
+OL_A A FB 1.5 FUNCTIONAL/DEPTH 10 0.5 NO
+OL_B B FB 1.0 TABULAR/DEPTH Rating NO
+
+[CURVES]
+Rating Rating 0 0
+Rating 1 1
+
+[XSECTIONS]
+C_top CIRCULAR 1 0 0 0 1
+C_in CIRCULAR 1 0 0 0 1
+C_off CIRCULAR 1 0 0 0 1
+C_two CIRCULAR 1 0 0 0 1
+C_none CIRCULAR 1 0 0 0 1
+C_far CIRCULAR 1 0 0 0 1
+C_bot CIRCULAR 1 0 0 0 1
+W_A RECT_OPEN .5 4 0 0
+W_JB RECT_OPEN .5 4 0 0
+W_bad RECT_OPEN .5 4 0 0
+
+[LID_CONTROLS]
+Train NODE
+Train SURFACE 6 .1
+Train MEDIA 12 .45 .20 .08 5 3 3
+Train AGGREGATE 12 .40 100
+Train BOTTOM 0 0
+
+[LID_NODES]
+A Train 10
+B Train 10
+
+[LID_NODE_OUTLETS]
+W_A 1 BOTTOM
+OL_A 2 BOTTOM
+OL_B 3 TOP
+C_top 3 TOP
+C_in 3 TOP
+C_off 3 TOP
+C_two 1 TOP
+C_none 1 TOP
+C_far 4 TOP
+C_bot 3 BOTTOM
+W_JB 3 BOTTOM
+W_bad 1 BOTTOM

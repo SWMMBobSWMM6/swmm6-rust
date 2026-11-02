@@ -123,10 +123,26 @@ STRUCTS = {
     'Loading': ('data/MsxSurfaceData.hpp', 'Loading'),
     'openswmm::treatment::TreatExpr': ('quality/Treatment.hpp', 'TreatExpr'),
     'Token': ('quality/Treatment.hpp', 'Token'),
+    # LID storage nodes ([LID_NODES], [LID_NODE_OUTLETS]) and their run-time state
+    'LidNodeConfig': ('data/LidNodeData.hpp', 'LidNodeConfig'),
+    'LidNodeOutlet': ('data/LidNodeData.hpp', 'LidNodeOutlet'),
+    'LidNodeState': ('data/LidNodeData.hpp', 'LidNodeState'),
+    'LidNodeCell': ('data/LidNodeData.hpp', 'LidNodeCell'),
+    'LidWaterTransfer': ('data/LidNodeData.hpp', 'LidWaterTransfer'),
+    'LidPortTransfer': ('data/LidNodeData.hpp', 'LidPortTransfer'),
+    'GreenAmptState': ('hydrology/Infiltration.hpp', 'GreenAmptState'),
+    'richards::Report': ('hydrology/RichardsColumn.hpp', 'Report'),
+    'Transfer': ('hydrology/RichardsColumn.hpp', 'Transfer'),
+}
+
+# `using` aliases of member types, spelled out
+ALIASES = {
+    'NodeCoupling2DParams': 'std::array<double, kNodeCoupling2DKeys>',
 }
 
 def kind(ty):
     ty = ty.replace('const ', '').strip()
+    ty = ALIASES.get(ty, ty)
     if ty in FLOATS: return ('f', ty)
     if ty in INTS or ty in ENUMS or ty.split('::')[-1] in ENUMS: return ('i', ty)
     if ty in STRINGS: return ('s', ty)
@@ -272,6 +288,7 @@ STORES = [
     ('core/SimulationContext.hpp', 'FilesSpec', 'c.files', 'c.files', 'files'),
     ('data/MsxSurfaceData.hpp', 'MsxSurfaceRows', 'c.reactions.surface.rows', 'c.reactions.surface.rows', 'msx_rows'),
     ('data/InitialQualityData.hpp', 'InitialQualityData', 'c.initial_quality', 'c.initial_quality', 'initial_quality'),
+    ('data/NodeCoupling2DData.hpp', 'NodeCoupling2DRows', 'c.node_coupling_2d', 'c.node_coupling_2d', 'node_coupling_2d'),
 ]
 NAMES = ['node_names', 'link_names', 'subcatch_names', 'gage_names', 'pollutant_names', 'landuse_names',
          'snowpack_names', 'aquifer_names', 'lid_names']
@@ -279,7 +296,8 @@ CTX_SCALARS = ['error_code', 'warning_code', 'error_message', 'warnings', 'error
                'adjust_temp', 'adjust_evap', 'adjust_rain', 'adjust_hydcon', 'subcatch_n_perv_pattern',
                'subcatch_d_store_pattern', 'subcatch_infil_pattern', 'base_n_perv', 'base_ds_perv',
                'has_subcatch_adj_patterns', 'xsect_generation', 'gpkg_units_internal',
-               'pending_gw_nodes', 'pending_gw_aquifers', 'deferred_section_rows', 'embedded_component_sections']
+               'pending_gw_nodes', 'pending_gw_aquifers', 'deferred_section_rows', 'embedded_component_sections',
+               'lid_node_outlets']
 
 def main():
     collect_enums()

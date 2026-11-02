@@ -1,0 +1,90 @@
+[TITLE]
+synthetic: [LID_NODES], every branch of lidnode::readNodes (rows before their nodes and
+controls are deferred and replayed; never-defined names become ERROR 209)
+
+[OPTIONS]
+FLOW_UNITS CFS
+FLOW_ROUTING DYNWAVE
+
+[LID_NODES]
+;; rows ahead of their storage nodes and controls
+EARLY Train 25
+EARLY2 Later 5 BOTTOM sealed
+GHOST Train 10
+S1 Nowhere 10
+EARLY3 Train abc
+
+[STORAGE]
+S1 0 2.5 0 FUNCTIONAL 0 0 1000 0 0
+S2 0 2.5 0 FUNCTIONAL 0 0 1000 0 0
+S3 0 2.5 0 FUNCTIONAL 0 0 1000 0 0
+S4 0 2.5 0 FUNCTIONAL 0 0 1000 0 0
+S5 0 2.5 0 FUNCTIONAL 0 0 1000 0 0
+S6 0 2.5 0 FUNCTIONAL 0 0 1000 0 0
+S7 0 2.5 0 FUNCTIONAL 0 0 1000 0 0
+S8 0 2.5 0 FUNCTIONAL 0 0 1000 0 0
+S9 0 2.5 0 FUNCTIONAL 0 0 1000 0 0
+"S 10" 0 2.5 0 FUNCTIONAL 0 0 1000 0 0
+S11 0 2.5 0 FUNCTIONAL 0 0 1000 0 0
+S12 0 2.5 0 FUNCTIONAL 0 0 1000 0 0
+S13 0 2.5 0 FUNCTIONAL 0 0 1000 0 0
+S14 0 2.5 0 FUNCTIONAL 0 0 1000 0 0
+EARLY 0 2.5 0 FUNCTIONAL 0 0 1000 0 0
+EARLY2 0 2.5 0 FUNCTIONAL 0 0 1000 0 0
+EARLY3 0 2.5 0 FUNCTIONAL 0 0 1000 0 0
+
+[JUNCTIONS]
+J1 0 5 0 0 0
+
+[OUTFALLS]
+O1 0 FREE NO
+
+[LID_CONTROLS]
+Train NODE
+Train SURFACE 6 .1
+Train MEDIA 12 .45 .20 .08 5 3 3
+Train AGGREGATE 12 .40 100
+Train BOTTOM 0 0
+Bio BC
+Bio SURFACE 6 0.1 0.1 1.0 5
+Bio SOIL 12 0.5 0.2 0.1 0.5 10 3.5
+Bio STORAGE 12 0.75 0.5 0
+Later NODE
+Later SURFACE 3 0
+Later AGGREGATE 9 .3 50
+
+[LID_NODES]
+; a comment line is skipped
+S1 Train 10
+S2 Train 0 BOTTOM CURRENT
+S3 Train 100 bottom SEALED
+S4 Train 50 Bottom mesh_aquifer
+S5 Bio 12.5
+S1 Train 20
+s1 Later 20
+J1 Train 10
+O1 Train 10
+S6 Train 10 BOTTOM
+S6 Train 10 TOP SEALED
+S6 Train 10 BOTTOM DOWN
+S6 Train
+S6
+S6 Train 10 BOTTOM SEALED x
+S6 Train 10 BOTTOM SEALED ; trailing comment
+S6 Train abc
+S6 Train 1e999
+S6 Train -1e999
+S6 Train nan
+S6 Train inf
+S6 Train -1
+S6 Train 101
+S6 Train 100.0000001
+S6 Train 5x
+S6 Train ""
+S7 Train "  7"
+S8 Train -0
+S9,Train,30
+"S 10" Train 40
+s11 train 1e1
+S12 Train 0x10
+S14 Train 1e-400

@@ -1,0 +1,133 @@
+[TITLE]
+synthetic: lidnode::validate over NODE stacks (order, parameters, Richards) and adapted
+BC/PP/RG/IT/GR controls on storage nodes, with MaxDepth checks
+
+[OPTIONS]
+FLOW_UNITS CFS
+FLOW_ROUTING DYNWAVE
+QUALITY_SOLVER LEGACY
+
+[POLLUTANTS]
+TSS MG/L 0 0 0 0 NO * 0 0 0
+
+[STORAGE]
+N_good 0 2.5 0 FUNCTIONAL 0 0 1000 0 0
+N_depth 0 3.0 0 FUNCTIONAL 0 0 1000 0 0
+N_close 0 2.50000001 0 FUNCTIONAL 0 0 1000 0 0
+N_badorder 0 1.5 0 FUNCTIONAL 0 0 1000 0 0
+N_empty 0 1.0 0 FUNCTIONAL 0 0 1000 0 0
+N_rich 0 2.0 0 FUNCTIONAL 0 0 1000 0 0
+N_richns 0 1.5 0 FUNCTIONAL 0 0 1000 0 0
+N_richmiss 0 2.0 0 FUNCTIONAL 0 0 1000 0 0
+N_richres 0 1.5 0 FUNCTIONAL 0 0 1000 0 0
+N_bio 0 2.5 0 FUNCTIONAL 0 0 1000 0 0
+N_bio0 0 2.5 0 FUNCTIONAL 0 0 1000 0 0
+N_pave 0 1.5 0 FUNCTIONAL 0 0 1000 0 0
+N_rain 0 1.5 0 FUNCTIONAL 0 0 1000 0 0
+N_trench 0 2.5 0 FUNCTIONAL 0 0 1000 0 0
+N_roof 0 1.0 0 FUNCTIONAL 0 0 1000 0 0
+N_neg 0 1.0 0 FUNCTIONAL 0 0 1000 0 0
+N_plain 0 1.0 0 FUNCTIONAL 0 0 1000 0 0
+
+[LID_CONTROLS]
+Good NODE
+Good SURFACE 6 .1
+Good MEDIA 12 .45 .20 .08 5 3 3
+Good AGGREGATE 12 .40 100
+Good BOTTOM 0.5 0
+BadOrder NODE
+BadOrder MEDIA 12 .45 .20 .08 5 3 3
+BadOrder SURFACE 6 .1
+BadBottom NODE
+BadBottom SURFACE 6 .1
+BadBottom BOTTOM 0 0
+BadBottom AGGREGATE 12 .40 100
+NoPorous NODE
+NoPorous SURFACE 6 .1
+NoPorous BOTTOM 0 0
+Empty NODE
+BadMedia NODE
+BadMedia SURFACE 6 .1
+BadMedia MEDIA 12 .30 .40 .08 5 3 3
+BadSurface NODE
+BadSurface SURFACE 6 1.0
+BadSurface AGGREGATE 12 .40 100
+Negative NODE
+Negative AGGREGATE -1 .40 100
+TwoSurf NODE
+TwoSurf SURFACE 6 .1
+TwoSurf SURFACE 6 .1
+TwoSurf AGGREGATE 12 .40 100
+Rich NODE
+Rich SURFACE 6 .1
+Rich MEDIA 12 .45 .2 .08 2 10 3
+Rich AGGREGATE 6 .4 100
+Rich BOTTOM .5 0
+RichNoSurface NODE
+RichNoSurface MEDIA 12 .45 .2 .08 2 10 3
+RichNoSurface AGGREGATE 6 .4 100
+RichMissing NODE
+RichMissing SURFACE 6 .1
+RichMissing MEDIA 12 .45 .2 .08 2 10 3
+RichMissing AGGREGATE 6 .4 100
+RichResidual NODE
+RichResidual SURFACE 6 .1
+RichResidual MEDIA 12 .45 .2 .08 2 10 3
+Bio BC
+Bio SURFACE 6 0.1 0.1 1.0 5
+Bio SOIL 12 0.5 0.2 0.1 0.5 10 3.5
+Bio STORAGE 12 0.75 0.5 0
+Bio DRAIN 0.5 0.5 6 6 0 0
+Bio0 BC
+Bio0 SURFACE 6 0.1 0 0 0
+Bio0 SOIL 12 0.5 0.2 0.1 0.5 10 3.5
+Bio0 STORAGE 12 0.75 0.5 0
+Pave PP
+Pave SURFACE 0 0 0.1 1.0 0
+Pave PAVEMENT 6 0.15 0.2 100 3
+Pave SOIL 0 0 0 0 0 0 0
+Pave STORAGE 12 0.75 0.5 0
+Rain RG
+Rain SURFACE 6 0 0 0 0
+Rain SOIL 12 0.5 0.2 0.1 0.5 10 3.5
+Rain STORAGE 0 0 0 0
+Trench IT
+Trench SURFACE 6 0 0 0 0
+Trench STORAGE 24 0.75 0.5 0
+Roof GR
+Roof SURFACE 6 0 0 0 0
+Roof SOIL 6 0.5 0.2 0.1 0.5 10 3.5
+
+[LID_RICHARDS]
+Rich OPTIONS 4 1e-7 1e-5 30
+Rich 2 .03 2 1.6 .5 .0001
+Rich 3 .03 2 1.6 .5 .0001
+RichNoSurface OPTIONS 4 1e-7 1e-5 30
+RichNoSurface 1 .03 2 1.6 .5 .0001
+RichNoSurface 2 .03 2 1.6 .5 .0001
+RichMissing OPTIONS 4 1e-7 1e-5 30
+RichMissing 2 .03 2 1.6 .5 .0001
+RichResidual OPTIONS 4 1e-7 1e-5 30
+RichResidual 2 .1 2 1.6 .5 .0001
+
+[LID_LAYER_TREATMENT]
+Good 2 TSS 50 0.5 C = 0.5*C
+Good 3 TSS 10 0 -
+
+[LID_NODES]
+N_good Good 10
+N_depth Good 10
+N_close Good 10
+N_badorder BadOrder 0
+N_empty Empty 0
+N_rich Rich 20
+N_richns RichNoSurface 20
+N_richmiss RichMissing 20
+N_richres RichResidual 20
+N_bio Bio 0
+N_bio0 Bio0 0
+N_pave Pave 0
+N_rain Rain 0
+N_trench Trench 0
+N_roof Roof 0
+N_neg Negative 0

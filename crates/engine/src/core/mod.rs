@@ -7,6 +7,7 @@ pub mod cstdlib;
 pub mod datetime;
 pub mod error_codes;
 pub mod file_io;
+pub mod node_coupling_2d;
 pub mod options;
 pub mod spatial_frame;
 pub mod unit_conversion;

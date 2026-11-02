@@ -139,6 +139,13 @@ pub fn register_reference_handlers(reg: &mut SectionRegistry, on: &[String], all
     r("PLUGINS", plugins_handler::handle_plugins);
     r("PROCESS_COMPONENTS", process_components_handler::handle_process_components);
 
+    // LID node and 2D coupling readers (hydrology/LidNode.cpp, core/NodeCoupling2D.cpp)
+    r("LID_LAYER_TREATMENT", crate::hydrology::lid_node::read_treatment);
+    r("LID_NODES", crate::hydrology::lid_node::read_nodes);
+    r("LID_NODE_OUTLETS", crate::hydrology::lid_node::read_outlets);
+    r("LID_RICHARDS", crate::hydrology::lid_node::read_richards);
+    r("2D_NODE_COUPLING", crate::core::node_coupling_2d::read_section);
+
     // REACTION_* sections: kept as (tag, lines) in embedded_component_sections.
     drop(r);
     for tag in REACTION_SECTION_TAGS {

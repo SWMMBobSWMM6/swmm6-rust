@@ -2,6 +2,7 @@
 pub mod climate_types;
 pub mod groundwater_parse;
 pub mod hourly_meteorology;
+pub mod lid_node;
 pub mod radiation;
 pub mod snow_config_parse;
 pub mod ueb_types;

@@ -19,6 +19,8 @@
 #include "input/handlers/ControlsHandler.hpp"
 #include "core/SimulationContext.hpp"
 #include "transport/components/ReactionModule/ReactionsComponent.hpp"
+#include "hydrology/LidNode.hpp"
+#include "core/NodeCoupling2D.hpp"
 #include <set>
 #include <string>
 namespace openswmm::input {
@@ -116,6 +118,11 @@ void register_reference_handlers(SectionRegistry& reg, const std::set<std::strin
     r("WASHOFF", input::handle_washoff);
     r("TREATMENT", input::handle_treatment);
     r("INITIAL_QUALITY", input::handle_initial_quality);
+    r("LID_LAYER_TREATMENT", lidnode::readTreatment);
+    r("LID_NODES", lidnode::readNodes);
+    r("LID_NODE_OUTLETS", lidnode::readOutlets);
+    r("LID_RICHARDS", lidnode::readRichards);
+    r("2D_NODE_COUPLING", nodecoupling2d::readSection);
     for (const auto& tag : transport::reactionSectionTags())
         if (all || on.count(tag))
             reg.register_builtin(tag, [tag](SimulationContext& ctx, const std::vector<std::string>& lines) {
