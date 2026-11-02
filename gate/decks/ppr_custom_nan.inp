@@ -1,0 +1,64 @@
+[TITLE]
+synthetic: post-parse resolver, CUSTOM shape memo keyed by (curve, depth) with NaN
+depths, so the std::map key order is not strict
+[OPTIONS]
+FLOW_UNITS CFS
+FLOW_ROUTING DYNWAVE
+START_DATE 01/01/2020
+START_TIME 00:00:00
+END_DATE 01/05/2020
+END_TIME 00:00:00
+
+[JUNCTIONS]
+J1  100  10  0  0  0
+[OUTFALLS]
+O1  90  FREE  NO
+[CONDUITS]
+X0  J1  O1  100  0.013  0  0  0  0
+X1  J1  O1  100  0.013  0  0  0  0
+X2  J1  O1  100  0.013  0  0  0  0
+X3  J1  O1  100  0.013  0  0  0  0
+X4  J1  O1  100  0.013  0  0  0  0
+X5  J1  O1  100  0.013  0  0  0  0
+X6  J1  O1  100  0.013  0  0  0  0
+X7  J1  O1  100  0.013  0  0  0  0
+X8  J1  O1  100  0.013  0  0  0  0
+X9  J1  O1  100  0.013  0  0  0  0
+X10  J1  O1  100  0.013  0  0  0  0
+X11  J1  O1  100  0.013  0  0  0  0
+X12  J1  O1  100  0.013  0  0  0  0
+X13  J1  O1  100  0.013  0  0  0  0
+X14  J1  O1  100  0.013  0  0  0  0
+X15  J1  O1  100  0.013  0  0  0  0
+X16  J1  O1  100  0.013  0  0  0  0
+X17  J1  O1  100  0.013  0  0  0  0
+X18  J1  O1  100  0.013  0  0  0  0
+X19  J1  O1  100  0.013  0  0  0  0
+[XSECTIONS]
+X0  CUSTOM  3  ShapeB  0  0  1
+X1  CUSTOM  nan  ShapeA  0  0  1
+X2  CUSTOM  3  ShapeA  0  0  1
+X3  CUSTOM  2  ShapeB  0  0  1
+X4  CUSTOM  nan  ShapeA  0  0  1
+X5  CUSTOM  4  ShapeA  0  0  1
+X6  CUSTOM  2  ShapeB  0  0  1
+X7  CUSTOM  -nan  ShapeA  0  0  1
+X8  CUSTOM  5  ShapeA  0  0  1
+X9  CUSTOM  3  ShapeB  0  0  1
+X10  CUSTOM  nan  ShapeA  0  0  1
+X11  CUSTOM  1  ShapeA  0  0  1
+X12  CUSTOM  6  ShapeB  0  0  1
+X13  CUSTOM  7  ShapeA  0  0  1
+X14  CUSTOM  2  ShapeA  0  0  1
+X15  CUSTOM  8  ShapeB  0  0  1
+X16  CUSTOM  9  ShapeA  0  0  1
+X17  CUSTOM  nan  ShapeA  0  0  1
+X18  CUSTOM  10  ShapeB  0  0  1
+X19  CUSTOM  4  ShapeA  0  0  1
+[CURVES]
+ShapeA  Shape  0 0.5
+ShapeA         0.5 1.0
+ShapeA         1.0 0.3
+ShapeB  Shape  0 0.2
+ShapeB         0.4 1.0
+ShapeB         1.0 0.6

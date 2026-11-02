@@ -7,6 +7,10 @@
 //     hexadecimal float (including glibc's own rounding of some subnormal hex values), or a
 //     decimal number whose exponent is taken only when complete; decimal values are
 //     correctly rounded. No conversion consumes nothing.
+//   * strtof: strtod's syntax (so the same bytes consumed), the value rounded once to
+//     float: decimal correctly rounded, hexadecimal through glibc's round_and_return with
+//     float's parameters, a NaN payload in the low 22 mantissa bits. Added for the
+//     `%f` of the rain-file readers (input/PostParseResolver.cpp).
 //   * atoi: strtol base 10 saturating at the 64-bit long range, then truncated to int.
 // Checked against glibc on 180,000 strings (by the agent that translated OptionsHandler).
 // Written for swmm6-rust, 2 November 2026, by Claude (Anthropic) for Robert Dickinson.
@@ -306,6 +310,184 @@ pub fn strtod(s: &[u8]) -> (f64, usize) {
         }
     };
     (sign(v), cp)
+}
+
+/// `hex_value` with float's parameters (FLT_MANT_DIG 24, FLT_MIN_EXP -125, FLT_MAX_EXP
+/// 128), glibc's subnormal rounding included.
+fn hex_value_f32(int_digits: &[u8], frac_digits: &[u8], bexp: i64) -> f32 {
+    const MANT_DIG: i64 = 24;
+    const MIN_EXP: i64 = -125;
+    const MAX_EXP: i64 = 128;
+    const DENORM_EXP: i64 = MIN_EXP - 2;
+    let int_len = int_digits.len() as i64;
+    let all: Vec<u32> = int_digits.iter().chain(frac_digits.iter()).map(|&c| (c as char).to_digit(16).unwrap()).collect();
+    let k = match all.iter().position(|&d| d != 0) {
+        None => return 0.0,
+        Some(k) => k,
+    };
+    let d0 = all[k];
+    let bits0 = 32 - d0.leading_zeros() as i64;
+    let mut exponent: i64 = bexp + (bits0 - 1) + 4 * (int_len - 1 - k as i64);
+    let mut m: u64 = 0;
+    let mut nb: i64 = 0;
+    let mut round_bit_set = false;
+    let mut sticky = false;
+    for (j, &d) in all[k..].iter().enumerate() {
+        let width = if j == 0 { bits0 } else { 4 };
+        for q in (0..width).rev() {
+            let bit = (d >> q) & 1 == 1;
+            if nb < MANT_DIG {
+                m = (m << 1) | bit as u64;
+            } else if nb == MANT_DIG {
+                round_bit_set = bit;
+            } else if bit {
+                sticky = true;
+            }
+            nb += 1;
+        }
+        if nb > MANT_DIG + 1 && sticky {
+            break;
+        }
+    }
+    if nb < MANT_DIG {
+        m <<= (MANT_DIG - nb) as u32;
+    }
+    let mut retval = m;
+    let half_bit;
+    let more_bits_nonzero;
+    if exponent < MIN_EXP - 1 {
+        if exponent < MIN_EXP - 1 - MANT_DIG {
+            return 0.0;
+        }
+        let shift = MIN_EXP - 1 - exponent;
+        let more_bits = sticky;
+        if shift == MANT_DIG {
+            half_bit = (m >> (MANT_DIG - 1)) & 1 == 1;
+            more_bits_nonzero = more_bits || (m & ((1u64 << (MANT_DIG - 1)) - 1)) != 0;
+            retval = 0;
+        } else {
+            let rb = (shift - 1) as u32;
+            half_bit = (m >> rb) & 1 == 1;
+            more_bits_nonzero = more_bits || (m & ((1u64 << rb) - 1)) != 0;
+            retval = m >> shift as u32;
+        }
+        exponent = DENORM_EXP;
+    } else {
+        half_bit = round_bit_set;
+        more_bits_nonzero = sticky;
+    }
+    if exponent >= MAX_EXP {
+        return f32::INFINITY;
+    }
+    if half_bit && ((retval & 1) != 0 || more_bits_nonzero) {
+        retval += 1;
+        if retval & (1u64 << MANT_DIG) != 0 {
+            exponent += 1;
+            retval >>= 1;
+            retval |= 1u64 << (MANT_DIG - 1);
+        } else if exponent == DENORM_EXP && retval & (1u64 << (MANT_DIG - 1)) != 0 {
+            exponent = MIN_EXP - 1;
+        }
+    }
+    if exponent >= MAX_EXP {
+        return f32::INFINITY;
+    }
+    let biased = (exponent + 127) as u32;
+    f32::from_bits((biased << 23) | (retval as u32 & ((1u32 << 23) - 1)))
+}
+
+/// glibc `strtof(s, &end)` in the C locale: (value, bytes consumed). Nothing converted
+/// gives (0.0, 0).
+pub fn strtof(s: &[u8]) -> (f32, usize) {
+    let (d, used) = strtod(s);
+    if used == 0 {
+        return (0.0, 0);
+    }
+    let s = c_str(s);
+    let tok = &s[..used];
+    let mut i = 0;
+    while i < tok.len() && c_isspace(tok[i]) {
+        i += 1;
+    }
+    let negative = i < tok.len() && tok[i] == b'-';
+    if i < tok.len() && (tok[i] == b'-' || tok[i] == b'+') {
+        i += 1;
+    }
+    let body = &tok[i..];
+    let sign = |v: f32| if negative { -v } else { v };
+    if d.is_nan() {
+        let bits = 0x7FC0_0000u32 | (d.to_bits() & 0x003F_FFFF) as u32;
+        let v = f32::from_bits(bits);
+        return (if d.is_sign_negative() { -v } else { v }, used);
+    }
+    if !body.is_empty() && body[0].is_ascii_alphabetic() {
+        // INF / INFINITY
+        return (sign(f32::INFINITY), used);
+    }
+    let base16 = body.len() > 2 && body[0] == b'0' && (body[1] == b'x' || body[1] == b'X');
+    let digits = if base16 { &body[2..] } else { body };
+    let is_dig = |ch: u8| ch.is_ascii_digit() || (base16 && ch.is_ascii_hexdigit());
+    let mut k = 0;
+    while k < digits.len() && is_dig(digits[k]) {
+        k += 1;
+    }
+    let int_digits = &digits[..k];
+    let mut frac_digits: &[u8] = &[];
+    if k < digits.len() && digits[k] == b'.' {
+        k += 1;
+        let fs = k;
+        while k < digits.len() && is_dig(digits[k]) {
+            k += 1;
+        }
+        frac_digits = &digits[fs..k];
+    }
+    let mut exponent: i64 = 0;
+    if k < digits.len() {
+        // strtod consumed an exponent: [eEpP][+-]digits
+        k += 1;
+        let mut exp_negative = false;
+        if digits[k] == b'-' {
+            exp_negative = true;
+            k += 1;
+        } else if digits[k] == b'+' {
+            k += 1;
+        }
+        while k < digits.len() {
+            if exponent < 1_000_000_000 {
+                exponent = exponent * 10 + (digits[k] - b'0') as i64;
+            }
+            k += 1;
+        }
+        if exp_negative {
+            exponent = -exponent;
+        }
+    }
+    let v = if base16 {
+        hex_value_f32(int_digits, frac_digits, exponent)
+    } else {
+        let all_zero = int_digits.iter().chain(frac_digits.iter()).all(|&dd| dd == b'0');
+        if all_zero {
+            0.0
+        } else {
+            let mut ds: Vec<u8> = Vec::with_capacity(int_digits.len() + frac_digits.len());
+            ds.extend_from_slice(int_digits);
+            ds.extend_from_slice(frac_digits);
+            let first = ds.iter().position(|&dd| dd != b'0').unwrap();
+            let sig = &ds[first..];
+            let e10 = int_digits.len() as i64 - first as i64 + exponent;
+            if e10 > 400 {
+                f32::INFINITY
+            } else if e10 < -400 {
+                0.0
+            } else {
+                let mut lit = b"0.".to_vec();
+                lit.extend_from_slice(sig);
+                lit.extend_from_slice(format!("e{}", e10).as_bytes());
+                std::str::from_utf8(&lit).unwrap().parse::<f32>().unwrap()
+            }
+        }
+    };
+    (sign(v), used)
 }
 
 /// glibc `atof(s)`.

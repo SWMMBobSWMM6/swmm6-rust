@@ -1,0 +1,28 @@
+[TITLE]
+synthetic: post-parse resolver, UEB options with an hourly MET_FILE (a directory as the file)
+
+[OPTIONS]
+FLOW_UNITS CFS
+
+[UEB_OPTIONS]
+
+
+[TEMPERATURE]
+MET_FILE ../decks
+
+[SNOWPACKS]
+SnowA PLOWABLE   0.001 0.001 32 0.1 0 0 0
+SnowA IMPERVIOUS 0.001 0.001 32 0.1 0 0 0
+SnowA PERVIOUS   0.001 0.001 32 0.1 0 0 0
+
+[2D_SNOW_DEFAULTS]
+TAG *  SNOWPACK SnowA
+TAG t2 SNOWPACK NoPack
+TAG t3 SNOWPACK none
+
+[2D_SNOW]
+CELL 3 SNOWPACK Ghost
+CELL 1 SNOWPACK SnowA
+
+[JUNCTIONS]
+J1 100 10 0 0 0

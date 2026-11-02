@@ -1,0 +1,36 @@
+[TITLE]
+synthetic: post-parse resolver, NWS / NCDC rain-file layouts (space, comma, tape, header
+lines, online HPCP/QPCP), condition codes, accumulations, unknown element
+[OPTIONS]
+FLOW_UNITS CFS
+FLOW_ROUTING DYNWAVE
+START_DATE 01/01/2020
+START_TIME 00:00:00
+END_DATE 01/05/2020
+END_TIME 00:00:00
+
+[RAINGAGES]
+N1  INTENSITY  1:00  1.0  FILE  "ppr_nws_space.dat"        123456  IN
+N2  INTENSITY  1:00  1.0  FILE  "ppr_nws_space_named.dat"  123456  IN
+N3  INTENSITY  1:00  1.0  FILE  "ppr_nws_comma.dat"        123456  IN
+N4  INTENSITY  1:00  1.0  FILE  "ppr_nws_comma_named.dat"  123456  IN
+N5  INTENSITY  1:00  1.0  FILE  "ppr_nws_tape.dat"         123456  IN
+N6  INTENSITY  0:15  1.0  FILE  "ppr_nws_space_hdr.dat"    123456  IN
+N7  INTENSITY  0:15  1.0  FILE  "ppr_nws_qgag.dat"         123456  IN
+N8  INTENSITY  1:00  1.0  FILE  "ppr_nws_tmax.dat"         123456  IN
+N9  INTENSITY  1:00  1.0  FILE  "ppr_nws_online60.dat"     123456  IN
+N10 INTENSITY  0:15  1.0  FILE  "ppr_nws_online15.dat"     123456  IN
+N11 INTENSITY  1:00  1.0  FILE  "ppr_nws_online_bad.dat"   123456  IN
+N12 INTENSITY  1:00  1.0  FILE  "ppr_nws_online_nocoop.dat" 123456 IN
+N13 INTENSITY  1:00  1.0  FILE  "ppr_nws_space.dat"        123456  MM  01/01/2020
+N14 INTENSITY  1:00  1.0  FILE  "ppr_nws_comma.dat"        *       IN
+N15 INTENSITY  1:00  1.0  FILE  "ppr_nws_online60.dat"     123456  IN  01/02/2020
+
+[JUNCTIONS]
+J1  100  10  0  0  0
+[OUTFALLS]
+O1  90  FREE  NO
+[CONDUITS]
+C1  J1  O1  400  0.013  0  0  0  0
+[XSECTIONS]
+C1  CIRCULAR  1.5  0  0  0  1

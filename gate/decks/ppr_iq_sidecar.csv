@@ -1,0 +1,12 @@
+scope,element,constituent,value
+NODE,ST1,BOD,2.5
+LINK;L2;TSS;1
+node	OF1	BOD	7
+BOGUS,X,TSS,1
+NODE,LATEJ,TSS
+NODE,LATEJ,TSS,abc
+NODE,OF2,BOD,1.5e0junk
+NODE,ST1,BOD,2.5
+
+; comment-ish
+LINK,L4,TSS,1e999

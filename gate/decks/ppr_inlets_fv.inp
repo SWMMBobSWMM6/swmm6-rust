@@ -1,0 +1,115 @@
+[TITLE]
+synthetic: post-parse resolver, inlet junctions and inlet usage: unknown design, bad
+capture nodes, non-street pairs, drop inlets, usage on the pair, custom inlet curves,
+conduit-hosted shape mismatch (FV)
+
+[OPTIONS]
+FLOW_UNITS CFS
+FLOW_ROUTING FV
+START_DATE 01/01/2020
+START_TIME 00:00:00
+END_DATE 01/02/2020
+END_TIME 00:00:00
+
+[JUNCTIONS]
+A    100  10  0  0  0
+B    90   10  0  0  0
+C    85   10  0  0  0
+D    80   10  0  0  0
+CAP  70   10  0  0  0
+
+[VIRTUAL_JUNCTIONS]
+VJX  88
+
+[INLET_JUNCTIONS]
+I1   95  1  GrateIn   CAP
+I2   93  1  NoDesign  CAP
+I3   92  1  GrateIn   NoNode
+I4   91  1  GrateIn   I4
+I5   89  1  GrateIn   VJX
+I6   87  1  DropIn    CAP
+I7   86  1  CurbIn    CAP
+I8   84  1  CustomA   CAP
+
+[OUTFALLS]
+O1   60  FREE  NO
+
+[CONDUITS]
+S1   A   I1   100  0.016  0  0  0  0
+S2   I1  B    100  0.016  0  0  0  0
+S3   B   I2   100  0.016  0  0  0  0
+S4   I2  C    100  0.016  0  0  0  0
+S5   C   I3   100  0.016  0  0  0  0
+S6   I3  D    100  0.016  0  0  0  0
+S7   D   I4   100  0.016  0  0  0  0
+S8   I4  VJX  100  0.016  0  0  0  0
+S9   VJX I5   100  0.016  0  0  0  0
+S10  I5  CAP  100  0.016  0  0  0  0
+P1   A   I6   100  0.013  0  0  0  0
+P2   I6  B    100  0.013  0  0  0  0
+P3   B   I7   100  0.013  0  0  0  0
+P4   I7  C    100  0.013  0  0  0  0
+S11  C   I8   100  0.016  0  0  0  0
+S12  I8  CAP  100  0.016  0  0  0  0
+U1   A   B    100  0.016  0  0  0  0
+U2   B   C    100  0.013  0  0  0  0
+U3   C   D    100  0.016  0  0  0  0
+U4   D   O1   100  0.016  0  0  0  0
+U5   CAP O1   100  0.016  0  0  0  0
+U6   A   C    100  0.016  0  0  0  0
+
+[XSECTIONS]
+S1   STREET  StreetA  0 0 0 1
+S2   STREET  StreetA  0 0 0 1
+S3   STREET  StreetA  0 0 0 1
+S4   STREET  StreetA  0 0 0 1
+S5   STREET  StreetA  0 0 0 1
+S6   STREET  StreetA  0 0 0 1
+S7   STREET  StreetA  0 0 0 1
+S8   STREET  StreetA  0 0 0 1
+S9   STREET  StreetA  0 0 0 1
+S10  STREET  StreetA  0 0 0 1
+S11  STREET  StreetA  0 0 0 1
+S12  STREET  StreetA  0 0 0 1
+P1   CIRCULAR 2 0 0 0 1
+P2   CIRCULAR 2 0 0 0 1
+P3   RECT_OPEN 2 4 0 0 1
+P4   RECT_OPEN 2 4 0 0 1
+U1   STREET  StreetA  0 0 0 1
+U2   CIRCULAR 2 0 0 0 1
+U3   RECT_OPEN 2 4 0 0 1
+U4   STREET  NoStreet 0 0 0 1
+U5   STREET  StreetA  0 0 0 1
+U6   STREET  streeta  0 0 0 1
+
+[STREETS]
+StreetA  20  0.5  2  0.016  0  0  1  0  0  0
+
+[INLETS]
+GrateIn   GRATE      2  2  P_BAR-50
+DropIn    DROP_GRATE 2  2  P_BAR-50
+CurbIn    CURB       8  0.4  HORIZONTAL
+CustomA   CUSTOM     DivCurve
+CustomB   CUSTOM     RateCurve
+CustomC   CUSTOM     StorCurve
+CustomD   CUSTOM     NoCurve
+
+[INLET_USAGE]
+U1   GrateIn  CAP   1  0  0  0  0
+U2   GrateIn  CAP   1  0  0  0  0
+U3   DropIn   LATE  1  0  0  0  0
+U4   CustomB  CAP   1  0  0  0  0
+U5   CustomA  GONE  1  0  0  0  0
+S12  GrateIn  CAP   1  0  0  0  0
+U6   CustomC  CAP   1  0  0  0  0
+
+[JUNCTIONS]
+LATE 65  10  0  0  0
+
+[CURVES]
+DivCurve   Diversion  0 0
+DivCurve              1 1
+RateCurve  Rating     0 0
+RateCurve             1 1
+StorCurve  Storage    0 0
+StorCurve             1 1

@@ -1,0 +1,15 @@
+[TITLE]
+synthetic: post-parse resolver, NWS reads at fixed columns past a short line's end, and
+lines longer than the fgets buffers
+
+[OPTIONS]
+FLOW_UNITS CFS
+START_DATE 01/01/2020
+END_DATE 01/05/2020
+
+[RAINGAGES]
+S1  INTENSITY  1:00  1.0  FILE  "ppr_nws_online_stale.dat"  123456  IN
+S2  INTENSITY  1:00  1.0  FILE  "ppr_nws_space_long.dat"    654321  IN
+
+[JUNCTIONS]
+J1 100 10 0 0 0

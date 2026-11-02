@@ -9,7 +9,9 @@
 
 pub mod core;
 pub mod data;
+pub mod edit;
 pub mod hydraulics;
 pub mod hydrology;
 pub mod input;
 pub mod math;
+pub mod transport;

@@ -22,3 +22,8 @@ gate/diff/tabfile
 gate/diff/xsect
 gate/diff/ctxopen
 gate/diff/hydfuncs
+gate/diff/pathres
+gate/diff/printfg
+gate/diff/scan
+gate/diff/msxiq
+gate/diff/ctxread

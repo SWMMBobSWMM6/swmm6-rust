@@ -109,7 +109,7 @@ pub use crate::core::cstdlib::strtod;
 
 /// libstdc++ (GCC 13) `std::sort(first, last, comp)` on a slice: introsort with a
 /// depth limit of 2*floor(log2 n), heap sort past it, then a final insertion sort.
-fn std_sort<T: Copy>(v: &mut [T], comp: &impl Fn(&T, &T) -> bool) {
+pub(crate) fn std_sort<T: Copy>(v: &mut [T], comp: &impl Fn(&T, &T) -> bool) {
     let n = v.len();
     if n != 0 {
         let lg = (usize::BITS - 1 - n.leading_zeros()) as i64;

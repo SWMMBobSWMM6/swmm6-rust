@@ -80,7 +80,7 @@ inline void dump(const openswmm::SimulationContext& c) {
   pi("lid_node_outlets[].top", (long long)(e5.top));
   }
   pi("tables.n", (long long)c.tables.tables.size());
-  for (auto& t : c.tables.tables) { ps("table.id", t.id); pi("table.type", (long long)t.type); ps("table.comment", t.comment); vf("table.x", t.x); vf("table.y", t.y); pi("table.n_relative", t.n_relative); pf("table.rel_anchor", t.rel_anchor); pi("table.is_file", t.is_file_based); ps("table.file", t.file_path.original); }
+  for (auto& t : c.tables.tables) { ps("table.id", t.id); pi("table.type", (long long)t.type); ps("table.comment", t.comment); vf("table.x", t.x); vf("table.y", t.y); pi("table.n_relative", t.n_relative); pf("table.rel_anchor", t.rel_anchor); pi("table.is_file", t.is_file_based); ps("table.file", t.file_path.original); ps("table.file.abs", t.file_path.absolute); }
   for (auto& h : c.unknown_section_headers) { ps("unknown_header", h.first); pi("unknown_header.line", h.second); }
   for (auto& kv : c.passthrough_sections) { ps("passthrough", kv.first); vs("passthrough.lines", kv.second); }
   { std::vector<std::pair<std::string,std::string>> e(c.options.ext_options.begin(), c.options.ext_options.end()); std::sort(e.begin(), e.end()); for (auto& kv : e) { ps("ext_option", kv.first); ps("ext_option.value", kv.second); } }
@@ -92,7 +92,7 @@ inline void dump(const openswmm::SimulationContext& c) {
   for (auto& p : c.process_component_specs) { ps("pcomp.id", p.id); ps("pcomp.config_path", p.config_path); for (auto& kv : p.args) { ps("pcomp.arg", kv.first); ps("pcomp.arg.value", kv.second); } ps("pcomp.resolved_config_path", p.resolved_config_path); }
   for (auto& d : c.user_flags.all_defs()) { ps("uflag_def.name", d.name); pi("uflag_def.type", (long long)d.type); ps("uflag_def.description", d.description); }
   { std::vector<std::pair<std::string, const openswmm::UserFlagValue*>> e; for (auto& kv : c.user_flags.all_values()) e.emplace_back(kv.first, &kv.second); std::sort(e.begin(), e.end(), [](const auto& a, const auto& b) { return a.first < b.first; }); for (auto& kv : e) { ps("uflag_value", kv.first); pi("uflag_value.kind", (long long)kv.second->index()); if (auto b = std::get_if<bool>(kv.second)) pi("uflag_value.v", *b); else if (auto i = std::get_if<int>(kv.second)) pi("uflag_value.v", *i); else if (auto d = std::get_if<double>(kv.second)) pf("uflag_value.v", *d); else ps("uflag_value.v", std::get<std::string>(*kv.second)); } }
-  for (auto& h : c.files.hotstart_saves) { ps("hotstart_save.path", h.path.original); pf("hotstart_save.datetime", h.datetime); pi("hotstart_save.format", (long long)h.format); }
+  for (auto& h : c.files.hotstart_saves) { ps("hotstart_save.path", h.path.original); ps("hotstart_save.path.abs", h.path.absolute); pf("hotstart_save.datetime", h.datetime); pi("hotstart_save.format", (long long)h.format); }
   { std::vector<long long> t; for (auto x : c.nodes.type) t.push_back((long long)x); vi("nodes.type", t); }
   { std::vector<double> t; for (auto x : c.nodes.invert_elev) t.push_back((double)x); vf("nodes.invert_elev", t); }
   { std::vector<double> t; for (auto x : c.nodes.full_depth) t.push_back((double)x); vf("nodes.full_depth", t); }
@@ -385,6 +385,7 @@ inline void dump(const openswmm::SimulationContext& c) {
   { std::vector<long long> t; for (auto x : c.gages.source) t.push_back((long long)x); vi("gages.source", t); }
   { std::vector<long long> t; for (auto x : c.gages.ts_index) t.push_back((long long)x); vi("gages.ts_index", t); }
   { std::vector<std::string> t; for (auto& x : c.gages.file_path) t.push_back(x.original); vs("gages.file_path", t); }
+  { std::vector<std::string> t; for (auto& x : c.gages.file_path) t.push_back(x.absolute); vs("gages.file_path.abs", t); }
   vs("gages.ts_name", c.gages.ts_name);
   vs("gages.col_name", c.gages.col_name);
   vs("gages.station_id", c.gages.station_id);
@@ -393,7 +394,43 @@ inline void dump(const openswmm::SimulationContext& c) {
   { std::vector<double> t; for (auto x : c.gages.file_last_date) t.push_back((double)x); vf("gages.file_last_date", t); }
   { std::vector<long long> t; for (auto x : c.gages.file_periods_precip) t.push_back((long long)x); vi("gages.file_periods_precip", t); }
   { std::vector<double> t; for (auto x : c.gages.file_start_date) t.push_back((double)x); vf("gages.file_start_date", t); }
-  sk("gages.rain_series");
+  pi("gages.rain_series.n", (long long)(c.gages.rain_series).size());
+  for (auto& el : c.gages.rain_series) {
+  ps("gages.rain_series[].id", el.id);
+  pi("gages.rain_series[].type", (long long)(el.type));
+  ps("gages.rain_series[].comment", el.comment);
+  { std::vector<double> t; for (auto x : el.x) t.push_back((double)x); vf("gages.rain_series[].x", t); }
+  { std::vector<double> t; for (auto x : el.y) t.push_back((double)x); vf("gages.rain_series[].y", t); }
+  pi("gages.rain_series[].cursor.index", (long long)(el.cursor.index));
+  pi("gages.rain_series[].cursor.direction", (long long)(el.cursor.direction));
+  pi("gages.rain_series[].n_relative", (long long)(el.n_relative));
+  pf("gages.rain_series[].rel_anchor", (double)(el.rel_anchor));
+  pi("gages.rain_series[].is_file_based", (long long)(el.is_file_based));
+  ps("gages.rain_series[].file_path", std::string(el.file_path));
+  ps("gages.rain_series[].file_path.abs", (el.file_path).absolute);
+  { std::vector<double> t; for (auto x : el.first_boundary.x) t.push_back((double)x); vf("gages.rain_series[].first_boundary.x", t); }
+  { std::vector<double> t; for (auto x : el.first_boundary.y) t.push_back((double)x); vf("gages.rain_series[].first_boundary.y", t); }
+  pi("gages.rain_series[].first_boundary.num_cols", (long long)(el.first_boundary.num_cols));
+  pi("gages.rain_series[].first_boundary.file_row_start", (long long)(el.first_boundary.file_row_start));
+  { std::vector<double> t; for (auto x : el.last_boundary.x) t.push_back((double)x); vf("gages.rain_series[].last_boundary.x", t); }
+  { std::vector<double> t; for (auto x : el.last_boundary.y) t.push_back((double)x); vf("gages.rain_series[].last_boundary.y", t); }
+  pi("gages.rain_series[].last_boundary.num_cols", (long long)(el.last_boundary.num_cols));
+  pi("gages.rain_series[].last_boundary.file_row_start", (long long)(el.last_boundary.file_row_start));
+  { std::vector<double> t; for (auto x : el.cache.x) t.push_back((double)x); vf("gages.rain_series[].cache.x", t); }
+  { std::vector<double> t; for (auto x : el.cache.y) t.push_back((double)x); vf("gages.rain_series[].cache.y", t); }
+  pi("gages.rain_series[].cache.num_cols", (long long)(el.cache.num_cols));
+  pi("gages.rain_series[].cache.file_row_start", (long long)(el.cache.file_row_start));
+  pf("gages.rain_series[].dx_min", (double)(el.dx_min));
+  pf("gages.rain_series[].x_min", (double)(el.x_min));
+  pf("gages.rain_series[].x_max", (double)(el.x_max));
+  pi("gages.rain_series[].num_cols", (long long)(el.num_cols));
+  pi("gages.rain_series[].total_rows", (long long)(el.total_rows));
+  pi("gages.rain_series[].num_cache_rows", (long long)(el.num_cache_rows));
+  pi("gages.rain_series[].data_start_offset", (long long)(el.data_start_offset));
+  { std::vector<long long> t; for (auto x : el.row_offsets) t.push_back((long long)x); vi("gages.rain_series[].row_offsets", t); }
+  vs("gages.rain_series[].column_ids", el.column_ids);
+  sk("gages.rain_series[].column_map");
+  }
   { std::vector<long long> t; for (auto x : c.gages.file_format) t.push_back((long long)x); vi("gages.file_format", t); }
   { std::vector<long long> t; for (auto x : c.gages.interval_sec) t.push_back((long long)x); vi("gages.interval_sec", t); }
   { std::vector<double> t; for (auto x : c.gages.snow_factor) t.push_back((double)x); vf("gages.snow_factor", t); }
@@ -817,6 +854,7 @@ inline void dump(const openswmm::SimulationContext& c) {
   ps("snowpacks.config.longwave.series", c.snowpacks.config.longwave.series);
   pi("snowpacks.config.longwave.authored", (long long)(c.snowpacks.config.longwave.authored));
   ps("snowpacks.config.met_file", std::string(c.snowpacks.config.met_file));
+  ps("snowpacks.config.met_file.abs", (c.snowpacks.config.met_file).absolute);
   pi("snowpacks.config.packs.n", (long long)(c.snowpacks.config.packs).size());
   for (const auto& e21 : c.snowpacks.config.packs) {
   pi("snowpacks.config.packs.key", (long long)(e21.first));
@@ -960,6 +998,7 @@ inline void dump(const openswmm::SimulationContext& c) {
   { std::vector<double> t; for (auto x : c.lid_usage.from_imperv) t.push_back((double)x); vf("lid_usage.from_imperv", t); }
   { std::vector<long long> t; for (auto x : c.lid_usage.to_perv) t.push_back((long long)x); vi("lid_usage.to_perv", t); }
   { std::vector<std::string> t; for (auto& x : c.lid_usage.rpt_file) t.push_back(x.original); vs("lid_usage.rpt_file", t); }
+  { std::vector<std::string> t; for (auto& x : c.lid_usage.rpt_file) t.push_back(x.absolute); vs("lid_usage.rpt_file.abs", t); }
   vs("lid_usage.drain_to", c.lid_usage.drain_to);
   { std::vector<double> t; for (auto x : c.lid_usage.from_perv) t.push_back((double)x); vf("lid_usage.from_perv", t); }
   { std::vector<double> t; for (auto x : c.lid_usage.wb_inflow) t.push_back((double)x); vf("lid_usage.wb_inflow", t); }
@@ -1090,6 +1129,7 @@ inline void dump(const openswmm::SimulationContext& c) {
   pi("options.temp_source", (long long)(c.options.temp_source));
   ps("options.temp_ts_name", c.options.temp_ts_name);
   ps("options.temp_file", std::string(c.options.temp_file));
+  ps("options.temp_file.abs", (c.options.temp_file).absolute);
   pf("options.temp_file_start", (double)(c.options.temp_file_start));
   pi("options.temp_units", (long long)(c.options.temp_units));
   pi("options.wind_type", (long long)(c.options.wind_type));
@@ -1147,13 +1187,19 @@ inline void dump(const openswmm::SimulationContext& c) {
   pf("options.fv.dispersion", (double)(c.options.fv.dispersion));
   pi("files.rainfall_mode", (long long)(c.files.rainfall_mode));
   ps("files.rainfall_path", std::string(c.files.rainfall_path));
+  ps("files.rainfall_path.abs", (c.files.rainfall_path).absolute);
   pi("files.runoff_mode", (long long)(c.files.runoff_mode));
   ps("files.runoff_path", std::string(c.files.runoff_path));
+  ps("files.runoff_path.abs", (c.files.runoff_path).absolute);
   pi("files.rdii_mode", (long long)(c.files.rdii_mode));
   ps("files.rdii_path", std::string(c.files.rdii_path));
+  ps("files.rdii_path.abs", (c.files.rdii_path).absolute);
   ps("files.inflows_path", std::string(c.files.inflows_path));
+  ps("files.inflows_path.abs", (c.files.inflows_path).absolute);
   ps("files.outflows_path", std::string(c.files.outflows_path));
+  ps("files.outflows_path.abs", (c.files.outflows_path).absolute);
   ps("files.hotstart_use_path", std::string(c.files.hotstart_use_path));
+  ps("files.hotstart_use_path.abs", (c.files.hotstart_use_path).absolute);
   sk("files.hotstart_saves");
   pi("msx_rows.buildup.n", (long long)(c.reactions.surface.rows.buildup).size());
   for (const auto& e48 : c.reactions.surface.rows.buildup) {
@@ -1199,5 +1245,43 @@ inline void dump(const openswmm::SimulationContext& c) {
   pf("node_coupling_2d.params[][]", (double)(e52));
   }
   }
+  pi("transect_tables.n", (long long)c.transect_tables.size());
+  for (auto& el : c.transect_tables) {
+  ps("transect_tables[].name", el.name);
+  pf("transect_tables[].n_left", (double)(el.n_left));
+  pf("transect_tables[].n_right", (double)(el.n_right));
+  pf("transect_tables[].n_channel", (double)(el.n_channel));
+  pf("transect_tables[].length_factor", (double)(el.length_factor));
+  { std::vector<double> t; for (auto x : el.stations) t.push_back((double)x); vf("transect_tables[].stations", t); }
+  { std::vector<double> t; for (auto x : el.elevations) t.push_back((double)x); vf("transect_tables[].elevations", t); }
+  pf("transect_tables[].x_left_bank", (double)(el.x_left_bank));
+  pf("transect_tables[].x_right_bank", (double)(el.x_right_bank));
+  pf("transect_tables[].y_full", (double)(el.y_full));
+  pf("transect_tables[].w_max", (double)(el.w_max));
+  pf("transect_tables[].a_full", (double)(el.a_full));
+  pf("transect_tables[].r_full", (double)(el.r_full));
+  pf("transect_tables[].s_max", (double)(el.s_max));
+  pf("transect_tables[].a_max", (double)(el.a_max));
+  for (int q = 0; q < (int)(sizeof(el.area_tbl)/sizeof(el.area_tbl[0])); ++q) {
+  pf("transect_tables[].area_tbl[]", (double)(el.area_tbl[q]));
+  }
+  for (int q = 0; q < (int)(sizeof(el.hrad_tbl)/sizeof(el.hrad_tbl[0])); ++q) {
+  pf("transect_tables[].hrad_tbl[]", (double)(el.hrad_tbl[q]));
+  }
+  for (int q = 0; q < (int)(sizeof(el.width_tbl)/sizeof(el.width_tbl[0])); ++q) {
+  pf("transect_tables[].width_tbl[]", (double)(el.width_tbl[q]));
+  }
+  pf("transect_tables[].area_lut.t0", (double)(el.area_lut.t0));
+  pf("transect_tables[].area_lut.scale", (double)(el.area_lut.scale));
+  pi("transect_tables[].area_lut.j_last", (long long)(el.area_lut.j_last));
+  for (int q = 0; q < (int)(sizeof(el.area_lut.lo)/sizeof(el.area_lut.lo[0])); ++q) {
+  pi("transect_tables[].area_lut.lo[]", (long long)(el.area_lut.lo[q]));
+  }
+  }
+  pi("met.n", (long long)c.snowpacks.meteorology.records().size()); for (auto& r : c.snowpacks.meteorology.records()) { pf("met.date", r.date); for (double v : r.values) pf("met.value", v); }
+  { std::vector<long long> t; for (auto x : c.reactions.init_elem_is_link) t.push_back((long long)x); vi("reactions.init_elem_is_link", t); }
+  { std::vector<long long> t; for (auto x : c.reactions.init_elem_idx) t.push_back((long long)x); vi("reactions.init_elem_idx", t); }
+  { std::vector<long long> t; for (auto x : c.reactions.init_elem_species) t.push_back((long long)x); vi("reactions.init_elem_species", t); }
+  { std::vector<double> t; for (auto x : c.reactions.init_elem_value) t.push_back((double)x); vf("reactions.init_elem_value", t); }
 }
 } // namespace ctxdump

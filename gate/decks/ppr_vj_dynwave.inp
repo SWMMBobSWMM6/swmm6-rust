@@ -1,0 +1,73 @@
+[TITLE]
+synthetic: post-parse resolver, virtual junctions: rule violations (link count, cross
+section, offsets), chained VJs, initial-state seeding from wet neighbours (DYNWAVE)
+
+[OPTIONS]
+FLOW_UNITS CFS
+FLOW_ROUTING DYNWAVE
+START_DATE 01/01/2020
+START_TIME 00:00:00
+END_DATE 01/02/2020
+END_TIME 00:00:00
+
+[JUNCTIONS]
+A    100  10  2   0  0
+B    90   10  1   0  0
+C    95   10  0   0  0
+E    80   10  0   0  0
+F    85   10  0.5 0  0
+
+[VIRTUAL_JUNCTIONS]
+V1   95
+V2   92  7
+V3   91
+V4   93
+V5   94
+V6   88
+V7   87
+V8   84
+V9   83
+
+[OUTFALLS]
+O1   70  FREE  NO
+
+[CONDUITS]
+K1   A   V1  100  0.013  0  0  0  0
+K2   V1  B   150  0.013  0  0  0  0
+K3   B   V2  100  0.013  0  0  0  0
+K4   V2  V3  100  0.013  0  0  0  0
+K5   V3  E   100  0.013  0  0  0  0
+K6   A   V4  100  0.013  0  0  0  0
+K7   V4  C   100  0.013  0  0  0  0
+K8   V5  C   100  0.013  0  0  0  0
+K9   V5  C   100  0.013  0  0  0  0
+K10  V5  E   100  0.013  0  0  0  0
+K11  F   V6  100  0.013  0  0.5  0  0
+K12  V6  E   100  0.013  0  0  0  0
+K13  E   O1  100  0.013  0  0  0  0
+K14  C   V7  100  0.013  0  0  0  0
+K15  V7  O1  100  0.013  0  0  0  0
+K16  V8  V9  100  0.013  0  0  0  0
+K17  V9  V8  100  0.013  0  0  0  0
+
+[PUMPS]
+PP1  V7  O1  *  ON 0 0
+
+[XSECTIONS]
+K1   CIRCULAR  2  0  0  0  1
+K2   CIRCULAR  2  0  0  0  1
+K3   CIRCULAR  2  0  0  0  1
+K4   CIRCULAR  2  0  0  0  1
+K5   CIRCULAR  2  0  0  0  1
+K6   CIRCULAR  2  0  0  0  1
+K7   CIRCULAR  3  0  0  0  1
+K8   CIRCULAR  2  0  0  0  1
+K9   CIRCULAR  2  0  0  0  1
+K10  CIRCULAR  2  0  0  0  1
+K11  CIRCULAR  2  0  0  0  1
+K12  CIRCULAR  2  0  0  0  1
+K13  CIRCULAR  2  0  0  0  1
+K14  CIRCULAR  2  0  0  0  1
+K15  CIRCULAR  2  0  0  0  2
+K16  CIRCULAR  2  0  0  0  1
+K17  CIRCULAR  2  0  0  0  1

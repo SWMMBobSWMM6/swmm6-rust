@@ -85,14 +85,14 @@ def fields(header, struct):
             continue
         if '(' in s.split('=')[0]:
             continue
-        m = re.fullmatch(r'((?:const\s+)?[\w:]+(?:<.+?>+)?(?:\s+long)?)\s+([A-Za-z_].*)', s)
+        m = re.fullmatch(r'((?:const\s+)?(?:unsigned\s+)?[\w:]+(?:<.+?>+)?(?:\s+long)?)\s+([A-Za-z_].*)', s)
         if not m:
             continue
         ty, names = m.group(1), m.group(2)
         for nm in split_top(names):          # each declarator, initializer dropped
             nm = re.sub(r'\s*=\s*.*$', '', nm.strip())
             nm = re.sub(r'\s*\{\}\s*$', '', nm).strip()
-            am = re.fullmatch(r'(\w+)\s*\[\s*(\w+)\s*\]', nm)
+            am = re.fullmatch(r'(\w+)\s*\[([^\]]+)\]', nm)
             if am:
                 res.append((am.group(1), ty, am.group(2)))
             elif re.fullmatch(r'\w+', nm):
@@ -132,6 +132,10 @@ STRUCTS = {
     'LidPortTransfer': ('data/LidNodeData.hpp', 'LidPortTransfer'),
     'GreenAmptState': ('hydrology/Infiltration.hpp', 'GreenAmptState'),
     'richards::Report': ('hydrology/RichardsColumn.hpp', 'Report'),
+    # post-parse resolver outputs: gage rain series tables, transect tables
+    'TableCursor': ('data/TableData.hpp', 'TableCursor'),
+    'TableBlock': ('data/TableData.hpp', 'TableBlock'),
+    'xsect::LocateLut': ('hydraulics/XSectLookup.hpp', 'LocateLut'),
     'Transfer': ('hydrology/RichardsColumn.hpp', 'Transfer'),
 }
 
@@ -178,6 +182,8 @@ def emit(path_c, path_r, label, k, C, R):
         sc = f'std::string({path_c})' if k[1] == 'FilePathPair' else path_c
         sr = f'&({path_r}).original' if k[1] == 'FilePathPair' else f'&{path_r}'
         C.append(f'  ps("{label}", {sc});'); R.append(f'    ps(o, "{label}", {sr});')
+        if k[1] == 'FilePathPair':
+            C.append(f'  ps("{label}.abs", ({path_c}).absolute);'); R.append(f'    ps(o, "{label}.abs", &({path_r}).absolute);')
     elif k[0] == 'v' and k[1][0] in 'fis':
         ik = k[1]
         if ik[0] == 'i':
@@ -190,6 +196,8 @@ def emit(path_c, path_r, label, k, C, R):
             if ik[1] == 'FilePathPair':
                 C.append(f'  {{ std::vector<std::string> t; for (auto& x : {path_c}) t.push_back(x.original); vs("{label}", t); }}')
                 R.append(f'    vs(o, "{label}", &({path_r}).iter().map(|x| x.original.clone()).collect::<Vec<_>>());')
+                C.append(f'  {{ std::vector<std::string> t; for (auto& x : {path_c}) t.push_back(x.absolute); vs("{label}.abs", t); }}')
+                R.append(f'    vs(o, "{label}.abs", &({path_r}).iter().map(|x| x.absolute.clone()).collect::<Vec<_>>());')
             else:
                 C.append(f'  vs("{label}", {path_c});'); R.append(f'    vs(o, "{label}", &{path_r});')
     elif k[0] == 'va':
@@ -246,7 +254,8 @@ def dump_struct(header, struct, path_c, path_r, label, C, R):
         emit(pc, pr, lb, k, C, R)
 
 # element structs of std::vector members that are dumped field by field
-ELEM_STRUCTS = {'UnitHydEntry': 'data/InflowData.hpp', 'RDIIDecayEntry': 'data/InflowData.hpp'}
+ELEM_STRUCTS = {'UnitHydEntry': 'data/InflowData.hpp', 'RDIIDecayEntry': 'data/InflowData.hpp',
+                'Table': 'data/TableData.hpp'}
 
 # (header, struct, C++ path, Rust path, label)
 STORES = [
@@ -336,8 +345,8 @@ def main():
             emit(f'c.{n}', f'c.{n}', n, k, C, R)
     # tables
     C.append('  pi("tables.n", (long long)c.tables.tables.size());'); R.append('    pi(o, "tables.n", c.tables.tables.len() as i64);')
-    C.append('  for (auto& t : c.tables.tables) { ps("table.id", t.id); pi("table.type", (long long)t.type); ps("table.comment", t.comment); vf("table.x", t.x); vf("table.y", t.y); pi("table.n_relative", t.n_relative); pf("table.rel_anchor", t.rel_anchor); pi("table.is_file", t.is_file_based); ps("table.file", t.file_path.original); }')
-    R.append('    for t in &c.tables.tables { ps(o, "table.id", &t.id); pi(o, "table.type", t.type_ as i64); ps(o, "table.comment", &t.comment); vf(o, "table.x", &t.x); vf(o, "table.y", &t.y); pi(o, "table.n_relative", t.n_relative as i64); pf(o, "table.rel_anchor", t.rel_anchor); pi(o, "table.is_file", t.is_file_based as i64); ps(o, "table.file", &t.file_path.original); }')
+    C.append('  for (auto& t : c.tables.tables) { ps("table.id", t.id); pi("table.type", (long long)t.type); ps("table.comment", t.comment); vf("table.x", t.x); vf("table.y", t.y); pi("table.n_relative", t.n_relative); pf("table.rel_anchor", t.rel_anchor); pi("table.is_file", t.is_file_based); ps("table.file", t.file_path.original); ps("table.file.abs", t.file_path.absolute); }')
+    R.append('    for t in &c.tables.tables { ps(o, "table.id", &t.id); pi(o, "table.type", t.type_ as i64); ps(o, "table.comment", &t.comment); vf(o, "table.x", &t.x); vf(o, "table.y", &t.y); pi(o, "table.n_relative", t.n_relative as i64); pf(o, "table.rel_anchor", t.rel_anchor); pi(o, "table.is_file", t.is_file_based as i64); ps(o, "table.file", &t.file_path.original); ps(o, "table.file.abs", &t.file_path.absolute); }')
     # unknown headers, deferred rows, passthrough
     C.append('  for (auto& h : c.unknown_section_headers) { ps("unknown_header", h.first); pi("unknown_header.line", h.second); }')
     R.append('    for h in &c.unknown_section_headers { ps(o, "unknown_header", &h.0); pi(o, "unknown_header.line", h.1); }')
@@ -363,10 +372,19 @@ def main():
     # the value map is an unordered_map upstream: sorted by stored key on both sides
     C.append('  { std::vector<std::pair<std::string, const openswmm::UserFlagValue*>> e; for (auto& kv : c.user_flags.all_values()) e.emplace_back(kv.first, &kv.second); std::sort(e.begin(), e.end(), [](const auto& a, const auto& b) { return a.first < b.first; }); for (auto& kv : e) { ps("uflag_value", kv.first); pi("uflag_value.kind", (long long)kv.second->index()); if (auto b = std::get_if<bool>(kv.second)) pi("uflag_value.v", *b); else if (auto i = std::get_if<int>(kv.second)) pi("uflag_value.v", *i); else if (auto d = std::get_if<double>(kv.second)) pf("uflag_value.v", *d); else ps("uflag_value.v", std::get<std::string>(*kv.second)); } }')
     R.append('    { let mut e: Vec<_> = c.user_flags.all_values().iter().collect(); e.sort_by(|a, b| a.0.cmp(b.0)); for (k, v) in e { ps(o, "uflag_value", k); match v { UserFlagValue::Bool(b) => { pi(o, "uflag_value.kind", 0); pi(o, "uflag_value.v", *b as i64); } UserFlagValue::Int(i) => { pi(o, "uflag_value.kind", 1); pi(o, "uflag_value.v", *i as i64); } UserFlagValue::Double(d) => { pi(o, "uflag_value.kind", 2); pf(o, "uflag_value.v", *d); } UserFlagValue::String(s) => { pi(o, "uflag_value.kind", 3); ps(o, "uflag_value.v", s); } } } }')
-    C.append('  for (auto& h : c.files.hotstart_saves) { ps("hotstart_save.path", h.path.original); pf("hotstart_save.datetime", h.datetime); pi("hotstart_save.format", (long long)h.format); }')
-    R.append('    for h in &c.files.hotstart_saves { ps(o, "hotstart_save.path", &h.path.original); pf(o, "hotstart_save.datetime", h.datetime); pi(o, "hotstart_save.format", h.format as i64); }')
+    C.append('  for (auto& h : c.files.hotstart_saves) { ps("hotstart_save.path", h.path.original); ps("hotstart_save.path.abs", h.path.absolute); pf("hotstart_save.datetime", h.datetime); pi("hotstart_save.format", (long long)h.format); }')
+    R.append('    for h in &c.files.hotstart_saves { ps(o, "hotstart_save.path", &h.path.original); ps(o, "hotstart_save.path.abs", &h.path.absolute); pf(o, "hotstart_save.datetime", h.datetime); pi(o, "hotstart_save.format", h.format as i64); }')
     for header, struct, pc, pr, label in STORES:
         dump_struct(header, struct, pc, pr, label, C, R)
+    # written by input/PostParseResolver.cpp (resolve_cross_references)
+    C.append('  pi("transect_tables.n", (long long)c.transect_tables.size());'); R.append('    pi(o, "transect_tables.n", c.transect_tables.len() as i64);')
+    C.append('  for (auto& el : c.transect_tables) {'); R.append('    for el in &c.transect_tables {')
+    dump_struct('hydraulics/Transect.hpp', 'TransectData', 'el', 'el', 'transect_tables[]', C, R)
+    C.append('  }'); R.append('    }')
+    C.append('  pi("met.n", (long long)c.snowpacks.meteorology.records().size()); for (auto& r : c.snowpacks.meteorology.records()) { pf("met.date", r.date); for (double v : r.values) pf("met.value", v); }')
+    R.append('    pi(o, "met.n", c.snowpacks.meteorology.records().len() as i64); for r in c.snowpacks.meteorology.records().iter() { pf(o, "met.date", r.date); for v in r.values.iter() { pf(o, "met.value", *v); } }')
+    for f, kk in (('init_elem_is_link', 'i'), ('init_elem_idx', 'i'), ('init_elem_species', 'i'), ('init_elem_value', 'f')):
+        emit(f'c.reactions.{f}', f'c.reactions.{f}', f'reactions.{f}', ('v', (kk, 'x')), C, R)
     C.append('}'); C.append('} // namespace ctxdump')
     R.append('    std::mem::take(o)'); R.append('}')
     open(f'{ROOT}/gate/diff/ctxdump.hpp', 'w').write('\n'.join(C) + '\n')

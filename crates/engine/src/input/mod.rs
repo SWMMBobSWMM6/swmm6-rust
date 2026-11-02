@@ -3,6 +3,7 @@ pub mod handlers;
 pub mod input_reader;
 pub mod multi_column_series_file;
 pub mod parse_utils;
+pub mod post_parse_resolver;
 pub mod section_parser;
 pub mod section_registry;
 pub mod tokenizer;

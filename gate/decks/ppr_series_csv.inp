@@ -1,0 +1,49 @@
+[TITLE]
+synthetic: post-parse resolver, FILE time series (legacy date-time-value rows, elapsed
+rows, multi-column CSV/TSV with and without a column) and USER_CSV rain gages
+[OPTIONS]
+FLOW_UNITS CFS
+FLOW_ROUTING DYNWAVE
+START_DATE 01/01/2020
+START_TIME 00:00:00
+END_DATE 01/05/2020
+END_TIME 00:00:00
+
+[RAINGAGES]
+C1  INTENSITY  0:15  1.0  FILE  "ppr_series.csv:Gauge1"
+C2  INTENSITY  0:15  1.0  FILE  "ppr_series.csv:gauge2"
+C3  INTENSITY  0:15  1.0  FILE  "ppr_series.csv:Nope"
+C4  INTENSITY  0:15  1.0  FILE  "ppr_series.csv"  *  IN
+C5  INTENSITY  0:15  1.0  FILE  "ppr_missing.csv:Gauge1"
+C6  VOLUME     0:15  1.0  FILE  "../decks/ppr_series.csv:Flow"
+C7  INTENSITY  0:15  1.0  FILE  "ppr_series.tsv:B"
+C8  INTENSITY  0:15  1.0  FILE  "ppr_series_hdronly.csv:Q"
+C9  INTENSITY  0:15  2.5  FILE  "ppr_series.csv"  2.0
+[TIMESERIES]
+T_CSV1   FILE "ppr_series.csv:Flow"
+T_CSV2   FILE "ppr_series.csv"
+T_CSV3   FILE "ppr_series.csv:Nope"
+T_MISS   FILE "ppr_nofile.csv:Flow"
+T_DAT    FILE "ppr_ts_legacy.dat"
+T_ELAP   FILE "ppr_ts_elapsed.dat"
+T_EMPTY  FILE "ppr_ts_empty.dat"
+T_NODAT  FILE "ppr_ts_nofile.dat"
+T_TSV    FILE "ppr_series.tsv:A"
+T_REL    FILE "./ppr_ts_elapsed.dat"
+T_HDR    FILE "ppr_series_hdronly.csv"
+T_INL    0:00  1
+T_INL    1:00  2
+T_INL    01/02/2020 00:00 3
+T_MIX    01/02/2020 00:00 3
+T_MIX    0:30 4
+[INFLOWS]
+J1  FLOW  T_CSV1  FLOW  1.0  1.0
+
+[JUNCTIONS]
+J1  100  10  0  0  0
+[OUTFALLS]
+O1  90  FREE  NO
+[CONDUITS]
+C1  J1  O1  400  0.013  0  0  0  0
+[XSECTIONS]
+C1  CIRCULAR  1.5  0  0  0  1

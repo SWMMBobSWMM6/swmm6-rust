@@ -1,0 +1,13 @@
+STATION           STATION_NAME                                       DATE           XXXX    Measurement Flag  Quality Flag
+COOP:123456       SOME STATION                                       20191231 23:00 0.10           
+COOP:123456       SOME STATION                                       20200101 00:00 0.25    a      
+COOP:123456       SOME STATION                                       20200101 01:00 25             
+COOP:123456       SOME STATION                                       20200101 02:00 0.50    A      
+COOP:123456       SOME STATION                                       20200101 03:00 999.99         
+COOP:123456       SOME STATION                                       20200101 04:00 .05     ]      
+COOP:123456       SOME STATION                                       20200101 05:00 abc            
+COOP:123456       SOME STATION                                       20200101 06:00 7       M      
+COOP:123456       SOME STATION                                       20200101 06:15 0.01           
+COOP:123456       SOME STATION                                       20200102 00:00 1.0            
+COOP:123456       SOME STATION                                       20200102 01:00 0.123          
+COOP:123456 short line 20200103 01:00

@@ -1,0 +1,38 @@
+[TITLE]
+synthetic: post-parse resolver, standard (station) rain files: rain types, MM units, start
+date, unsorted shared file, station conflict, missing file
+[OPTIONS]
+FLOW_UNITS CFS
+FLOW_ROUTING DYNWAVE
+START_DATE 01/01/2020
+START_TIME 00:00:00
+END_DATE 01/05/2020
+END_TIME 00:00:00
+
+[RAINGAGES]
+G1  INTENSITY  0:15  1.0  FILE  "ppr_rain_std.dat"  STA1  IN
+G2  CUMULATIVE 0:15  1.0  FILE  "ppr_rain_std.dat"  STA2  MM
+G3  VOLUME     0:15  1.0  FILE  "ppr_rain_std.dat"  *     IN
+G4  INTENSITY  0:30  1.0  FILE  "ppr_rain_std.dat"  STA3  IN  01/02/2020
+G5  INTENSITY  1:00  1.0  FILE  "ppr_rain_std_b.dat" STA1 IN
+G6  INTENSITY  1:00  1.0  FILE  "ppr_no_such_rain.dat" STA9 IN
+G7  INTENSITY  0:15  1.0  FILE  "ppr_rain_std.dat"  STA4  MM
+G8  VOLUME     0:15  1.0  FILE  "./sub/../ppr_rain_std.dat"  STA1  IN
+[SUBCATCHMENTS]
+S1  G1  J1  10  50  500  0.5  0
+S2  G3  J1  10  50  500  0.5  0
+[SUBAREAS]
+S1  0.01 0.1 0.05 0.05 25 OUTLET
+S2  0.01 0.1 0.05 0.05 25 OUTLET
+[INFILTRATION]
+S1  3.0 0.5 4 7 0
+S2  3.0 0.5 4 7 0
+
+[JUNCTIONS]
+J1  100  10  0  0  0
+[OUTFALLS]
+O1  90  FREE  NO
+[CONDUITS]
+C1  J1  O1  400  0.013  0  0  0  0
+[XSECTIONS]
+C1  CIRCULAR  1.5  0  0  0  1

@@ -16,7 +16,9 @@
 //     (fread, fgets with upstream's buffer sizes, fseek, ftell). A read error reads as end
 //     of file, as glibc's fgets returns NULL for both.
 //   * `std::sscanf` and `strtol` are emulated (glibc, C locale) by `sscanf` below, which
-//     covers exactly the conversions upstream's format strings use (%d, %Ns, %n, %*[..]).
+//     covers the conversions upstream's format strings use: %d, %ld, %u, %Ns, %c, %f,
+//     %n and scan sets (with ranges, stored or suppressed). The %u/%ld/%c/%f and stored
+//     scan-set cases were added for input/PostParseResolver.cpp's rain-file readers.
 //   * The four identical "skip N data rows" loops are one helper, `skip_data_rows`.
 //   * `prepare_lookup` returns (n, stride, cursor) and the callers index the cache or
 //     the in-memory arrays directly instead of through raw pointers.
@@ -667,8 +669,16 @@ impl CFile {
 pub(crate) enum ScanArg<'a> {
     /// `%d` into an `int`.
     Int(&'a mut i32),
-    /// `%Ns` into a `char[N+1]`.
+    /// `%ld` into a `long`.
+    Long(&'a mut i64),
+    /// `%u` into an `unsigned int`.
+    UInt(&'a mut u32),
+    /// `%Ns` or `%N[...]` into a `char[N+1]`.
     Str(&'a mut Bytes),
+    /// `%c` into a `char` (width 1).
+    Char(&'a mut u8),
+    /// `%f` into a `float`.
+    Float(&'a mut f32),
     /// `%n` into an `int`.
     Count(&'a mut i32),
 }
@@ -700,11 +710,34 @@ fn strtol_digits(b: &[u8]) -> i64 {
     }
 }
 
-/// glibc `sscanf` in the C locale, for the conversions upstream uses: `%d` (strtol, then
-/// truncated to int), `%Ns`, `%n`, and a suppressed scan set `%*[...]`. White space in
-/// the format matches any amount of input white space; other bytes match themselves.
-/// Returns the number of assignments, or -1 (EOF) when input ran out before the first.
-/// The input is a C string: it ends at the first NUL.
+/// glibc `strtoul(s, NULL, 10)` on a buffer `%u` collected: ULONG_MAX when the digits
+/// overflow, the value negated (mod 2^64) after a '-'.
+fn strtoul_digits(b: &[u8]) -> u64 {
+    let (neg, digits) = match b.first() {
+        Some(b'-') => (true, &b[1..]),
+        Some(b'+') => (false, &b[1..]),
+        _ => (false, b),
+    };
+    let mut v: u64 = 0;
+    for &c in digits {
+        match v.checked_mul(10).and_then(|x| x.checked_add((c - b'0') as u64)) {
+            Some(x) => v = x,
+            None => return u64::MAX,
+        }
+    }
+    if neg {
+        v.wrapping_neg()
+    } else {
+        v
+    }
+}
+
+/// glibc `sscanf` in the C locale, for the conversions upstream uses: `%d`/`%ld` (strtol,
+/// truncated to int for `%d`), `%u` (strtoul, truncated to unsigned int), `%Ns`, `%c`,
+/// `%f` (glibc's character collection, then strtof), `%n`, and scan sets `%[...]`/`%*[...]`
+/// with ranges. White space in the format matches any amount of input white space; other
+/// bytes match themselves. Returns the number of assignments, or -1 (EOF) when input ran
+/// out before the first. The input is a C string: it ends at the first NUL.
 pub(crate) fn sscanf(input: &[u8], fmt: &[u8], args: &mut [ScanArg<'_>]) -> i32 {
     let s = c_str(input);
     let mut pos = 0usize; // glibc's read_in
@@ -758,6 +791,11 @@ pub(crate) fn sscanf(input: &[u8], fmt: &[u8], args: &mut [ScanArg<'_>]) -> i32 
                 fi += 1;
             }
         }
+        let mut long_flag = false;
+        if fi < fmt.len() && fmt[fi] == b'l' {
+            long_flag = true;
+            fi += 1;
+        }
         let conv = fmt[fi];
         fi += 1;
         if skip_space || !matches!(conv, b'[' | b'c' | b'n') {
@@ -777,7 +815,7 @@ pub(crate) fn sscanf(input: &[u8], fmt: &[u8], args: &mut [ScanArg<'_>]) -> i32 
                     ai += 1;
                 }
             }
-            b'd' => {
+            b'd' | b'u' => {
                 if pos >= s.len() {
                     input_error!();
                 }
@@ -800,12 +838,12 @@ pub(crate) fn sscanf(input: &[u8], fmt: &[u8], args: &mut [ScanArg<'_>]) -> i32 
                 if buf.is_empty() || (buf.len() == 1 && (buf[0] == b'+' || buf[0] == b'-')) {
                     return done; // conv_error
                 }
-                let v = strtol_digits(&buf) as i32;
                 if !suppress {
-                    if let ScanArg::Int(p) = &mut args[ai] {
-                        **p = v;
-                    } else {
-                        unreachable!("%d needs ScanArg::Int");
+                    match &mut args[ai] {
+                        ScanArg::Int(p) if conv == b'd' && !long_flag => **p = strtol_digits(&buf) as i32,
+                        ScanArg::Long(p) if conv == b'd' && long_flag => **p = strtol_digits(&buf),
+                        ScanArg::UInt(p) if conv == b'u' && !long_flag => **p = strtoul_digits(&buf) as u32,
+                        _ => unreachable!("%d needs Int, %ld Long, %u UInt"),
                     }
                     ai += 1;
                     done += 1;
@@ -844,31 +882,244 @@ pub(crate) fn sscanf(input: &[u8], fmt: &[u8], args: &mut [ScanArg<'_>]) -> i32 
                     done += 1;
                 }
             }
+            b'c' => {
+                let mut w = if width == -1 { 1 } else { width };
+                if pos >= s.len() {
+                    input_error!();
+                }
+                let first = s[pos];
+                pos += 1;
+                loop {
+                    w -= 1;
+                    if w <= 0 || pos >= s.len() {
+                        break;
+                    }
+                    pos += 1;
+                }
+                if !suppress {
+                    if let ScanArg::Char(p) = &mut args[ai] {
+                        **p = first;
+                    } else {
+                        unreachable!("%c needs ScanArg::Char");
+                    }
+                    ai += 1;
+                    done += 1;
+                }
+            }
+            b'f' => {
+                // glibc collects the characters of a number, then hands them to strtof.
+                let at = |k: usize| -> Option<u8> { if k < s.len() { Some(s[k]) } else { None } };
+                let mut buf = Bytes::new();
+                let mut w = width;
+                let mut c = match at(pos) {
+                    None => input_error!(),
+                    Some(ch) => ch,
+                };
+                pos += 1;
+                if w > 0 {
+                    w -= 1;
+                }
+                let mut got_sign = 0usize;
+                macro_rules! next_or_conv_error {
+                    () => {{
+                        if w == 0 {
+                            return done;
+                        }
+                        match at(pos) {
+                            None => return done,
+                            Some(ch) => {
+                                pos += 1;
+                                ch
+                            }
+                        }
+                    }};
+                }
+                if c == b'-' || c == b'+' {
+                    got_sign = 1;
+                    buf.push(c);
+                    c = next_or_conv_error!();
+                    if w > 0 {
+                        w -= 1;
+                    }
+                }
+                let lc = c.to_ascii_lowercase();
+                let mut special = false;
+                if lc == b'n' {
+                    buf.push(c);
+                    for want in [b'a', b'n'] {
+                        let ch = next_or_conv_error!();
+                        if ch.to_ascii_lowercase() != want {
+                            return done;
+                        }
+                        if w > 0 {
+                            w -= 1;
+                        }
+                        buf.push(ch);
+                    }
+                    special = true;
+                } else if lc == b'i' {
+                    buf.push(c);
+                    for want in [b'n', b'f'] {
+                        let ch = next_or_conv_error!();
+                        if ch.to_ascii_lowercase() != want {
+                            return done;
+                        }
+                        if w > 0 {
+                            w -= 1;
+                        }
+                        buf.push(ch);
+                    }
+                    if w != 0 {
+                        if let Some(ch) = at(pos) {
+                            pos += 1;
+                            if ch.to_ascii_lowercase() == b'i' {
+                                if w > 0 {
+                                    w -= 1;
+                                }
+                                buf.push(ch);
+                                for want in [b'n', b'i', b't', b'y'] {
+                                    let ch = next_or_conv_error!();
+                                    if ch.to_ascii_lowercase() != want {
+                                        return done;
+                                    }
+                                    if w > 0 {
+                                        w -= 1;
+                                    }
+                                    buf.push(ch);
+                                }
+                            } else {
+                                pos -= 1; // ungetc
+                            }
+                        }
+                    }
+                    special = true;
+                }
+                let mut hexa = false;
+                if !special {
+                    let mut exp_char = b'e';
+                    let mut got_digit = false;
+                    let mut got_dot = false;
+                    let mut got_e = false;
+                    // `c` is the current character; None stands for EOF.
+                    let mut cur: Option<u8> = Some(c);
+                    if w != 0 && c == b'0' {
+                        buf.push(c);
+                        cur = at(pos);
+                        if cur.is_some() {
+                            pos += 1;
+                        }
+                        if w > 0 {
+                            w -= 1;
+                        }
+                        if w != 0 && cur.map(|x| x.to_ascii_lowercase()) == Some(b'x') {
+                            buf.push(cur.unwrap());
+                            hexa = true;
+                            exp_char = b'p';
+                            cur = at(pos);
+                            if cur.is_some() {
+                                pos += 1;
+                            }
+                            if w > 0 {
+                                w -= 1;
+                            }
+                        } else {
+                            got_digit = true;
+                        }
+                    }
+                    loop {
+                        let ch = match cur {
+                            None => break, // EOF: nothing to push back
+                            Some(ch) => ch,
+                        };
+                        if ch.is_ascii_digit() {
+                            buf.push(ch);
+                            got_digit = true;
+                        } else if !got_e && hexa && ch.is_ascii_hexdigit() {
+                            buf.push(ch);
+                            got_digit = true;
+                        } else if got_e && *buf.last().unwrap() == exp_char && (ch == b'-' || ch == b'+') {
+                            buf.push(ch);
+                        } else if got_digit && !got_e && ch.to_ascii_lowercase() == exp_char {
+                            buf.push(exp_char);
+                            got_e = true;
+                            got_dot = true;
+                        } else if !got_dot && ch == b'.' {
+                            buf.push(ch);
+                            got_dot = true;
+                        } else {
+                            pos -= 1; // ungetc
+                            break;
+                        }
+                        if w == 0 {
+                            break;
+                        }
+                        cur = at(pos);
+                        if cur.is_none() {
+                            break;
+                        }
+                        pos += 1;
+                        if w > 0 {
+                            w -= 1;
+                        }
+                    }
+                    if buf.len() == got_sign || (hexa && buf.len() == 2 + got_sign) {
+                        return done; // conv_error
+                    }
+                }
+                let (v, used) = crate::core::cstdlib::strtof(&buf);
+                if used == 0 {
+                    return done; // conv_error
+                }
+                if !suppress {
+                    if let ScanArg::Float(p) = &mut args[ai] {
+                        **p = v;
+                    } else {
+                        unreachable!("%f needs ScanArg::Float");
+                    }
+                    ai += 1;
+                    done += 1;
+                }
+            }
             b'[' => {
                 let mut not_in = false;
                 if fi < fmt.len() && fmt[fi] == b'^' {
                     not_in = true;
                     fi += 1;
                 }
-                let set_start = fi;
-                if fi < fmt.len() && fmt[fi] == b']' {
+                let mut w: i32 = if width < 0 { i32::MAX } else { width };
+                let mut flags = [false; 256];
+                if fi < fmt.len() && (fmt[fi] == b']' || fmt[fi] == b'-') {
+                    flags[fmt[fi] as usize] = true;
                     fi += 1;
                 }
-                while fi < fmt.len() && fmt[fi] != b']' {
+                loop {
+                    if fi >= fmt.len() {
+                        return done; // the set never ends: conv_error
+                    }
+                    let fc = fmt[fi];
                     fi += 1;
+                    if fc == b']' {
+                        break;
+                    }
+                    if fc == b'-' && fi < fmt.len() && fmt[fi] != b']' && fmt[fi - 2] <= fmt[fi] {
+                        for k in fmt[fi - 2]..fmt[fi] {
+                            flags[k as usize] = true;
+                        }
+                    } else {
+                        flags[fc as usize] = true;
+                    }
                 }
-                let set = &fmt[set_start..fi];
-                fi += 1; // the ']'
                 if pos >= s.len() {
                     input_error!();
                 }
                 let now = pos;
-                let mut w: i32 = if width < 0 { i32::MAX } else { width };
+                let mut out = Bytes::new();
                 loop {
                     let c = s[pos];
-                    if set.contains(&c) == not_in {
+                    if flags[c as usize] == not_in {
                         break;
                     }
+                    out.push(c);
                     pos += 1;
                     w -= 1;
                     if w <= 0 || pos >= s.len() {
@@ -878,7 +1129,15 @@ pub(crate) fn sscanf(input: &[u8], fmt: &[u8], args: &mut [ScanArg<'_>]) -> i32 
                 if pos == now {
                     return done; // conv_error
                 }
-                assert!(suppress, "only the suppressed scan set is used");
+                if !suppress {
+                    if let ScanArg::Str(p) = &mut args[ai] {
+                        **p = out;
+                    } else {
+                        unreachable!("%[ needs ScanArg::Str");
+                    }
+                    ai += 1;
+                    done += 1;
+                }
             }
             _ => unreachable!("conversion not used by upstream"),
         }

@@ -1,0 +1,12 @@
+[TITLE]
+synthetic: post-parse resolver, [INITIAL_QUALITY] FILE that does not exist
+
+[OPTIONS]
+FLOW_UNITS CFS
+
+[JUNCTIONS]
+J1 100 10 0 0 0
+[POLLUTANTS]
+TSS MG/L 0 0 0 0 0
+[INITIAL_QUALITY]
+FILE  sub/ppr_iq_none.csv

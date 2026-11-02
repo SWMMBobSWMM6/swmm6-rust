@@ -1,0 +1,31 @@
+[TITLE]
+synthetic: post-parse resolver, [INITIAL_QUALITY] rows naming reactions species (run by
+gate/diff/msxiq with a configured reactions component; plain ctxread treats them as
+unknown constituents)
+
+[OPTIONS]
+FLOW_UNITS CFS
+
+[JUNCTIONS]
+J1  100  10  0  0  0
+J2  99   10  0  0  0
+[OUTFALLS]
+O1  90  FREE  NO
+[CONDUITS]
+C1  J1  J2  100  0.013  0  0  0  0
+C2  J2  O1  100  0.013  0  0  0  0
+[XSECTIONS]
+C1  CIRCULAR  1  0  0  0  1
+C2  CIRCULAR  1  0  0  0  1
+[POLLUTANTS]
+TSS  MG/L  0 0 0 0 0
+[INITIAL_QUALITY]
+NODE  J1  CL2  1.0
+NODE  J1  NH3  0.5
+NODE  J2  NH3  0.7
+LINK  C1  CL2  2.0
+LINK  C1  CL2  2.5
+NODE  J2  TSS  3
+NODE  J2  cl2  1
+NODE  J1  NH3  0.9
+LINK  C2  NH3  -1
