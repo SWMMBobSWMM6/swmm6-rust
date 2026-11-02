@@ -248,6 +248,11 @@ impl UserFlags {
         &self.defs
     }
 
+    /// The private def_index_ (no accessor upstream; read by the gate's context dump).
+    pub fn def_index(&self) -> &HashMap<Bytes, usize> {
+        &self.def_index
+    }
+
     pub fn def_count(&self) -> usize {
         self.defs.len()
     }

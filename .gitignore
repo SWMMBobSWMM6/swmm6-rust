@@ -27,3 +27,7 @@ gate/diff/printfg
 gate/diff/scan
 gate/diff/msxiq
 gate/diff/ctxread
+gate/diff/inithyd
+gate/diff/inithydro
+gate/diff/initqual
+gate/diff/umaporder

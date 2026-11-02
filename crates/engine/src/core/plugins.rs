@@ -385,3 +385,32 @@ impl PluginFactory {
         self.state_io_plugins_.push(plugin);
     }
 }
+
+// Gate only (cargo feature `gate`): set the state the engine dump prints, for the context
+// loader in examples/common/ctxload.rs. Not part of the translation.
+#[cfg(feature = "gate")]
+impl DefaultInputPlugin {
+    pub fn gate_set(&mut self, state: PluginState, last_error: Bytes, skipped_sections: Vec<Bytes>) {
+        self.state_ = state;
+        self.last_error_ = last_error;
+        self.skipped_sections_ = skipped_sections;
+    }
+}
+#[cfg(feature = "gate")]
+impl DefaultOutputPlugin {
+    pub fn gate_set_state(&mut self, state: PluginState) {
+        self.state_ = state;
+    }
+}
+#[cfg(feature = "gate")]
+impl DefaultReportPlugin {
+    pub fn gate_set_state(&mut self, state: PluginState) {
+        self.state_ = state;
+    }
+}
+#[cfg(feature = "gate")]
+impl DefaultStateIOPlugin {
+    pub fn gate_set_state(&mut self, state: PluginState) {
+        self.state_ = state;
+    }
+}

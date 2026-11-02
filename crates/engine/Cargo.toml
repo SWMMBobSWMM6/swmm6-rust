@@ -8,3 +8,16 @@ license.workspace = true
 [lib]
 name = "swmm6_rust"
 path = "src/lib.rs"
+
+[features]
+# Gate tools only, off by default: write access to private engine members for the context
+# loader (examples/common/ctxload.rs) and for the initqual harness's massbal mode.
+gate = []
+
+[[example]]
+name = "ctxload"
+required-features = ["gate"]
+
+[[example]]
+name = "initqual"
+required-features = ["gate"]

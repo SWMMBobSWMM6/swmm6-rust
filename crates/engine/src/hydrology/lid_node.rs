@@ -436,6 +436,7 @@ pub fn richards_valid_options(o: &richards::Options) -> bool {
 pub mod treatment {
     use super::{c_space, cat};
     use crate::core::cstdlib::strtod;
+    pub use crate::math::math_expr::StodError;
     use crate::core::options::Bytes;
     use crate::data::treatment_types::{Token, TokenType, TreatExpr, TreatVar};
 
@@ -497,22 +498,22 @@ pub mod treatment {
     }
 
     /// std::stod: Err where it throws (see the module notes).
-    fn stod(word: &[u8]) -> Result<f64, ()> {
+    fn stod(word: &[u8]) -> Result<f64, StodError> {
         let (v, used) = strtod(word);
         if used == 0 {
-            return Err(()); // invalid_argument
+            return Err(StodError::InvalidArgument);
         }
         if v.is_infinite() {
-            return Err(()); // out_of_range (overflow)
+            return Err(StodError::OutOfRange); // overflow
         }
         if v == 0.0 {
             // the consumed mantissa (before any exponent) holds a nonzero digit: underflow
             let mant = word[..used].iter().take_while(|&&c| c != b'e' && c != b'E');
             if mant.into_iter().any(|&c| (b'1'..=b'9').contains(&c)) {
-                return Err(());
+                return Err(StodError::OutOfRange);
             }
         } else if v.abs() < f64::MIN_POSITIVE {
-            return Err(()); // subnormal: tiny and (see notes) inexact
+            return Err(StodError::OutOfRange); // subnormal: tiny and (see notes) inexact
         }
         Ok(v)
     }
@@ -541,7 +542,7 @@ pub mod treatment {
 
     /// tokenize(s, pollut_lookup): Ok(empty) for an unknown identifier or pollutant; Err(())
     /// where std::stod throws.
-    fn tokenize(s: &[u8], pollut_lookup: Option<&dyn Fn(&[u8]) -> i32>) -> Result<Vec<Token>, ()> {
+    fn tokenize(s: &[u8], pollut_lookup: Option<&dyn Fn(&[u8]) -> i32>) -> Result<Vec<Token>, StodError> {
         let mut tokens: Vec<Token> = Vec::new();
         let mut i = 0usize;
         while i < s.len() {
@@ -680,7 +681,7 @@ pub mod treatment {
     }
 
     /// parse(expr_str, result): the built-in-only parser. Err(()) where std::stod throws.
-    pub fn parse(expr_str: &[u8], result: &mut TreatExpr) -> Result<i32, ()> {
+    pub fn parse(expr_str: &[u8], result: &mut TreatExpr) -> Result<i32, StodError> {
         result.tokens.clear();
         result.is_removal = false;
         if expr_str.is_empty() {
@@ -769,7 +770,7 @@ pub mod treatment {
                 let mut t = token(TokenType::Number);
                 match stod(&rhs[start..i]) {
                     Ok(v) => t.value = v,
-                    Err(()) => {
+                    Err(_) => {
                         return fail(cat(&[b"malformed number '", &rhs[start..i], b"'"]), rhs_off + start as i32)
                     }
                 }
@@ -879,7 +880,7 @@ pub mod treatment {
     }
 
     /// parse_impl(expr_str, result, pollut_lookup). Err(()) where std::stod throws.
-    fn parse_impl(expr_str: &[u8], result: &mut TreatExpr, pollut_lookup: Option<&dyn Fn(&[u8]) -> i32>) -> Result<i32, ()> {
+    fn parse_impl(expr_str: &[u8], result: &mut TreatExpr, pollut_lookup: Option<&dyn Fn(&[u8]) -> i32>) -> Result<i32, StodError> {
         result.tokens.clear();
         result.pollutant_idx = -1;
         result.is_removal = false;
@@ -914,7 +915,7 @@ pub mod treatment {
 
     /// parse(expr_str, result, pollut_names): names matched case-insensitively (toupper on
     /// each byte, C locale), first match wins. Err(()) where std::stod throws.
-    pub fn parse_names(expr_str: &[u8], result: &mut TreatExpr, pollut_names: &[Bytes]) -> Result<i32, ()> {
+    pub fn parse_names(expr_str: &[u8], result: &mut TreatExpr, pollut_names: &[Bytes]) -> Result<i32, StodError> {
         result.tokens.clear();
         result.pollutant_idx = -1;
         result.is_removal = false;

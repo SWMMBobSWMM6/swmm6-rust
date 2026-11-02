@@ -12,8 +12,16 @@
 // and the solver members they drive come with the solver phases.
 //
 // Differences of form:
-//   * Only the members open() touches exist yet. The solver members (router, runoff,
-//     quality, ...) are added as their solvers are translated.
+//   * The members exist that open() and the init legs translated so far touch:
+//     initHydraulics (core/engine_init_hydraulics.rs: router_, controls_, inflow_, rdii_,
+//     exfil_, inlet_, hydstruct_, iface_, next_event_, between_events_), initHydrology
+//     (core/engine_init_hydrology.rs: runoff_, climate_file_, snow_, last_melt_doy_,
+//     groundwater_, lid_, gage_states_ and the gw_*/snow_* work vectors), and initQuality,
+//     initGeometry and initMassBalance (core/engine_init_quality.rs: hotstart_deferred_,
+//     quality_, landuse_solver_, surface_quality_). They are declared in upstream's order.
+//     The other members (ARD, LAGRANGIAN, interface files, checkpoints, run-time state) are
+//     added as their solvers are translated. ctx_ and the solver members are pub(crate) so
+//     the init methods in those sibling files can borrow them field by field.
 //   * ctx_.state_accessors: upstream installs closures over the engine's solvers
 //     (FV dry state, channel thermal/species regions, snow, infiltration and groundwater
 //     state). They read and write solver state no open() result depends on, and the
@@ -34,6 +42,15 @@ use crate::core::options::{Bytes, QualitySolverKind};
 use crate::core::plugins::{DefaultInputPlugin, DefaultOutputPlugin, DefaultReportPlugin, DefaultStateIOPlugin, PluginFactory};
 use crate::data::gage::RainSource;
 use crate::data::species_registry::SpeciesKind;
+use crate::hydrology::climate_file::ClimateFileReader;
+use crate::hydrology::gage::GageState;
+use crate::hydrology::groundwater::GWSolver;
+use crate::hydrology::lid::LIDSolver;
+use crate::hydrology::rdii::RDIISolver;
+use crate::hydrology::runoff::RunoffSolver;
+use crate::hydrology::snow::SnowSolver;
+use crate::quality::landuse::{LanduseSolver, SurfaceQualitySoA};
+use crate::quality::quality_routing::QualitySolver;
 
 // Error codes returned across the C ABI (the public SWMM_ErrorCode values).
 pub const SWMM_OK: i32 = 0;
@@ -52,17 +69,83 @@ pub struct EngineCallbacks {
 }
 
 pub struct SwmmEngine {
-    ctx_: SimulationContext,
+    pub(crate) ctx_: SimulationContext,
     /// permissive open (see set_lenient_open)
     lenient_open_: bool,
     /// parse-only handle cannot initialize a run
     metadata_only_: bool,
+    /// initialize(): a native USE HOTSTART waits for the end of initialize()
+    pub(crate) hotstart_deferred_: bool,
     plugins_: PluginFactory,
-    callbacks_: EngineCallbacks,
+
+    // Computational modules (SWMMEngine.hpp order)
+    /// Hydraulic routing (owns XSectGroups, the DW/KW solvers and the FV state)
+    pub(crate) router_: crate::hydraulics::routing::Router,
+    /// Subcatchment runoff (batch nonlinear reservoir)
+    pub(crate) runoff_: RunoffSolver,
+    /// Climate file reader (temp/evap/wind from file)
+    pub(crate) climate_file_: ClimateFileReader,
+    /// Snowmelt (batch over subcatch x subareas)
+    pub(crate) snow_: SnowSolver,
+    /// Day the seasonal melt coeffs were last set (legacy climate.c LastDay)
+    pub(crate) last_melt_doy_: i32,
+    /// Groundwater (batch ODE per subcatchment)
+    pub(crate) groundwater_: GWSolver,
+    /// LID (batch by type group)
+    pub(crate) lid_: LIDSolver,
+    /// Quality routing (batch link-load + mixing)
+    pub(crate) quality_: QualitySolver,
+    /// Buildup/washoff computation
+    pub(crate) landuse_solver_: LanduseSolver,
+    /// Per-subcatch surface quality state
+    pub(crate) surface_quality_: SurfaceQualitySoA,
+    /// Control rule evaluation
+    pub(crate) controls_: crate::controls::controls::ControlEngine,
+    /// External + DWF inflows
+    pub(crate) inflow_: crate::hydrology::inflow::InflowSolver,
+    /// RDII (unit hydrograph convolution); initHydraulics initializes it
+    pub(crate) rdii_: RDIISolver,
+    /// Storage node exfiltration
+    pub(crate) exfil_: crate::hydraulics::exfiltration::ExfilSolver,
+    /// Street inlet capture
+    pub(crate) inlet_: crate::hydraulics::inlet::InletSolver,
+    /// Per-subcatch pervious fraction for GW evap
+    pub(crate) gw_frac_perv_: Vec<f64>,
+    /// Per-subcatch pervious evap rate (ft/sec)
+    pub(crate) gw_perv_evap_: Vec<f64>,
+    pub(crate) gw_lid_perv_area_: Vec<f64>,
+    pub(crate) gw_lid_infil_vol_: Vec<f64>,
+    pub(crate) gw_lid_perv_evap_vol_: Vec<f64>,
+    /// U3: the 2D surface's per-subcatchment infiltration recharge (m3)
+    pub(crate) gw_2d_recharge_vol_: Vec<f64>,
+    pub(crate) gw_infil_with_2d_: Vec<f64>,
+    /// (Vinfil + VlidInfil) / area / dt, legacy's `infil` (ft/s)
+    pub(crate) gw_infil_rate_: Vec<f64>,
+    /// Per-subcatch rainfall into snow step (ft/sec)
+    pub(crate) snow_rain_: Vec<f64>,
+    /// Per-subcatch snowfall into snow step (ft/sec)
+    pub(crate) snow_snow_: Vec<f64>,
+    /// Pumps, orifices, weirs, outlets
+    pub(crate) hydstruct_: crate::hydraulics::hyd_structures::StructureSolver,
+    /// Routing interface file I/O
+    pub(crate) iface_: crate::core::interface_file::InterfaceManager,
+    /// Index of next event in ctx_.events
+    pub(crate) next_event_: i32,
+    /// legacy BetweenEvents, as the last stepRouting evaluated it
+    pub(crate) between_events_: bool,
+    /// Per-gage state
+    pub(crate) gage_states_: Vec<GageState>,
+
     /// Report file path
     rpt_path_: Bytes,
     /// Binary output file path
     out_path_: Bytes,
+    /// per-subcatch interpolated GW flow (cfs)
+    pub(crate) gw_q_interp_: Vec<f64>,
+    /// receiving node for gw_q_interp_ (-1 = skip)
+    pub(crate) gw_q_node_: Vec<i32>,
+    pub(crate) old_gw_rate_: Vec<f64>,
+    callbacks_: EngineCallbacks,
     /// index of the built-in .out writer in plugins_.output_plugins() (owned there)
     binary_output_plugin_: Option<usize>,
 }
@@ -89,10 +172,44 @@ impl SwmmEngine {
             ctx_: SimulationContext::default(),
             lenient_open_: false,
             metadata_only_: false,
+            hotstart_deferred_: false,
             plugins_: PluginFactory::new(),
-            callbacks_: EngineCallbacks::default(),
+            router_: Default::default(),
+            runoff_: RunoffSolver::default(),
+            climate_file_: ClimateFileReader::default(),
+            snow_: SnowSolver::default(),
+            last_melt_doy_: -1,
+            groundwater_: GWSolver::default(),
+            lid_: LIDSolver::default(),
+            quality_: QualitySolver::default(),
+            landuse_solver_: LanduseSolver::default(),
+            surface_quality_: SurfaceQualitySoA::default(),
+            controls_: Default::default(),
+            inflow_: Default::default(),
+            rdii_: RDIISolver::default(),
+            exfil_: Default::default(),
+            inlet_: Default::default(),
+            gw_frac_perv_: Vec::new(),
+            gw_perv_evap_: Vec::new(),
+            gw_lid_perv_area_: Vec::new(),
+            gw_lid_infil_vol_: Vec::new(),
+            gw_lid_perv_evap_vol_: Vec::new(),
+            gw_2d_recharge_vol_: Vec::new(),
+            gw_infil_with_2d_: Vec::new(),
+            gw_infil_rate_: Vec::new(),
+            snow_rain_: Vec::new(),
+            snow_snow_: Vec::new(),
+            hydstruct_: Default::default(),
+            iface_: Default::default(),
+            next_event_: 0,
+            between_events_: false,
+            gage_states_: Vec::new(),
             rpt_path_: Vec::new(),
             out_path_: Vec::new(),
+            gw_q_interp_: Vec::new(),
+            gw_q_node_: Vec::new(),
+            old_gw_rate_: Vec::new(),
+            callbacks_: EngineCallbacks::default(),
             binary_output_plugin_: None,
         };
         e.ctx_.state = EngineState::Created;
@@ -131,6 +248,61 @@ impl SwmmEngine {
     }
     pub fn set_warning_callback(&mut self, cb: Option<WarningCallback>) {
         self.callbacks_.on_warning = cb;
+    }
+
+    // Read access to the init legs' members, for the gates (no accessor upstream). The
+    // hydrology solvers' accessors are in core/engine_init_hydrology.rs.
+    pub fn router(&self) -> &crate::hydraulics::routing::Router {
+        &self.router_
+    }
+    pub fn control_engine(&self) -> &crate::controls::controls::ControlEngine {
+        &self.controls_
+    }
+    pub fn inflow_solver(&self) -> &crate::hydrology::inflow::InflowSolver {
+        &self.inflow_
+    }
+    pub fn exfil_solver(&self) -> &crate::hydraulics::exfiltration::ExfilSolver {
+        &self.exfil_
+    }
+    pub fn inlet_solver(&self) -> &crate::hydraulics::inlet::InletSolver {
+        &self.inlet_
+    }
+    pub fn structure_solver(&self) -> &crate::hydraulics::hyd_structures::StructureSolver {
+        &self.hydstruct_
+    }
+    pub fn interface_manager(&self) -> &crate::core::interface_file::InterfaceManager {
+        &self.iface_
+    }
+    pub fn next_event(&self) -> i32 {
+        self.next_event_
+    }
+    pub fn between_events(&self) -> bool {
+        self.between_events_
+    }
+    pub fn hotstart_deferred(&self) -> bool {
+        self.hotstart_deferred_
+    }
+    /// quality_ (no accessor upstream; read by the gate)
+    pub fn quality(&self) -> &QualitySolver {
+        &self.quality_
+    }
+    /// landuse_solver_ (no accessor upstream; read by the gate)
+    pub fn landuse_solver(&self) -> &LanduseSolver {
+        &self.landuse_solver_
+    }
+    /// surfaceQuality()
+    pub fn surface_quality(&self) -> &SurfaceQualitySoA {
+        &self.surface_quality_
+    }
+    /// The three init legs of core/engine_init_quality.rs, for the gate (examples/initqual.rs).
+    pub fn gate_init_quality(&mut self) -> Result<(), crate::core::engine_init_hydraulics::Terminated> {
+        self.init_quality()
+    }
+    pub fn gate_init_geometry(&mut self) {
+        self.init_geometry();
+    }
+    pub fn gate_init_mass_balance(&mut self) {
+        self.init_mass_balance();
     }
 
     // ========================================================================
@@ -546,5 +718,45 @@ impl SwmmEngine {
     pub fn push_report_warning(&mut self, message: &[u8], code: i32) {
         self.ctx_.warnings.push(message.to_vec());
         self.emit_warning(code, message);
+    }
+}
+
+/// Gate only (cargo feature `gate`): the members gate/diff's engine dump covers, writable, for
+/// the context loader in examples/common/ctxload.rs. Not part of the translation.
+#[cfg(feature = "gate")]
+pub struct GateMembers<'a> {
+    pub lenient_open_: &'a mut bool,
+    pub metadata_only_: &'a mut bool,
+    pub rpt_path_: &'a mut Bytes,
+    pub out_path_: &'a mut Bytes,
+    pub plugins_: &'a mut PluginFactory,
+    pub binary_output_plugin_: &'a mut Option<usize>,
+}
+
+/// Gate only (cargo feature `gate`): the hydrology solvers initQuality and initMassBalance
+/// read, writable, so examples/initqual.rs can install upstream's post-initialize state
+/// into them (see gate/diff/initqual.cpp, massbal). Not part of the translation.
+#[cfg(feature = "gate")]
+pub struct GateHydrology<'a> {
+    pub runoff_: &'a mut RunoffSolver,
+    pub snow_: &'a mut SnowSolver,
+    pub groundwater_: &'a mut GWSolver,
+    pub lid_: &'a mut LIDSolver,
+}
+
+#[cfg(feature = "gate")]
+impl SwmmEngine {
+    pub fn gate_hydrology(&mut self) -> GateHydrology<'_> {
+        GateHydrology { runoff_: &mut self.runoff_, snow_: &mut self.snow_, groundwater_: &mut self.groundwater_, lid_: &mut self.lid_ }
+    }
+    pub fn gate_members(&mut self) -> GateMembers<'_> {
+        GateMembers {
+            lenient_open_: &mut self.lenient_open_,
+            metadata_only_: &mut self.metadata_only_,
+            rpt_path_: &mut self.rpt_path_,
+            out_path_: &mut self.out_path_,
+            plugins_: &mut self.plugins_,
+            binary_output_plugin_: &mut self.binary_output_plugin_,
+        }
     }
 }

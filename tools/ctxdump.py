@@ -5,8 +5,10 @@ text for the same state, so `cmp` on the two dumps compares every listed value.
 
 Field lists and element types come from upstream's headers, parsed here. Values print as:
   double/float -> hex bits;  integers, bool, enums -> decimal;  std::string -> length:bytes;
-  nested std::vector of those -> count then elements.  Anything else prints "skip <name>"
-on both sides, and the skip list is reported, so nothing is silently unchecked.
+  nested std::vector of those -> count then elements; a std::unordered_map -> its entries
+  sorted by key (a CiHash map's keys case-folded first, as the translation stores them);
+  a C array of structs -> each element.  Anything else prints "skip <name>" on both sides,
+  and the skip list is reported, so nothing is silently unchecked.
 """
 import re, os, sys
 
@@ -61,18 +63,25 @@ def split_top(s, sep=','):
 def fields(header, struct):
     """(name, type, arraylen) for every data member at depth 0, in order."""
     body = struct_body(header, struct)
-    # remove nested braces (methods, nested structs) to depth 0 text, keeping ';' structure
-    depth = 0; buf = ''
+    # remove nested braces (methods, nested structs) to depth 0 text, keeping ';' structure.
+    # A nested `struct X { ... } member;` keeps its declarator: it becomes `X member`, so the
+    # member is dumped (X in STRUCTS) or reported as a skip rather than dropped unseen.
+    depth = 0; buf = ''; nested = None
     for ch in body:
         if ch == '{':
             depth += 1
             if depth == 1:
+                m = re.search(r'(?:struct|class)\s+(\w+)\s*$', buf.split(';')[-1])
+                nested = m.group(1) if m else None
                 buf += ' {} '
             continue
         if ch == '}':
             depth -= 1
             if depth == 0:
                 buf += ';'   # an inline method body ends a statement too
+                if nested:
+                    buf += nested + ' '
+                nested = None
             continue
         if depth == 0:
             buf += ch
@@ -83,6 +92,8 @@ def fields(header, struct):
             s = s.split(':', 1)[1].strip()
         if not s or s.startswith(('using ', 'static ', 'friend ', 'template', 'enum ', 'struct ', 'class ', 'typedef')):
             continue
+        if s.startswith('mutable '):
+            s = s[len('mutable '):]
         if '(' in s.split('=')[0]:
             continue
         m = re.fullmatch(r'((?:const\s+)?(?:unsigned\s+)?[\w:]+(?:<.+?>+)?(?:\s+long)?)\s+([A-Za-z_].*)', s)
@@ -159,6 +170,38 @@ STRUCTS = {
     'HeatOverrideData': ('data/HeatData.hpp', 'HeatOverrideData'),
     'HeatOverrideRow': ('data/HeatOverrideData.hpp', 'HeatOverrideRow'),
     'ArdTransportRow': ('data/ArdConfigData.hpp', 'ArdTransportRow'),
+    # SWMMEngine::initQuality: the LEGACY quality router's FV transport state
+    'FvQualityTransport': ('quality/FvQualityTransport.hpp', 'FvQualityTransport'),
+    'FvTransportWater': ('quality/FvTransportWater.hpp', 'FvTransportWater'),
+    'ConservativeMixing': ('quality/ConservativeMixing.hpp', 'ConservativeMixing'),
+    'MixingWater': ('quality/ConservativeMixing.hpp', 'MixingWater'),
+    'MixedScalar': ('quality/ConservativeMixing.hpp', 'MixedScalar'),
+    # SimulationContext's run-time members (dumped since the initialize wave; CTX_MEMBERS)
+    'climate::ClimateState': ('hydrology/Climate.hpp', 'ClimateState'),
+    'RadiationState': ('hydrology/Radiation.hpp', 'RadiationState'),
+    'MovingAvg7': ('hydrology/Climate.hpp', 'MovingAvg7'),
+    'WaterAgeState': ('data/WaterAgeData.hpp', 'WaterAgeState'),
+    'LidLayerSpeciesState': ('data/LidLayerSpeciesData.hpp', 'LidLayerSpeciesState'),
+    'HeatState': ('data/HeatData.hpp', 'HeatState'),
+    'BedZoneState': ('data/BedZoneData.hpp', 'BedZoneState'),
+    'ForcingData': ('data/ForcingData.hpp', 'ForcingData'),
+    'ElemClimateChannel': ('data/ForcingData.hpp', 'ElemClimateChannel'),
+    'QualityOnlyInflow': ('core/SimulationContext.hpp', 'QualityOnlyInflow'),
+    'MassBalance2D': ('core/SimulationContext.hpp', 'MassBalance2D'),
+    'MaxStats': ('core/SimulationContext.hpp', 'MaxStats'),
+    'RoutingStepStats': ('core/SimulationContext.hpp', 'RoutingStepStats'),
+    'VJDiag': ('core/SimulationContext.hpp', 'VJDiag'),
+    'InletDiag': ('core/SimulationContext.hpp', 'InletDiag'),
+    'ControlLogEntry': ('core/SimulationContext.hpp', 'ControlLogEntry'),
+    # SnowpackStore's UEB run-time state and daily weather
+    'surface::ueb::NativeState': ('hydrology/surface/UebSubcatchments.hpp', 'NativeState'),
+    'HeldState': ('hydrology/surface/UebHeld.hpp', 'HeldState'),
+    'LumpedState': ('hydrology/surface/UebLumped.hpp', 'LumpedState'),
+    'LumpedFluxes': ('hydrology/surface/UebLumped.hpp', 'LumpedFluxes'),
+    'State': ('hydrology/surface/UebSnow.hpp', 'State'),
+    'Fluxes': ('hydrology/surface/UebSnow.hpp', 'Fluxes'),
+    'ThermalSample': ('hydrology/surface/UebSnow.hpp', 'ThermalSample'),
+    'climate::SnowDailyWeather': ('hydrology/HourlyMeteorology.hpp', 'SnowDailyWeather'),
 }
 
 # `using` aliases of member types, spelled out
@@ -176,6 +219,14 @@ def kind(ty):
     m = re.fullmatch(r'std::vector<std::array<double,\s*(\w+)>>', ty)
     if m:
         return ('va', m.group(1))
+    m = re.fullmatch(r'std::unordered_map<(.+)>', ty)
+    if m:
+        args = [a.strip() for a in split_top(m.group(1))]
+        kk, kv = kind(args[0]), kind(args[1])
+        if kk is None or kv is None or kk[0] not in 'is' or len(args) not in (2, 4):
+            return None
+        # ('umap', key kind, value kind, fold): a CiHash map's keys are case-folded first
+        return ('umap', kk, kv, len(args) == 4 and args[2] == 'CiHash')
     m = re.fullmatch(r'std::(vector|optional|array|map|pair)<(.+)>', ty)
     if not m:
         return None
@@ -244,6 +295,17 @@ def emit(path_c, path_r, label, k, C, R):
         emit(f'{e}.first', f'(*{e}.0)', label + '.key', k[1], C, R)
         emit(f'{e}.second', f'(*{e}.1)', label + '.val', k[2], C, R)
         C.append('  }'); R.append('    }')
+    elif k[0] == 'umap':
+        # iteration order is libstdc++'s bucket order upstream: printed sorted by key instead
+        e = fresh('e'); kc = 'std::string' if k[1][0] == 's' else 'long long'
+        fc = ' for (auto& ch : k) ch = (ch >= 0x61 && ch <= 0x7a) ? (char)(ch & ~32) : ch;' if k[3] else ''
+        fr = '.iter().map(|&b| swmm6_rust::data::name_index::ci_upper(b)).collect::<Vec<u8>>()' if k[3] else '.clone()'
+        C.append(f'  {{ std::vector<std::pair<{kc}, const decltype(({path_c}).begin()->second)*>> t; for (const auto& kv : {path_c}) {{ {kc} k = kv.first;{fc} t.emplace_back(k, &kv.second); }}'
+                 f' std::sort(t.begin(), t.end(), [](const auto& a, const auto& b) {{ return a.first < b.first; }}); pi("{label}.n", (long long)t.size()); for (const auto& {e} : t) {{')
+        R.append(f'    {{ let mut t: Vec<_> = ({path_r}).iter().map(|(k, v)| (k{fr}, v)).collect(); t.sort_by(|a, b| a.0.cmp(&b.0)); pi(o, "{label}.n", t.len() as i64); for {e} in t.iter() {{')
+        emit(f'{e}.first', f'{e}.0', label + '.key', k[1], C, R)
+        emit(f'(*{e}.second)', f'(*{e}.1)', label + '.val', k[2], C, R)
+        C.append('  } }'); R.append('    } }')
     elif k[0] == 'pair':
         emit(f'{path_c}.first', f'{path_r}.0', label + '.first', k[1], C, R)
         emit(f'{path_c}.second', f'{path_r}.1', label + '.second', k[2], C, R)
@@ -259,6 +321,12 @@ def dump_struct(header, struct, path_c, path_r, label, C, R):
                 C.append(f'  for (int q = 0; q < (int)(sizeof({pc})/sizeof({pc}[0])); ++q) {{')
                 R.append(f'    for q in 0..({pr}).len() {{')
                 emit(f'{pc}[q]', f'{pr}[q]', lb + '[]', k, C, R)
+                C.append('  }'); R.append('    }')
+            elif k and k[0] == 'struct':
+                q = fresh('q')
+                C.append(f'  for (int {q} = 0; {q} < (int)(sizeof({pc})/sizeof({pc}[0])); ++{q}) {{')
+                R.append(f'    for {q} in 0..({pr}).len() {{')
+                dump_struct(k[1], k[2], f'{pc}[{q}]', f'{pr}[{q}]', lb + '[]', C, R)
                 C.append('  }'); R.append('    }')
             else:
                 SKIPS.append(lb); C.append(f'  sk("{lb}");'); R.append(f'    sk(o, "{lb}");')
@@ -277,7 +345,12 @@ def dump_struct(header, struct, path_c, path_r, label, C, R):
 
 # element structs of std::vector members that are dumped field by field
 ELEM_STRUCTS = {'UnitHydEntry': 'data/InflowData.hpp', 'RDIIDecayEntry': 'data/InflowData.hpp',
-                'Table': 'data/TableData.hpp'}
+                'Table': 'data/TableData.hpp',
+                # SWMMEngine::initQuality: land-use parameters, FV transport workspaces
+                'BuildupParams': 'quality/Landuse.hpp', 'WashoffParams': 'quality/Landuse.hpp',
+                'MixedScalar': 'quality/ConservativeMixing.hpp', 'MixingScalar': 'quality/ConservativeMixing.hpp',
+                'WaterTransfer': 'quality/ConservativeMixing.hpp',
+                'BoundaryWaterImport': 'quality/FvTransportWater.hpp'}
 
 # (header, struct, C++ path, Rust path, label)
 STORES = [
@@ -323,6 +396,10 @@ STORES = [
     ('data/WaterAgeData.hpp', 'WaterAgeConfigData', 'c.water_age_config', 'c.water_age_config', 'water_age_config'),
     ('data/InitialQualityData.hpp', 'InitialQualityData', 'c.initial_quality', 'c.initial_quality', 'initial_quality'),
     ('data/NodeCoupling2DData.hpp', 'NodeCoupling2DRows', 'c.node_coupling_2d', 'c.node_coupling_2d', 'node_coupling_2d'),
+    # set by SWMMEngine::initQuality (resize_quality, qual_init_buildup) and initMassBalance
+    ('core/SimulationContext.hpp', 'MassBalance', 'c.mass_balance', 'c.mass_balance', 'mass_balance'),
+    ('core/SimulationContext.hpp', 'OutfallExports', 'c.outfall_exports', 'c.outfall_exports', 'outfall_exports'),
+    ('core/SimulationContext.hpp', 'NegativeSourceStats', 'c.negsrc', 'c.negsrc', 'negsrc'),
 ]
 NAMES = ['node_names', 'link_names', 'subcatch_names', 'gage_names', 'pollutant_names', 'landuse_names',
          'snowpack_names', 'aquifer_names', 'lid_names']
@@ -332,6 +409,33 @@ CTX_SCALARS = ['error_code', 'warning_code', 'error_message', 'warnings', 'error
                'has_subcatch_adj_patterns', 'xsect_generation', 'gpkg_units_internal',
                'pending_gw_nodes', 'pending_gw_aquifers', 'deferred_section_rows', 'embedded_component_sections',
                'lid_node_outlets', 'state', 'reported_species_names']
+# The context's run-time members, dumped (by ctx_member) after everything else. Left out, as
+# not plain data: wall_start (the wall clock at open), state_accessors (closures over the
+# engine's solvers), twod_io (pointers into the 2D module, null in a 1D build).
+CTX_MEMBERS = ['current_time', 'current_date', 'elapsed_ms', 'old_elapsed_ms', 'next_report_ms', 'runoff_interp_f',
+               'dt_controls_remaining', 'climate_state', 'water_age_state', 'lid_layer_state', 'heat_state', 'bed_state',
+               'forcing', 'coupled_node', 'coupled_pond_area', 'coupled_pond_band', 'coupling_delivery_remaining',
+               'surface_outfall_link_limit', 'surface_outfall_quality', 'link_gain_quality', 'runtime_coupling_used',
+               'mass_balance_2d', 'max_courant_crit', 'max_flow_turns', 'max_non_converged', 'max_mass_bal_errs',
+               'routing_stats', 'vj_diag', 'inlet_diag', 'control_log', 'control_rule_names', 'control_log_dropped',
+               'inp_file_path']
+
+def ctx_member(n, t, a, C, R):
+    """One SimulationContext member of CTX_MEMBERS: a value, a struct, or a C array of either."""
+    k = kind(t)
+    if k is None:
+        raise SystemExit(f'ctxdump: no kind for ctx member {n} ({t})')
+    if a:
+        q = fresh('q')
+        C.append(f'  for (int {q} = 0; {q} < (int)(sizeof(c.{n})/sizeof(c.{n}[0])); ++{q}) {{')
+        R.append(f'    for {q} in 0..(c.{n}).len() {{')
+        if k[0] == 'struct':
+            dump_struct(k[1], k[2], f'c.{n}[{q}]', f'c.{n}[{q}]', n + '[]', C, R)
+        else:
+            emit(f'c.{n}[{q}]', f'c.{n}[{q}]', n + '[]', k, C, R)
+        C.append('  }'); R.append('    }')
+    else:
+        emit(f'c.{n}', f'c.{n}', n, k, C, R)
 
 # SWMMEngine members that open() sets, dumped after swmm_engine_open (gate/diff/ctxopen.cpp).
 # They are private: the C++ side reads them through the explicit-instantiation access rule
@@ -353,8 +457,7 @@ def member_type(header, name):
 def engine_dumper():
     C = ['#ifdef CTXDUMP_ENGINE', '#include "core/SWMMEngine.hpp"', '#include "plugins/DefaultInputPlugin.hpp"',
          '#include "plugins/DefaultOutputPlugin.hpp"', '#include "plugins/DefaultReportPlugin.hpp"',
-         '#include "plugins/DefaultStateIOPlugin.hpp"', 'namespace ctxdump_access {',
-         'template <typename Tag, typename Tag::type M> struct Rob { friend typename Tag::type get(Tag) { return M; } };']
+         '#include "plugins/DefaultStateIOPlugin.hpp"', 'namespace ctxdump_access {']
     R = ['use swmm6_rust::core::engine::SwmmEngine;', 'pub fn engdump(e: &SwmmEngine) -> Vec<u8> {', '    let mut o: Vec<u8> = Vec::new();', '    let o = &mut o;']
     body_c = []
     for n in ENGINE_MEMBERS:
@@ -403,11 +506,404 @@ def engine_dumper():
     R.append('}')
     return C, R
 
+# ---------------------------------------------------------------------------
+# SWMMEngine::initHydraulics state (gate/diff/inithyd.cpp, examples/inithyd.rs): the
+# Router and everything it owns, the engine solvers initHydraulics initializes, and the
+# context fields it writes that the context dumper does not cover. Written to its own
+# pair of files (gate/diff/rtdump.hpp, crates/engine/examples/common/rtdump.rs) so the
+# context dumper's users do not depend on the engine's solver members. The C++ side
+# needs `#define private public` before SWMMEngine.hpp (inithyd.cpp does that).
+# ---------------------------------------------------------------------------
+
+# member types dumped member by member: type text as written -> (header, struct)
+RT_STRUCTS = {
+    'kinwave::KWSolver': ('hydraulics/KinematicWave.hpp', 'KWSolver'),
+    'dynwave::DWSolver': ('hydraulics/DynamicWave.hpp', 'DWSolver'),
+    'DWNodeArrays': ('hydraulics/DynamicWave.hpp', 'DWNodeArrays'),
+    'DPSConfig': ('hydraulics/DynamicWave.hpp', 'DPSConfig'),
+    'DPSLinkArrays': ('hydraulics/DynamicWave.hpp', 'DPSLinkArrays'),
+    'fv::NetworkMeshData': ('hydraulics/fv/NetworkMeshData.hpp', 'NetworkMeshData'),
+    'fv::NetworkStateData': ('hydraulics/fv/NetworkMeshData.hpp', 'NetworkStateData'),
+    'fv::FvOptions': ('hydraulics/fv/FvOptions.hpp', 'FvOptions'),
+    'XSectParams': ('hydraulics/XSectBatch.hpp', 'XSectParams'),
+    'FvClosure': ('hydraulics/fv/FvClosureKernels.hpp', 'FvClosure'),
+    'ExtInflowSoA': ('hydrology/Inflow.hpp', 'ExtInflowSoA'),
+    'DwfInflowSoA': ('hydrology/Inflow.hpp', 'DwfInflowSoA'),
+    'RDIIGroupSoA': ('hydrology/RDII.hpp', 'RDIIGroupSoA'),
+    'ExfilSoA': ('hydraulics/Exfiltration.hpp', 'ExfilSoA'),
+    'InletSoA': ('hydraulics/Inlet.hpp', 'InletSoA'),
+    'PumpGroup': ('hydraulics/HydStructures.hpp', 'PumpGroup'),
+    'OrificeGroup': ('hydraulics/HydStructures.hpp', 'OrificeGroup'),
+    'WeirGroup': ('hydraulics/HydStructures.hpp', 'WeirGroup'),
+    'OutletGroup': ('hydraulics/HydStructures.hpp', 'OutletGroup'),
+    'InterfaceFileSoA': ('core/InterfaceFile.hpp', 'InterfaceFileSoA'),
+    'ParseError': ('controls/Controls.hpp', 'ParseError'),
+}
+# element structs of std::vector members, dumped field by field: struct -> header
+RT_ELEM_STRUCTS = {
+    'VJuncPair': 'hydraulics/DynamicWave.hpp', 'NodeTile': 'hydraulics/DynamicWave.hpp',
+    'FvGeometry': 'hydraulics/fv/NetworkMeshData.hpp', 'CulvertCurve': 'hydraulics/HydClosureKernels.hpp',
+    'TimePattern': 'hydrology/Inflow.hpp', 'UHResponseData': 'hydrology/RDII.hpp',
+    'GreenAmptState': 'hydrology/Infiltration.hpp', 'Rule': 'controls/Controls.hpp',
+    'Premise': 'controls/Controls.hpp', 'Action': 'controls/Controls.hpp', 'PIDState': 'controls/Controls.hpp',
+    'NamedVariable': 'controls/Controls.hpp', 'PremiseSoA': 'controls/Controls.hpp',
+    'PendingAction': 'controls/Controls.hpp',
+}
+
+def _rt_shape_group(pc, pr, lb, C, R):
+    """One XSectGroups ShapeGroup. Its table pointers print the tables they point at."""
+    C.append(f'  pi("{lb}.shape", (long long)({pc}).shape); pi("{lb}.count", ({pc}).count);')
+    R.append(f'    pi(o, "{lb}.shape", ({pr}).shape as i64); pi(o, "{lb}.count", ({pr}).count as i64);')
+    C.append(f'  {{ std::vector<long long> t; for (auto x : ({pc}).link_idx) t.push_back(x); vi("{lb}.link_idx", t); }}')
+    R.append(f'    vi(o, "{lb}.link_idx", &({pr}).link_idx.iter().map(|x| *x as i64).collect::<Vec<i64>>());')
+    for f in ['y_full', 'a_full', 'r_full', 's_full', 'w_max', 'inv_y_full', 'y_bot', 'a_bot', 's_bot', 'r_bot']:
+        C.append(f'  vf("{lb}.{f}", ({pc}).{f});'); R.append(f'    vf(o, "{lb}.{f}", &({pr}).{f});')
+    for f in ['area_tables', 'hrad_tables', 'width_tables']:
+        C.append(f'  pi("{lb}.{f}.n", (long long)({pc}).{f}.size()); for (const double* t : ({pc}).{f}) {{ if (t) vf("{lb}.{f}[]", std::vector<double>(t, t + ({pc}).transect_tbl_size)); else pn("{lb}.{f}[]"); }}')
+        R.append(f'    pi(o, "{lb}.{f}.n", ({pr}).{f}.len() as i64); for t in ({pr}).{f}.iter() {{ match t {{ Some(t) => vf(o, "{lb}.{f}[]", &t[..({pr}).transect_tbl_size as usize]), None => pn(o, "{lb}.{f}[]") }} }}')
+    C.append(f'  pi("{lb}.transect_tbl_size", ({pc}).transect_tbl_size);')
+    R.append(f'    pi(o, "{lb}.transect_tbl_size", ({pr}).transect_tbl_size as i64);')
+    for f in ['buf_d', 'buf_r', 'buf_r2']:
+        C.append(f'  vf("{lb}.{f}", ({pc}).{f});'); R.append(f'    vf(o, "{lb}.{f}", &({pr}).{f}.borrow());')
+
+def _rt_xsect_groups(pc, pr, lb, C, R):
+    C.append(f'  pi("{lb}.n", (long long)({pc}).groups_.size());')
+    R.append(f'    pi(o, "{lb}.n", ({pr}).num_groups() as i64);')
+    C.append(f'  for (const auto& g : ({pc}).groups_) {{'); R.append(f'    for gi in 0..({pr}).num_groups() {{ let g = ({pr}).group(gi);')
+    _rt_shape_group('g', '(*g)', lb + '[]', C, R)
+    C.append('  }'); R.append('    }')
+    # packed_groups_ / packed_count_ / mask_active_ are private in the translation (build
+    # and attachTransectTables clear them); upstream's are printed as counts only
+    C.append(f'  sk("{lb}.packed_groups_"); sk("{lb}.packed_count_"); sk("{lb}.mask_active_");')
+    R.append(f'    sk(o, "{lb}.packed_groups_"); sk(o, "{lb}.packed_count_"); sk(o, "{lb}.mask_active_");')
+
+def _rt_uhparams(pc, pr, lb, C, R):
+    C.append(f'  pi("{lb}.n", (long long)({pc}).size()); for (const auto& u : ({pc})) {{')
+    R.append(f'    pi(o, "{lb}.n", ({pr}).len() as i64); for u in ({pr}).iter() {{')
+    for f in ['r', 'tPeak', 'tBase', 'iaMax', 'iaRecov', 'iaInit']:
+        C.append(f'    {{ std::vector<double> t; for (int m = 0; m < 12; ++m) for (int k = 0; k < 3; ++k) t.push_back(u.{f}[m][k]); vf("{lb}[].{f}", t); }}')
+        R.append(f'        vf(o, "{lb}[].{f}", &u.{f}.iter().flat_map(|a| a.iter().copied()).collect::<Vec<f64>>());')
+    C.append('  }'); R.append('    }')
+
+def _rt_decay(pc, pr, lb, C, R):
+    C.append(f'  pi("{lb}.n", (long long)({pc}).size()); for (const auto& tr : ({pc})) for (const auto& d : tr) {{')
+    R.append(f'    pi(o, "{lb}.n", ({pr}).len() as i64); for tr in ({pr}).iter() {{ for d in tr.iter() {{')
+    rt_dump_struct('hydrology/RDII.hpp', 'ExpDecayParams', 'd', 'd', lb + '[]', C, R)
+    C.append('  }'); R.append('    } }')
+
+def _rt_uh_map(pc, pr, lb, C, R):
+    # iteration order IS the check: upstream walks this map in initHydraulics
+    C.append(f'  pi("{lb}.n", (long long)({pc}).size()); for (const auto& kv : ({pc})) {{ ps("{lb}.key", kv.first); pi("{lb}.val", kv.second); }}')
+    # the translation keeps insertion order; the helper replays it through libstdc++'s table
+    R.append(f'    {{ let v = swmm6_rust::core::std_unordered_map::ci_map_iteration_order(e.rdii_solver().uh_name_index()); pi(o, "{lb}.n", v.len() as i64); for (k, i) in &v {{ ps(o, "{lb}.key", k); pi(o, "{lb}.val", *i as i64); }} }}')
+
+def _rt_expr_index(pc, pr, lb, C, R):
+    # looked up only, never iterated: printed sorted by its case-folded key
+    C.append(f'  {{ std::vector<std::pair<std::string,int>> t; for (const auto& kv : ({pc})) {{ std::string k = kv.first; for (auto& ch : k) ch = (ch >= 0x61 && ch <= 0x7a) ? (char)(ch & ~32) : ch; t.emplace_back(k, kv.second); }} std::sort(t.begin(), t.end()); pi("{lb}.n", (long long)t.size()); for (auto& kv : t) {{ ps("{lb}.key", kv.first); pi("{lb}.val", kv.second); }} }}')
+    R.append(f'    {{ let mut t: Vec<(Vec<u8>, i32)> = ({pr}).iter().map(|(k, v)| (k.clone(), *v)).collect(); t.sort(); pi(o, "{lb}.n", t.len() as i64); for (k, v) in &t {{ ps(o, "{lb}.key", k); pi(o, "{lb}.val", *v as i64); }} }}')
+
+def _rt_expressions(pc, pr, lb, C, R):
+    C.append(f'  pi("{lb}.n", (long long)({pc}).size()); for (const auto& x : ({pc})) {{ pi("{lb}[].valid", x.valid); pi("{lb}[].postfix.n", (long long)x.postfix.size()); for (const auto& t : x.postfix) {{ pi("{lb}[].tok.type", (long long)t.type); pf("{lb}[].tok.value", t.value); pi("{lb}[].tok.var_idx", t.var_idx); ps("{lb}[].tok.var_name", t.var_name); }} }}')
+    R.append(f'    pi(o, "{lb}.n", ({pr}).len() as i64); for x in ({pr}).iter() {{ pi(o, "{lb}[].valid", x.valid as i64); pi(o, "{lb}[].postfix.n", x.postfix.len() as i64); for t in &x.postfix {{ pi(o, "{lb}[].tok.type", t.type_ as i64); pf(o, "{lb}[].tok.value", t.value); pi(o, "{lb}[].tok.var_idx", t.var_idx as i64); ps(o, "{lb}[].tok.var_name", &t.var_name); }} }}')
+
+def _rt_ptr(rust_flag):
+    def f(pc, pr, lb, C, R):
+        C.append(f'  pi("{lb}", ({pc}) != nullptr);'); R.append(f'    pi(o, "{lb}", ({rust_flag}) as i64);')
+    return f
+
+def _rt_opt(pc, pr, lb, C, R):
+    C.append(f'  pi("{lb}", (bool)({pc}));'); R.append(f'    pi(o, "{lb}", ({pr}).is_some() as i64);')
+
+# The CPU FV backend behind Router::fv_solver_ (a unique_ptr<INetworkSolver>): the
+# members ExplicitFvSolver::initialize and the Router's init-time setters write.
+RT_FV_SOLVER = {
+    'vf': ['f_mass_', 'f_mom_', 'f_sstar_', 'f_corr_l_', 'f_corr_r_', 'f_phi_l_', 'f_phi_r_', 'f_phi_flux_',
+           'cell_slope_', 'cell_eta_slope_', 'cell_u_slope_', 'cell_eta_', 'cell_u_', 'cell_ah_', 'cell_t_',
+           'cell_i1_', 'cell_q_int_', 'uf_grad_', 'withdrawal_rates_', 'unmet_withdrawal_', 'save_unmet_',
+           'rk_unmet_', 'node_exch_', 'node_in_', 'node_out_', 'flood_vol_', 'node_qdummy_', 'dummy_vol_',
+           'relax_beta_', 'acc_a_', 'acc_q_', 'acc_nvol_', 'node_carry_', 'node_vfull_', 'face_a_rim_',
+           'face_lat_spill_'],
+    'vi': ['cell_ho2_', 'tpa_scratch_', 'inlet_control_', 'cell_tier_', 'node_tier_', 'face_tier_', 'cell_active_',
+           'active_faces_', 'node_alg_', 'node_pass_static_', 'node_pass_', 'node_pub_static_', 'node_pub_'],
+    'vvi': ['cells_by_tier_', 'faces_by_tier_', 'nodes_by_tier_'],
+    'i': ['hllc_', 'tpa_', 'mixed_wave_', 'mw_rh_', 'deg1_guard_slot_', 'census_pass_far_', 'lts_fit_',
+          'water_tracking_', 'conservative_node_balance_', 'lts_tiers_', 'lists_valid_', 'since_rebuild_',
+          'census_count_', 'lts_valid_', 'lts_countdown_', 'total_steps_', 'total_flux_', 'active_n_',
+          'n_macro_cycles_', 'n_macro_rejected_', 'state_clean_', 'acc_dirty_'],
+    'f': ['dt_cache_', 'dt_census_', 'lts_dt0_', 'min_h_', 'sim_time_', 'active_sum_', 'active_min_', 'active_max_'],
+}
+
+def _rt_fv_solver(pc, pr, lb, C, R):
+    C.append(f'  if (auto* s = dynamic_cast<const openswmm::fv::ExplicitFvSolver*>(({pc}).get())) {{ pi("{lb}", 1);')
+    R.append(f'    match &({pr}) {{ None => pi(o, "{lb}", 0), Some(s) => {{ pi(o, "{lb}", 1);')
+    C.append(f'  pi("{lb}.attached", s->mesh_ != nullptr); pi("{lb}.step_sink", s->step_sink_ != nullptr);')
+    R.append(f'    pi(o, "{lb}.attached", s.attached_ as i64); pi(o, "{lb}.step_sink", s.step_sink_set_ as i64);')
+    rt_dump_struct('hydraulics/fv/FvOptions.hpp', 'FvOptions', 's->opts_', 's.opts_', lb + '.opts_', C, R)
+    for f in RT_FV_SOLVER['vf']:
+        emit(f's->{f}', f's.{f}', f'{lb}.{f}', ('v', ('f', 'double')), C, R)
+    for f in RT_FV_SOLVER['vi']:
+        emit(f's->{f}', f's.{f}', f'{lb}.{f}', ('v', ('i', 'int')), C, R)
+    for f in RT_FV_SOLVER['vvi']:
+        emit(f's->{f}', f's.{f}', f'{lb}.{f}', ('v', ('v', ('i', 'int'))), C, R)
+    for f in RT_FV_SOLVER['i']:
+        emit(f's->{f}', f's.{f}', f'{lb}.{f}', ('i', 'int'), C, R)
+    for f in RT_FV_SOLVER['f']:
+        emit(f's->{f}', f's.{f}', f'{lb}.{f}', ('f', 'double'), C, R)
+    emit('s->tier_occupancy_', 's.tier_occupancy_', f'{lb}.tier_occupancy_', ('arr', ('i', 'long'), 'kMaxLtsTiers'), C, R)
+    for f, st in [('f_state_l_', 'FaceState'), ('f_state_r_', 'FaceState'), ('f_flux_', 'FaceFlux')]:
+        C.append(f'  pi("{lb}.{f}.n", (long long)s->{f}.size()); for (const auto& el : s->{f}) {{')
+        R.append(f'    pi(o, "{lb}.{f}.n", s.{f}.len() as i64); for el in s.{f}.iter() {{')
+        rt_dump_struct('hydraulics/fv/FvKernels.hpp', st, 'el', '(*el)', f'{lb}.{f}[]', C, R)
+        C.append('  }'); R.append('    }')
+    for f in ['water_', 'save_water_', 'rk_water_']:
+        rt_dump_struct('hydraulics/fv/AcceptedWaterVolumes.hpp', 'AcceptedWaterVolumes', f's->{f}', f's.{f}', f'{lb}.{f}', C, R)
+    C.append(f'  }} else pi("{lb}", 0);')
+    R.append('    } }')
+
+# (struct, member) -> emitter; replaces the generic handling of that member
+RT_CUSTOM = {
+    ('Router', 'groups_'): _rt_xsect_groups,
+    ('Router', 'fv_solver_'): _rt_fv_solver,
+    ('RDIISolver', 'uh_params'): _rt_uhparams,
+    ('RDIISolver', 'decay_params'): _rt_decay,
+    ('RDIISolver', 'uh_name_to_idx_'): _rt_uh_map,
+    ('ControlEngine', 'expr_index_'): _rt_expr_index,
+    ('ControlEngine', 'expressions_'): _rt_expressions,
+}
+# members the header parser does not list (raw pointers): (struct) -> [(member, emitter)]
+RT_EXTRA = {
+    'Router': [('checkpoint_context_', 'checkpoint_context_attached_'), ('structures_', 'structures_attached_')],
+    'DWSolver': [('groups_', 'groups_attached_')],
+    'InterfaceManager': [('infile_', None), ('outfile_', None)],
+}
+
+def rt_dump_struct(header, struct, path_c, path_r, label, C, R):
+    """dump_struct with the RT_CUSTOM / RT_EXTRA hooks, recursing into itself."""
+    for name, ty, arr in fields(header, struct):
+        pc, pr, lb = f'{path_c}.{name}', f'{path_r}.{rname(name)}', f'{label}.{name}'
+        if (struct, name) in RT_CUSTOM:
+            RT_CUSTOM[(struct, name)](pc, pr, lb, C, R)
+            continue
+        k = kind(ty)
+        if arr:
+            if k and k[0] in 'fi':
+                C.append(f'  for (int q = 0; q < (int)(sizeof({pc})/sizeof({pc}[0])); ++q) {{')
+                R.append(f'    for q in 0..({pr}).len() {{')
+                emit(f'{pc}[q]', f'{pr}[q]', lb + '[]', k, C, R)
+                C.append('  }'); R.append('    }')
+            else:
+                SKIPS.append(lb); C.append(f'  sk("{lb}");'); R.append(f'    sk(o, "{lb}");')
+            continue
+        t = ty.replace('const ', '').strip()
+        em = re.fullmatch(r'std::vector<(?:\w+::)*(\w+)>', t)
+        if k is None and em and em.group(1) in RT_ELEM_STRUCTS:
+            C.append(f'  pi("{lb}.n", (long long)({pc}).size());'); R.append(f'    pi(o, "{lb}.n", ({pr}).len() as i64);')
+            C.append(f'  for (auto& el : {pc}) {{'); R.append(f'    for el in ({pr}).iter() {{')
+            rt_dump_struct(RT_ELEM_STRUCTS[em.group(1)], em.group(1), 'el', '(*el)', lb + '[]', C, R)
+            C.append('  }'); R.append('    }')
+            continue
+        if k is not None and k[0] == 'struct':
+            rt_dump_struct(k[1], k[2], pc, pr, lb, C, R)
+            continue
+        if k is None:
+            SKIPS.append(f'{lb} ({ty})'); C.append(f'  sk("{lb}");'); R.append(f'    sk(o, "{lb}");')
+            continue
+        emit(pc, pr, lb, k, C, R)
+    for name, flag in RT_EXTRA.get(struct, []):
+        lb = f'{label}.{name}'
+        if flag is None:   # FILE*: open or not
+            C.append(f'  pi("{lb}", ({path_c}.{name}) != nullptr);'); R.append(f'    pi(o, "{lb}", ({path_r}.{name}).is_some() as i64);')
+        else:
+            C.append(f'  pi("{lb}", ({path_c}.{name}) != nullptr);'); R.append(f'    pi(o, "{lb}", ({path_r}.{flag}) as i64);')
+
+# (header, struct, C++ path, Rust path, label)
+RT_MEMBERS = [
+    ('hydraulics/Routing.hpp', 'Router', 'e.router_', 'e.router()', 'router'),
+    ('controls/Controls.hpp', 'ControlEngine', 'e.controls_', 'e.control_engine()', 'controls'),
+    ('hydrology/Inflow.hpp', 'InflowSolver', 'e.inflow_', 'e.inflow_solver()', 'inflow'),
+    ('hydrology/RDII.hpp', 'RDIISolver', 'e.rdii_', 'e.rdii_solver()', 'rdii'),
+    ('hydraulics/Exfiltration.hpp', 'ExfilSolver', 'e.exfil_', 'e.exfil_solver()', 'exfil'),
+    ('hydraulics/Inlet.hpp', 'InletSolver', 'e.inlet_', 'e.inlet_solver()', 'inlet'),
+    ('hydraulics/HydStructures.hpp', 'StructureSolver', 'e.hydstruct_', 'e.structure_solver()', 'hydstruct'),
+    ('core/InterfaceFile.hpp', 'InterfaceManager', 'e.iface_', 'e.interface_manager()', 'iface'),
+]
+
+def router_dumper():
+    saved = dict(STRUCTS)
+    STRUCTS.update(RT_STRUCTS)
+    nskip = len(SKIPS)
+    C = ['// generated by tools/ctxdump.py: prints the state SWMMEngine::initHydraulics builds; the Rust twin prints the same',
+         '// include after `#define private public` and core/SWMMEngine.hpp (see gate/diff/inithyd.cpp)',
+         '#pragma once', '#include "ctxdump.hpp"', 'namespace ctxdump {',
+         'inline void rtdump(const openswmm::SWMMEngine& e) {']
+    R = ['// generated by tools/ctxdump.py: Rust twin of gate/diff/rtdump.hpp', '#![allow(dead_code, unused_parens, clippy::all)]',
+         'use std::io::Write;', 'use swmm6_rust::core::engine::SwmmEngine;',
+         'fn pf(o: &mut Vec<u8>, l: &str, v: f64) { writeln!(o, "{} {:016x}", l, v.to_bits()).unwrap(); }',
+         'fn pi(o: &mut Vec<u8>, l: &str, v: i64) { writeln!(o, "{} {}", l, v).unwrap(); }',
+         'fn ps(o: &mut Vec<u8>, l: &str, s: &[u8]) { write!(o, "{} {}:", l, s.len()).unwrap(); o.extend_from_slice(s); o.push(b\'\\n\'); }',
+         'fn vf(o: &mut Vec<u8>, l: &str, v: &[f64]) { writeln!(o, "{} n={}", l, v.len()).unwrap(); for x in v { write!(o, " {:016x}", x.to_bits()).unwrap(); } if !v.is_empty() { o.push(b\'\\n\'); } }',
+         'fn vi(o: &mut Vec<u8>, l: &str, v: &[i64]) { writeln!(o, "{} n={}", l, v.len()).unwrap(); for x in v { write!(o, " {}", x).unwrap(); } if !v.is_empty() { o.push(b\'\\n\'); } }',
+         'fn vs(o: &mut Vec<u8>, l: &str, v: &[Vec<u8>]) { writeln!(o, "{} n={}", l, v.len()).unwrap(); for s in v { write!(o, " {}:", s.len()).unwrap(); o.extend_from_slice(s); } if !v.is_empty() { o.push(b\'\\n\'); } }',
+         'fn sk(o: &mut Vec<u8>, l: &str) { writeln!(o, "skip {}", l).unwrap(); }',
+         'fn pn(o: &mut Vec<u8>, l: &str) { writeln!(o, "{} none", l).unwrap(); }',
+         'pub fn rtdump(e: &SwmmEngine) -> Vec<u8> {', '    let mut o: Vec<u8> = Vec::new();', '    let o = &mut o;']
+    # the context fields initHydraulics writes (routing_stats, water_age_state) are in
+    # ctxdump::dump (CTX_MEMBERS), which the harness prints first
+    for header, struct, pc, pr, label in RT_MEMBERS:
+        rt_dump_struct(header, struct, pc, pr, label, C, R)
+    C.append('  pi("engine.next_event_", e.next_event_); pi("engine.between_events_", e.between_events_);')
+    R.append('    pi(o, "engine.next_event_", e.next_event() as i64); pi(o, "engine.between_events_", e.between_events() as i64);')
+    C.append('}'); C.append('} // namespace ctxdump')
+    R.append('    std::mem::take(o)'); R.append('}')
+    STRUCTS.clear(); STRUCTS.update(saved)
+    rskips = SKIPS[nskip:]
+    del SKIPS[nskip:]
+    open(f'{ROOT}/gate/diff/rtdump.hpp', 'w').write('\n'.join(C) + '\n')
+    open(f'{ROOT}/crates/engine/examples/common/rtdump.rs', 'w').write('\n'.join(R) + '\n')
+    print(f'rtdump: {len(rskips)} skipped:', '; '.join(rskips))
+
+# ---------------------------------------------------------------------------
+# SWMMEngine::initHydrology: the hydrology solver members and the context members it
+# fills that the main dump does not cover (gate/diff/inithydro.cpp, examples/inithydro.rs).
+# The C++ side is compiled with `private`/`protected` defined as `public`, so it reads
+# the members directly; the Rust side reads them through SwmmEngine's gate accessors.
+# Struct types are looked up in HYDRO_STRUCTS, merged into STRUCTS only while this dumper
+# is generated, so the main dump is unchanged ('Token' there is quality/Treatment's).
+HYDRO_STRUCTS = {
+    'RadiationState': ('hydrology/Radiation.hpp', 'RadiationState'),
+    'MovingAvg7': ('hydrology/Climate.hpp', 'MovingAvg7'),
+    'HeldState': ('hydrology/surface/UebHeld.hpp', 'HeldState'),
+    'LumpedState': ('hydrology/surface/UebLumped.hpp', 'LumpedState'),
+    'LumpedFluxes': ('hydrology/surface/UebLumped.hpp', 'LumpedFluxes'),
+    'State': ('hydrology/surface/UebSnow.hpp', 'State'),
+    'Fluxes': ('hydrology/surface/UebSnow.hpp', 'Fluxes'),
+    'ThermalSample': ('hydrology/surface/UebSnow.hpp', 'ThermalSample'),
+    'climate::SnowDailyWeather': ('hydrology/HourlyMeteorology.hpp', 'SnowDailyWeather'),
+    'RunoffSoA': ('hydrology/Runoff.hpp', 'RunoffSoA'),
+    'CompletedSubareaWater': ('hydrology/Runoff.hpp', 'CompletedSubareaWater'),
+    'surface::InfilBank': ('hydrology/surface/InfilBank.hpp', 'InfilBank'),
+    'HortonState': ('hydrology/Infiltration.hpp', 'HortonState'),
+    'CurveNumState': ('hydrology/Infiltration.hpp', 'CurveNumState'),
+    'SnowSoA': ('hydrology/surface/DegreeDaySnow.hpp', 'SnowSoA'),
+    'GWSoA': ('hydrology/Groundwater.hpp', 'GWSoA'),
+    'mathexpr::Expression': ('math/MathExpr.hpp', 'Expression'),
+    'Token': ('math/MathExpr.hpp', 'Token'),
+    'LIDGroupSoA': ('hydrology/LID.hpp', 'LIDGroupSoA'),
+    'gage::GageState': ('hydrology/Gage.hpp', 'GageState'),
+    'ExpDecayParams': ('hydrology/RDII.hpp', 'ExpDecayParams'),
+    'UHResponseData': ('hydrology/RDII.hpp', 'UHResponseData'),
+    'RDIIGroupSoA': ('hydrology/RDII.hpp', 'RDIIGroupSoA'),
+}
+# The context members initHydrology fills (climate_state, lid_layer_state, snowpacks.runtime,
+# snowpacks.daily_weather) are in ctxdump::dump, which the harness prints first.
+HYDRO_ENGINE = [
+    ('hydrology/Runoff.hpp', 'RunoffSolver', 'e.runoff_', 'e.runoff_solver()', 'runoff_'),
+    ('hydrology/surface/DegreeDaySnow.hpp', 'DegreeDaySnow', 'e.snow_', 'e.snow_solver()', 'snow_'),
+    ('hydrology/Groundwater.hpp', 'GWSolver', 'e.groundwater_', 'e.groundwater_solver()', 'groundwater_'),
+    ('hydrology/LID.hpp', 'LIDSolver', 'e.lid_', 'e.lid_solver()', 'lid_'),
+    # rdii_ is initialized by initHydraulics upstream; inithydro's "rdii" mode runs it
+    ('hydrology/RDII.hpp', 'RDIISolver', 'e.rdii_', 'e.rdii_solver()', 'rdii_'),
+]
+HYDRO_VECTORS = ['gw_frac_perv_', 'gw_perv_evap_', 'gw_lid_perv_area_', 'gw_lid_infil_vol_', 'gw_lid_perv_evap_vol_',
+                 'gw_2d_recharge_vol_', 'gw_infil_with_2d_', 'gw_infil_rate_', 'snow_rain_', 'snow_snow_',
+                 'gw_q_interp_', 'old_gw_rate_']
+
+def hydro_dumper():
+    saved = dict(STRUCTS)
+    STRUCTS.update(HYDRO_STRUCTS)
+    nskip = len(SKIPS)
+    C = ['// generated by tools/ctxdump.py: the hydrology members SWMMEngine::initHydrology fills;',
+         '// include after core/SWMMEngine.hpp compiled with private/protected defined as public', '#pragma once',
+         '#include <cstdio>', '#include "ctxdump.hpp"', 'namespace ctxdump {',
+         'inline void hydrodump(openswmm::SWMMEngine& e) {']
+    R = ['// generated by tools/ctxdump.py: Rust twin of gate/diff/hydrodump.hpp', '#![allow(dead_code, unused_parens, clippy::all)]',
+         'use std::io::Write;', 'use swmm6_rust::core::engine::SwmmEngine;',
+         'fn pf(o: &mut Vec<u8>, l: &str, v: f64) { writeln!(o, "{} {:016x}", l, v.to_bits()).unwrap(); }',
+         'fn pi(o: &mut Vec<u8>, l: &str, v: i64) { writeln!(o, "{} {}", l, v).unwrap(); }',
+         'fn ps(o: &mut Vec<u8>, l: &str, s: &[u8]) { write!(o, "{} {}:", l, s.len()).unwrap(); o.extend_from_slice(s); o.push(b\'\\n\'); }',
+         'fn vf(o: &mut Vec<u8>, l: &str, v: &[f64]) { writeln!(o, "{} n={}", l, v.len()).unwrap(); for x in v { write!(o, " {:016x}", x.to_bits()).unwrap(); } if !v.is_empty() { o.push(b\'\\n\'); } }',
+         'fn vi(o: &mut Vec<u8>, l: &str, v: &[i64]) { writeln!(o, "{} n={}", l, v.len()).unwrap(); for x in v { write!(o, " {}", x).unwrap(); } if !v.is_empty() { o.push(b\'\\n\'); } }',
+         'fn vs(o: &mut Vec<u8>, l: &str, v: &[Vec<u8>]) { writeln!(o, "{} n={}", l, v.len()).unwrap(); for s in v { write!(o, " {}:", s.len()).unwrap(); o.extend_from_slice(s); } if !v.is_empty() { o.push(b\'\\n\'); } }',
+         'fn sk(o: &mut Vec<u8>, l: &str) { writeln!(o, "skip {}", l).unwrap(); }',
+         'fn pn(o: &mut Vec<u8>, l: &str) { writeln!(o, "{} none", l).unwrap(); }',
+         'pub fn hydrodump(e: &mut SwmmEngine) -> Vec<u8> {', '    let mut o: Vec<u8> = Vec::new();', '    let o = &mut o;']
+    for header, struct, pc, pr, label in HYDRO_ENGINE:
+        dump_struct(header, struct, pc, pr, label, C, R)
+    # RDIISolver: uh_params holds 2-D C arrays and uh_name_to_idx_ is an unordered_map
+    # (sorted by key here); the generic walk skips both
+    C.append('  for (auto& u : e.rdii_.uh_params) for (int m = 0; m < 12; ++m) for (int k = 0; k < 3; ++k) { pf("rdii_.uh_params[].r", u.r[m][k]); pf("rdii_.uh_params[].tPeak", u.tPeak[m][k]); pf("rdii_.uh_params[].tBase", u.tBase[m][k]); pf("rdii_.uh_params[].iaMax", u.iaMax[m][k]); pf("rdii_.uh_params[].iaRecov", u.iaRecov[m][k]); pf("rdii_.uh_params[].iaInit", u.iaInit[m][k]); }')
+    R.append('    for u in &e.rdii_solver().uh_params { for m in 0..12 { for k in 0..3 { pf(o, "rdii_.uh_params[].r", u.r[m][k]); pf(o, "rdii_.uh_params[].tPeak", u.tPeak[m][k]); pf(o, "rdii_.uh_params[].tBase", u.tBase[m][k]); pf(o, "rdii_.uh_params[].iaMax", u.iaMax[m][k]); pf(o, "rdii_.uh_params[].iaRecov", u.iaRecov[m][k]); pf(o, "rdii_.uh_params[].iaInit", u.iaInit[m][k]); } } }')
+    C.append('  { std::vector<std::pair<std::string, int>> m(e.rdii_.uh_name_to_idx_.begin(), e.rdii_.uh_name_to_idx_.end()); std::sort(m.begin(), m.end()); for (auto& kv : m) { ps("rdii_.uh_name_to_idx_.key", kv.first); pi("rdii_.uh_name_to_idx_.val", kv.second); } }')
+    R.append('    { let mut m = e.rdii_solver().uh_name_to_idx_.clone(); m.sort(); for kv in &m { ps(o, "rdii_.uh_name_to_idx_.key", &kv.0); pi(o, "rdii_.uh_name_to_idx_.val", kv.1 as i64); } }')
+    # LIDSolver::rpt_files_ holds std::ofstream objects: dumped as its size only
+    C.append('  pi("lid_.rpt_files_.size", (long long)e.lid_.rpt_files_.size());')
+    R.append('    pi(o, "lid_.rpt_files_.size", e.lid_solver().rpt_files_.len() as i64);')
+    emit('e.gage_states_', 'e.gage_states()', 'gage_states_', kind('std::vector<gage::GageState>'), C, R)
+    C.append('  pi("last_melt_doy_", e.last_melt_doy_);'); R.append('    pi(o, "last_melt_doy_", e.last_melt_doy() as i64);')
+    R.append('    { let v = e.hydrology_vectors();')
+    for k, n in enumerate(HYDRO_VECTORS):
+        C.append(f'  vf("{n}", e.{n});'); R.append(f'    vf(o, "{n}", v[{k}]);')
+    R.append('    }')
+    C.append('  { std::vector<long long> t; for (auto x : e.gw_q_node_) t.push_back(x); vi("gw_q_node_", t); }')
+    R.append('    vi(o, "gw_q_node_", &e.gw_q_node().iter().map(|x| *x as i64).collect::<Vec<i64>>());')
+    # the climate file reader: its FILE* as open/position, then every member
+    C.append('  { auto& cf = e.climate_file_; pi("climate_file_.open", cf.file_ != nullptr); pi("climate_file_.pos", cf.file_ ? (long long)std::ftell(cf.file_) : -1LL);'
+             ' pi("climate_file_.format_", (long long)cf.format_); pi("climate_file_.unit_system_", cf.unit_system_);'
+             ' for (int v = 0; v < 4; ++v) for (int d = 0; d < 32; ++d) pf("climate_file_.file_data_", cf.file_data_[v][d]);'
+             ' pi("climate_file_.buf_year_", cf.buf_year_); pi("climate_file_.buf_month_", cf.buf_month_); pf("climate_file_.day_offset_", cf.day_offset_);'
+             ' for (int i = 0; i < 4; ++i) pi("climate_file_.field_pos_", cf.field_pos_[i]); pi("climate_file_.date_field_pos_", cf.date_field_pos_);'
+             ' pi("climate_file_.wind_type_", cf.wind_type_); pi("climate_file_.temp_units_", cf.temp_units_);'
+             ' ps("climate_file_.saved_line_", std::string(cf.saved_line_)); pi("climate_file_.has_saved_line_", cf.has_saved_line_); }')
+    R.append('    { let cf = e.climate_file_reader(); pi(o, "climate_file_.open", cf.file_.is_some() as i64); let pos = match cf.file_.as_mut() { Some(f) => f.ftell(), None => -1 }; pi(o, "climate_file_.pos", pos);'
+             ' pi(o, "climate_file_.format_", cf.format_ as i64); pi(o, "climate_file_.unit_system_", cf.unit_system_ as i64);'
+             ' for v in 0..4 { for d in 0..32 { pf(o, "climate_file_.file_data_", cf.file_data_[v][d]); } }'
+             ' pi(o, "climate_file_.buf_year_", cf.buf_year_ as i64); pi(o, "climate_file_.buf_month_", cf.buf_month_ as i64); pf(o, "climate_file_.day_offset_", cf.day_offset_);'
+             ' for i in 0..4 { pi(o, "climate_file_.field_pos_", cf.field_pos_[i] as i64); } pi(o, "climate_file_.date_field_pos_", cf.date_field_pos_ as i64);'
+             ' pi(o, "climate_file_.wind_type_", cf.wind_type_ as i64); pi(o, "climate_file_.temp_units_", cf.temp_units_ as i64);'
+             ' ps(o, "climate_file_.saved_line_", &cf.saved_line_); pi(o, "climate_file_.has_saved_line_", cf.has_saved_line_ as i64); }')
+    C.append('}'); C.append('} // namespace ctxdump')
+    R.append('    std::mem::take(o)'); R.append('}')
+    STRUCTS.clear(); STRUCTS.update(saved)
+    hskips = SKIPS[nskip:]
+    del SKIPS[nskip:]
+    open(f'{ROOT}/gate/diff/hydrodump.hpp', 'w').write('\n'.join(C) + '\n')
+    open(f'{ROOT}/crates/engine/examples/common/hydrodump.rs', 'w').write('\n'.join(R) + '\n')
+    print(f'hydrodump: {len(hskips)} skipped:', '; '.join(hskips))
+
+# SWMMEngine members that initQuality sets (and hotstart_deferred_, which it reads), dumped by
+# gate/diff/initqual.cpp. The C++ side reads them directly: the includer must define
+# private/protected as public before core/SWMMEngine.hpp and then define CTXDUMP_QUALITY.
+# (header, class, C++ path, Rust path, label)
+QUALITY_MEMBERS = [
+    ('quality/QualityRouting.hpp', 'QualitySolver', 'e.quality_', 'e.quality()', 'quality'),
+    ('quality/Landuse.hpp', 'LanduseSolver', 'e.landuse_solver_', 'e.landuse_solver()', 'landuse_solver'),
+    ('quality/Landuse.hpp', 'SurfaceQualitySoA', 'e.surface_quality_', 'e.surface_quality()', 'surface_quality'),
+]
+
+def quality_dumper():
+    C = ['#ifdef CTXDUMP_QUALITY', 'namespace ctxdump {', 'inline void qualdump(openswmm::SWMMEngine& e) {']
+    R = ['pub fn qualdump(e: &SwmmEngine) -> Vec<u8> {', '    let mut o: Vec<u8> = Vec::new();', '    let o = &mut o;']
+    C.append('  pi("engine.hotstart_deferred_", (long long)e.hotstart_deferred_);')
+    R.append('    pi(o, "engine.hotstart_deferred_", e.hotstart_deferred() as i64);')
+    for header, cls, pc, pr, label in QUALITY_MEMBERS:
+        dump_struct(header, cls, pc, pr, label, C, R)
+    C += ['}', '} // namespace ctxdump', '#endif // CTXDUMP_QUALITY']
+    R += ['    std::mem::take(o)', '}']
+    return C, R
+
 def main():
     collect_enums()
     C = ['// generated by tools/ctxdump.py: prints a SimulationContext; the Rust twin prints the same',
          '#pragma once', '#include <cstdio>', '#include <cstring>', '#include <cstdint>', '#include <string>', '#include <vector>',
-         '#include <algorithm>', '#include <variant>', '#include "core/SimulationContext.hpp"', 'namespace ctxdump {',
+         '#include <algorithm>', '#include <variant>', '#include "core/SimulationContext.hpp"',
+         '// private members are read through the explicit-instantiation access rule (a pointer to a',
+         '// private member may be named in an explicit instantiation); the class layout is untouched',
+         'namespace ctxdump_access {',
+         'template <typename Tag, typename Tag::type M> struct Rob { friend typename Tag::type get(Tag) { return M; } };',
+         'struct T_UserFlags_def_index_ { typedef std::unordered_map<std::string, std::size_t> openswmm::UserFlags::*type; friend type get(T_UserFlags_def_index_); };',
+         'template struct Rob<T_UserFlags_def_index_, &openswmm::UserFlags::def_index_>;',
+         '} // namespace ctxdump_access',
+         'namespace ctxdump {',
          'static void pf(const char* l, double v){ uint64_t u; std::memcpy(&u,&v,8); std::printf("%s %016llx\\n", l, (unsigned long long)u); }',
          'static void pi(const char* l, long long v){ std::printf("%s %lld\\n", l, v); }',
          'static void ps(const char* l, const std::string& s){ std::printf("%s %zu:", l, s.size()); std::fwrite(s.data(),1,s.size(),stdout); std::printf("\\n"); }',
@@ -438,17 +934,13 @@ def main():
             emit(f'c.{n}[q]', f'c.{n}[q]', n + '[]', k, C, R); C.append('  }'); R.append('    }')
         else:
             emit(f'c.{n}', f'c.{n}', n, k, C, R)
-    # tables
-    C.append('  pi("tables.n", (long long)c.tables.tables.size());'); R.append('    pi(o, "tables.n", c.tables.tables.len() as i64);')
-    C.append('  for (auto& t : c.tables.tables) { ps("table.id", t.id); pi("table.type", (long long)t.type); ps("table.comment", t.comment); vf("table.x", t.x); vf("table.y", t.y); pi("table.n_relative", t.n_relative); pf("table.rel_anchor", t.rel_anchor); pi("table.is_file", t.is_file_based); ps("table.file", t.file_path.original); ps("table.file.abs", t.file_path.absolute); }')
-    R.append('    for t in &c.tables.tables { ps(o, "table.id", &t.id); pi(o, "table.type", t.type_ as i64); ps(o, "table.comment", &t.comment); vf(o, "table.x", &t.x); vf(o, "table.y", &t.y); pi(o, "table.n_relative", t.n_relative as i64); pf(o, "table.rel_anchor", t.rel_anchor); pi(o, "table.is_file", t.is_file_based as i64); ps(o, "table.file", &t.file_path.original); ps(o, "table.file.abs", &t.file_path.absolute); }')
+    # tables: every Table member (the FILE* handle is not data) and the by-name index
+    dump_struct('data/TableData.hpp', 'TableData', 'c.tables', 'c.tables', 'tables', C, R)
     # unknown headers, deferred rows, passthrough
     C.append('  for (auto& h : c.unknown_section_headers) { ps("unknown_header", h.first); pi("unknown_header.line", h.second); }')
     R.append('    for h in &c.unknown_section_headers { ps(o, "unknown_header", &h.0); pi(o, "unknown_header.line", h.1); }')
     C.append('  for (auto& kv : c.passthrough_sections) { ps("passthrough", kv.first); vs("passthrough.lines", kv.second); }')
     R.append('    for (k, v) in &c.passthrough_sections { ps(o, "passthrough", k); vs(o, "passthrough.lines", v); }')
-    C.append('  { std::vector<std::pair<std::string,std::string>> e(c.options.ext_options.begin(), c.options.ext_options.end()); std::sort(e.begin(), e.end()); for (auto& kv : e) { ps("ext_option", kv.first); ps("ext_option.value", kv.second); } }')
-    R.append('    { let mut e: Vec<_> = c.options.ext_options.iter().collect(); e.sort(); for (k, v) in e { ps(o, "ext_option", k); ps(o, "ext_option.value", v); } }')
     C.append('  { std::vector<long long> t; for (auto x : c.node_subtypes.subtype_row) t.push_back(x); vi("node_subtypes.subtype_row", t); }')
     R.append('    vi(o, "node_subtypes.subtype_row", &c.node_subtypes.subtype_row.iter().map(|x| *x as i64).collect::<Vec<i64>>());')
     C.append('  { std::vector<long long> t; for (auto x : c.link_subtypes.subtype_row) t.push_back(x); vi("link_subtypes.subtype_row", t); }')
@@ -467,6 +959,9 @@ def main():
     # the value map is an unordered_map upstream: sorted by stored key on both sides
     C.append('  { std::vector<std::pair<std::string, const openswmm::UserFlagValue*>> e; for (auto& kv : c.user_flags.all_values()) e.emplace_back(kv.first, &kv.second); std::sort(e.begin(), e.end(), [](const auto& a, const auto& b) { return a.first < b.first; }); for (auto& kv : e) { ps("uflag_value", kv.first); pi("uflag_value.kind", (long long)kv.second->index()); if (auto b = std::get_if<bool>(kv.second)) pi("uflag_value.v", *b); else if (auto i = std::get_if<int>(kv.second)) pi("uflag_value.v", *i); else if (auto d = std::get_if<double>(kv.second)) pf("uflag_value.v", *d); else ps("uflag_value.v", std::get<std::string>(*kv.second)); } }')
     R.append('    { let mut e: Vec<_> = c.user_flags.all_values().iter().collect(); e.sort_by(|a, b| a.0.cmp(b.0)); for (k, v) in e { ps(o, "uflag_value", k); match v { UserFlagValue::Bool(b) => { pi(o, "uflag_value.kind", 0); pi(o, "uflag_value.v", *b as i64); } UserFlagValue::Int(i) => { pi(o, "uflag_value.kind", 1); pi(o, "uflag_value.v", *i as i64); } UserFlagValue::Double(d) => { pi(o, "uflag_value.kind", 2); pf(o, "uflag_value.v", *d); } UserFlagValue::String(s) => { pi(o, "uflag_value.kind", 3); ps(o, "uflag_value.v", s); } } } }')
+    # UserFlags::def_index_ (private upstream: read through ctxdump_access)
+    C.append('  { const auto& m = c.user_flags.*get(ctxdump_access::T_UserFlags_def_index_()); std::vector<std::pair<std::string, std::size_t>> t(m.begin(), m.end()); std::sort(t.begin(), t.end()); for (auto& kv : t) { ps("uflag_def_index", kv.first); pi("uflag_def_index.v", (long long)kv.second); } }')
+    R.append('    { let mut t: Vec<_> = c.user_flags.def_index().iter().collect(); t.sort(); for (k, v) in t { ps(o, "uflag_def_index", k); pi(o, "uflag_def_index.v", *v as i64); } }')
     C.append('  for (auto& h : c.files.hotstart_saves) { ps("hotstart_save.path", h.path.original); ps("hotstart_save.path.abs", h.path.absolute); pf("hotstart_save.datetime", h.datetime); pi("hotstart_save.format", (long long)h.format); }')
     R.append('    for h in &c.files.hotstart_saves { ps(o, "hotstart_save.path", &h.path.original); ps(o, "hotstart_save.path.abs", &h.path.absolute); pf(o, "hotstart_save.datetime", h.datetime); pi(o, "hotstart_save.format", h.format as i64); }')
     for header, struct, pc, pr, label in STORES:
@@ -481,15 +976,23 @@ def main():
     # the species registry (private members, read through its accessors)
     C.append('  pi("species.n", c.species_registry.count()); pi("species.pollutants", c.species_registry.pollutant_count()); for (int i = 0; i < c.species_registry.count(); ++i) { ps("species.name", c.species_registry.name(i)); pi("species.kind", (long long)c.species_registry.kind(i)); ps("species.units", c.species_registry.units(i)); }')
     R.append('    pi(o, "species.n", c.species_registry.count() as i64); pi(o, "species.pollutants", c.species_registry.pollutant_count() as i64); for i in 0..c.species_registry.count() { ps(o, "species.name", c.species_registry.name(i)); pi(o, "species.kind", c.species_registry.kind(i) as i64); ps(o, "species.units", c.species_registry.units(i)); }')
+    for n in CTX_MEMBERS:
+        t, a = ctx_fields[n]
+        ctx_member(n, t, a, C, R)
     C.append('}'); C.append('} // namespace ctxdump')
     R.append('    std::mem::take(o)'); R.append('}')
     EC, ER = engine_dumper()
     C += EC
     R += ER
+    QC, QR = quality_dumper()
+    C += QC
+    R += QR
     open(f'{ROOT}/gate/diff/ctxdump.hpp', 'w').write('\n'.join(C) + '\n')
     os.makedirs(f'{ROOT}/crates/engine/examples/common', exist_ok=True)
     open(f'{ROOT}/crates/engine/examples/common/ctxdump.rs', 'w').write('\n'.join(R) + '\n')
     print(f'{len(SKIPS)} skipped:', '; '.join(SKIPS))
+    router_dumper()
+    hydro_dumper()
 
 if __name__ == '__main__':
     main()

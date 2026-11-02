@@ -679,6 +679,8 @@ pub(crate) enum ScanArg<'a> {
     Char(&'a mut u8),
     /// `%f` into a `float`.
     Float(&'a mut f32),
+    /// `%lf` into a `double` (the characters are collected as for `%f`, then strtod).
+    Double(&'a mut f64),
     /// `%n` into an `int`.
     Count(&'a mut i32),
 }
@@ -734,7 +736,8 @@ fn strtoul_digits(b: &[u8]) -> u64 {
 
 /// glibc `sscanf` in the C locale, for the conversions upstream uses: `%d`/`%ld` (strtol,
 /// truncated to int for `%d`), `%u` (strtoul, truncated to unsigned int), `%Ns`, `%c`,
-/// `%f` (glibc's character collection, then strtof), `%n`, and scan sets `%[...]`/`%*[...]`
+/// `%f` (glibc's character collection, then strtof), `%lf` (the same collection, then
+/// strtod), `%n`, and scan sets `%[...]`/`%*[...]`
 /// with ranges. White space in the format matches any amount of input white space; other
 /// bytes match themselves. Returns the number of assignments, or -1 (EOF) when input ran
 /// out before the first. The input is a C string: it ends at the first NUL.
@@ -1065,6 +1068,23 @@ pub(crate) fn sscanf(input: &[u8], fmt: &[u8], args: &mut [ScanArg<'_>]) -> i32 
                     if buf.len() == got_sign || (hexa && buf.len() == 2 + got_sign) {
                         return done; // conv_error
                     }
+                }
+                if long_flag {
+                    // %lf: glibc's same collection, then __strtod_internal
+                    let (v, used) = crate::core::cstdlib::strtod(&buf);
+                    if used == 0 {
+                        return done; // conv_error
+                    }
+                    if !suppress {
+                        if let ScanArg::Double(p) = &mut args[ai] {
+                            **p = v;
+                        } else {
+                            unreachable!("%lf needs ScanArg::Double");
+                        }
+                        ai += 1;
+                        done += 1;
+                    }
+                    continue;
                 }
                 let (v, used) = crate::core::cstdlib::strtof(&buf);
                 if used == 0 {

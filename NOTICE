@@ -45,6 +45,9 @@ THIS TRANSLATION
 
 swmm6-rust is a translation of the OpenSWMM Engine 1D sources (branch swmm6_rel,
 commit 88329d6df2f8dd63fe7e7c601954ec2bde3573e6) into Rust, made at the request
-of Robert Dickinson. Every translated file says which upstream file it derives
+of Robert Dickinson. AI use: the translation, the gate harnesses and the tools in
+this repository were written by Claude (Anthropic's AI model), working under
+Robert Dickinson's direction; each result is checked against the reference build
+of upstream by the gates described in PLAN.md. Every translated file says which upstream file it derives
 from and that it was modified (translated). It is not an OpenSWMM or HydroCouple
 release and is not endorsed by HydroCouple or the USEPA.

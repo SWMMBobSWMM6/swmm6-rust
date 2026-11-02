@@ -9,10 +9,11 @@
 // BW-MSX: the open-time part of surface buildup / washoff of reactions-component species
 // (namespace msxsurf): resolve() binds the [BUILDUP]/[WASHOFF]/[LOADINGS] rows that name
 // a species (or a pollutant declared after the section), resolves LID REMOVALS by name,
-// and activates the species store for rainfall-only decks. The run-time kernels in the
-// same upstream file are not translated here.
+// and activates the species store for rainfall-only decks; and the init-time initState
+// (with the file-local buildupAt), which SWMMEngine::initQuality calls. The run-time
+// kernels in the same upstream file are not translated here.
 
-use crate::core::cmath::cmax;
+use crate::core::cmath::{cmax, cmin};
 use crate::core::context::SimulationContext;
 use crate::core::options::{Bytes, SimulationOptions};
 use crate::core::unit_conversion::{ucf, MASS};
@@ -352,5 +353,73 @@ pub fn refresh_derived(ctx: &mut SimulationContext) {
             md = 999.0 * c2;
         }
         s.bu_max_days[k] = md;
+    }
+}
+
+/// buildupAt (file-local): the analytic buildup curve at `days` (0 for days <= 0 or NaN, and
+/// for NONE / EXTERNAL).
+fn buildup_at(type_: i32, c0: f64, c1: f64, c2: f64, days: f64) -> f64 {
+    if !(days > 0.0) {
+        return 0.0;
+    }
+    match type_ {
+        1 => cmin(c1 * days.powf(c2), c0),        // POW  // LIBM
+        2 => c0 * (1.0 - (-c1 * days).exp()),     // EXP  // LIBM
+        3 => if c2 + days > 0.0 { c0 * days / (c2 + days) } else { 0.0 }, // SAT
+        _ => 0.0,
+    }
+}
+
+/// initState: reset the species surface state and seed the initial dry buildup from the
+/// [LOADINGS] rows or the buildup function at DRY_DAYS (legacy landuse_getInitBuildup).
+pub fn init_state(ctx: &mut SimulationContext) {
+    activate_for_rain(ctx); // a rain concentration set through the API after open
+    if !ctx.reactions.surface.active() {
+        return;
+    }
+    let nsc = ctx.n_subcatches();
+    let nlu = ctx.reactions.surface.n_landuses;
+    let nm = ctx.reactions.surface.n_species;
+    ctx.reactions.surface.resize_state(nsc);
+    let dry_days = ctx.options.dry_days;
+    for i in 0..nsc {
+        let ui = i as usize;
+        for lu in 0..nlu {
+            let cov = ui.wrapping_mul(nlu as usize).wrapping_add(lu as usize);
+            let frac = if cov < ctx.subcatches.coverage.len() { ctx.subcatches.coverage[cov] / 100.0 } else { 0.0 };
+            if frac <= 0.0 {
+                continue;
+            }
+            for m in 0..nm {
+                let s = &mut ctx.reactions.surface;
+                let k = s.pidx(lu, m);
+                let norm = if s.bu_normalizer[k] == 0 {
+                    frac * ctx.subcatches.area[ui]
+                } else {
+                    frac * ctx.subcatches.curb_length[ui]
+                };
+                let mut mass = 0.0;
+                let load0 = s.init_loading[s.sidx(i, m)];
+                if load0 > 0.0 {
+                    if s.bu_normalizer[k] == 0 {
+                        mass = load0;
+                    } else {
+                        mass = if ctx.subcatches.curb_length[ui] > 0.0 {
+                            load0 * ctx.subcatches.area[ui] / ctx.subcatches.curb_length[ui]
+                        } else {
+                            0.0
+                        };
+                    }
+                } else if dry_days > 0.0 && s.bu_type[k] != 0 && s.bu_type[k] != 4 {
+                    mass = buildup_at(s.bu_type[k], s.bu_c1[k], s.bu_c2[k], s.bu_c3[k], dry_days);
+                }
+                if mass <= 0.0 {
+                    continue;
+                }
+                let b = s.bu_idx(i, lu, m);
+                s.buildup[b] = mass;
+                s.led_init_buildup[m as usize] += mass * norm;
+            }
+        }
     }
 }

@@ -24,6 +24,20 @@ The OpenSWMM 6 engine's 1D path, translated into safe Rust and held byte for byt
 
 G3 points at the first step and object where a translation departs. G4 catches a departure before any engine runs.
 
+**State gates** (`gate/ctxgate.sh <mode>`; build both sides first with `gate/build.sh`). Each runs the 688 decks (236 corpus, 336 upstream test decks, 116 synthetic in `gate/decks`) through upstream (the reference library, `gate/diff/*`) and the translation (`target/release/examples/*`), dumps the state and compares stdout and exit code. Every mode is identical on every deck (2 Nov):
+
+| Mode | Upstream does | Dump | Decks identical |
+|---|---|---|---|
+| `ALL`, `ALL resolve` | InputReader + handlers; then resolve_cross_references | context | 688, 688 |
+| `open`, `open lenient`, `open metadata` | swmm_engine_open (lenient; open_metadata) | context + open() members | 688, 688, 688 |
+| `inithyd` | open, initHydraulics | + Router and the hydraulic solvers (`rtdump`) | 688 |
+| `inithydro`, `inithydro lenient`, `inithydro rdii` | open, initHydrology (rdii: rdii_.init first) | + hydrology solvers (`hydrodump`) | 688, 688, 688 |
+| `initqual quality`, `geometry`, `massbal` | open, initQuality / initGeometry / initMassBalance | + quality members (`qualdump`) | 688, 688, 688 (massbal skipped on 6 on both sides: upstream's own initialize stops first; two of the 6 are the U57 terminate decks, where both sides abort with exit 134 and empty stdout) |
+| `loadrt open`, `lenient`, `metadata` | dump → `examples/ctxload` → dump again, from the translation's dump and from upstream's | context + open() members | 688 rust and 688 cross, each |
+| `loadrt init` | the same from upstream's dump after swmm_engine_initialize (cross only) | context + open() members | 685 (no upstream dump on 3, where upstream terminates inside initialize: IO-41 (U1) and the two U57 decks) |
+
+The dumpers are generated twice, C++ and Rust, by `tools/ctxdump.py` (`gate/diff/{ctxdump,rtdump,hydrodump}.hpp`, `examples/common/{ctxdump,rtdump,hydrodump}.rs`); the loader `examples/common/ctxload.rs` by `tools/ctxload.py`, which checks itself against ctxdump.py's output. The context dump covers every `SimulationContext` member that is data. Left out: `wall_start` (the wall clock at open), `state_accessors` (closures over the engine's solvers), `twod_io` and `spatial.coupling_points` (pointers; null or empty in a 1D build) and `Table::file_handle` (a `FILE*`). Inside the engine dumps: `lid_.rpt_files_` (open streams, printed as a count), the FV quality mixers' `gmres_` workspaces, and the RDII UH parameters and name map, which are printed by hand.
+
 The step-trace harness was checked against the CLI on `orif_legacy.inp`: running the engine through the C API writes the same `.out` as the `openswmm` command.
 
 **Gate decks:**
@@ -69,7 +83,7 @@ The step-trace harness was checked against the CLI on `orif_legacy.inp`: running
   
   Each such loop on the run path must either be shown not to reach a result, or reproduce libstdc++'s `std::hash<std::string>` (`_Hash_bytes`, seed 0xc70f6907) and its bucket growth.
 * **NaN sign when both operands are NaN.** x86 `mulsd` returns the first operand's NaN. g++ keeps source order; LLVM may commute a multiply. When both operands of `a * b` are NaN with different signs, the result's sign bit can differ. The geometry differential showed exactly this: 47 of 3,222,094 values, all from degenerate (NaN) dimensions. Safe Rust cannot pin the operand order. It matters only when a NaN would reach the output, which a valid model does not produce.
-* **Errors as exceptions.** Upstream throws (`std::invalid_argument`, `length_error`) where the translation returns `Err` or treats a negative count as empty. This only matters on paths upstream itself fails on. The one known path is U1, which aborts upstream.
+* **Errors as exceptions.** Upstream throws (`std::invalid_argument`, `length_error`) where the translation returns `Err` or treats a negative count as empty. This only matters on paths upstream itself fails on. Where an exception escapes a `noexcept` function upstream and the process terminates (U1/U65 in initHydraulics, U57 in initQuality), the translated function returns `Err(Terminated { exception, what })` at the same point, with upstream's exception type and `what()`. The library never aborts; the gate harnesses (`examples/inithyd.rs`, `examples/initqual.rs`) print libstdc++'s terminate message and abort, so the gate compares exit code 134 and the empty stdout on both sides (decks `gate/decks/initqual/initq_treat_dot.inp` and `initq_treat_huge.inp`).
 
 ## Size
 
@@ -134,29 +148,33 @@ Each phase ends on a gate run. A deck enters the gate set when every section it 
 | Inflow, infra, LID node, quality, treatment types, 2D coupling data | InflowData, InfraData, LidNodeData, QualityData, Treatment.hpp, NodeCoupling2DData | compiles; sizing checked by the agents' scripts |
 | SWMM6-only data: heat, water age, ARD, bed zone, channel thermal, LID layer species, MSX surface, reactions, species registry, initial quality, forcing | the 13 headers | compiles |
 
-| Section handlers (every section DefaultInputPlugin registers in a 1D build) | input/handlers/*.cpp, DefaultInputPlugin's table | **parse gate: 667 decks (corpus, every upstream test deck, 94 synthetic), every store of the context identical** (`gate/ctxgate.sh ALL`) |
-| SWMMEngine class and open(): plugins, process components, reactions component (apply + expression compiler), heat, water age, ARD config, surface species resolve, gage setup | SWMMEngine.cpp open() and what it reaches | **open gate: 667 decks identical after swmm_engine_open in strict, lenient and metadata modes: the engine's own context and members, open codes, error text** (`gate/ctxgate.sh open [lenient\|metadata]`) |
-| PostParseResolver (cross references, unit conversion, rain/series file loading incl. NWS formats), PathResolver, VirtualJunctionOps (what the resolver reaches), MsxInitialQuality | PostParseResolver.cpp and the rest | **resolve gate: 667 decks identical after resolve_cross_references** (`gate/ctxgate.sh ALL resolve`); path resolution 61,560 pairs; `%.10g` 20,040 doubles; sscanf 30,016 lines × 24 formats vs glibc |
+| Section handlers (every section DefaultInputPlugin registers in a 1D build) | input/handlers/*.cpp, DefaultInputPlugin's table | **parse gate: 681 decks (corpus, every upstream test deck, 109 synthetic), the whole context identical** (`gate/ctxgate.sh ALL`) |
+| SWMMEngine class and open(): plugins, process components, reactions component (apply + expression compiler), heat, water age, ARD config, surface species resolve, gage setup | SWMMEngine.cpp open() and what it reaches | **open gate: 681 decks identical after swmm_engine_open in strict, lenient and metadata modes: the engine's own context and members, open codes, error text** (`gate/ctxgate.sh open [lenient\|metadata]`) |
+| PostParseResolver (cross references, unit conversion, rain/series file loading incl. NWS formats), PathResolver, VirtualJunctionOps (what the resolver reaches), MsxInitialQuality | PostParseResolver.cpp and the rest | **resolve gate: 681 decks identical after resolve_cross_references** (`gate/ctxgate.sh ALL resolve`); path resolution 61,560 pairs; `%.10g` 20,040 doubles; sscanf 30,016 lines × 24 formats vs glibc |
+| SWMMEngine::initHydraulics: Router::init (XSectGroups, DW/KW/STEADY setup, FV mesh builder and explicit solver initialize, outfall map), TopoSort, layout checks, thread setup (libgomp model), inflow, RDII, structure, exfiltration, inlet and interface-file solvers, event sort, [CONTROLS] rule parser; libstdc++ `unordered_map` iteration order | SWMMEngine.cpp initHydraulics, Routing, DynamicWave, KinematicWave, fv/*, HydStructures, Outfall, TopoSort, Inflow, RDII, Exfiltration, Inlet, InterfaceFile, Controls, MathExpr | **inithyd gate: 681 decks** (`ctxgate.sh inithyd`); unordered_map order: 200 insertion sequences, `std::hash<int>` and CiHash (`gate/diff/umaporder`) |
+| SWMMEngine::initHydrology (+ setNextEvapDate): runoff and infiltration (all methods, InfilBank), gage states, climate file, radiation, degree-day and native UEB snow (lumped, subcatchments, forcing), groundwater with [GWF] expressions, LID (with the heat and water-age LID layers) | SWMMEngine.cpp initHydrology, Runoff, Infiltration, Gage, ClimateFile, Radiation, DegreeDaySnow, Ueb*, Groundwater, LID, HeatLid, WaterAgeLid | **inithydro gate: 681 decks in open, lenient and rdii modes**, incl. 13 synthetic climate-file, UEB, GWF, LID and RDII decks (`gate/decks/inithydro`) |
+| SWMMEngine::initQuality, initGeometry, initMassBalance: land uses, buildup/washoff params, the LEGACY quality router's FV transport state, msxlid, msxsurf::initState, ensureMsxState, treatment cycle check, node volume and surface area | SWMMEngine.cpp, Landuse, QualityRouting, FvQualityTransport, ConservativeMixing, MsxLid, MsxSurface, ReactionLegacyBinding, Node (getVolume, getSurfArea), LidNode | **initqual gate: 686 decks (+5 init-leg decks) in quality, geometry and massbal modes** (`ctxgate.sh initqual …`; massbal installs upstream's post-initialize hydrology state into the translation's solvers) |
+| SwmmEngine members of all three init legs, one struct in upstream's order | SWMMEngine.hpp | inside the init gates |
+| Context loader: reads a dump (either side's) into a fresh SimulationContext and SwmmEngine | — (`tools/ctxload.py` → `examples/common/ctxload.rs`; `gate` feature for the private members) | **loadrt: 681 decks round-trip byte for byte from both sides' dumps after open (strict, lenient, metadata); 680 from upstream's dumps after swmm_engine_initialize** (`ctxgate.sh loadrt …`) |
+| Context dump coverage: every SimulationContext member that is data (run clocks, climate, water-age, heat, bed and LID-layer state, forcing, coupling vectors, 2D mass balance, max_* stats, routing stats, VJ and inlet diagnostics, control log, every Table member and the by-name index, unordered maps sorted by key, user-flag index) | tools/ctxdump.py | every state gate above |
 | InputReader, SectionRegistry, SectionParser, Constants | the matching files | inside the parse gate |
 | C-library input calls (strtod, atof, atoi) | glibc | 486,499 strings identical to glibc |
 | External series files | TableData.cpp, MultiColumnSeriesFile | 138 files (82 real, 53 adversarial, 3 error cases), 62,175 lines |
 | Transect, street, force main, link, culvert, FindRoot | Transect.cpp, Street.cpp, ForceMain.cpp, HydClosureKernels.hpp, Link.cpp, Culvert.cpp, FindRoot | 7,629,922 values (every corpus transect, street and shape curve; every culvert code): identical but for the NaN-sign hazard (13 lines) |
 | Cross-section geometry core | xsect_tables.hpp, XSectKernels.hpp, XSection.cpp, XSectBatch | 3,222,094 values from 338 parameter sets × every function, plus the batch and kernel APIs: identical but for the NaN-sign hazard (47 values) |
 
-Rust so far: see `git log`; about 23,500 lines in `crates/engine` (2 Nov).
+Rust so far: see `git log`; about 59,100 lines in `crates/engine/src`, 47,200 without comments and blank lines (2 Nov).
 
 ## Next
 
 Approach for the solver (phase 1b on): the reference library exports every C++ symbol, and the C API handle is the SWMMEngine, so a harness can open, initialize and step upstream and dump its whole context at any point (`gate/diff/ctxopen`). Two uses:
 * **State gate.** Dump after open, after initialize and after every step on both sides, and report the first step and member that differ (G3, with every member rather than five).
-* **Context loader (to build).** `tools/ctxdump.py` can also generate a Rust loader that reads a dump into a SimulationContext. Load upstream's state at step k into Rust, run one translated step, and compare with upstream's dump at k+1. This tests each solver piece on real states in isolation, without waiting for the whole engine. It needs every member a step reads to be dumped, including solver state held outside ctx in SWMMEngine members (DW tiles, router state), so those structs must be dumped too.
+* **Context loader (built).** `tools/ctxload.py` generates a Rust loader from ctxdump.py's lists that reads a dump into a SimulationContext and SwmmEngine. Load upstream's state at step k into Rust, run one translated step, and compare with upstream's dump at k+1. This tests each solver piece on real states in isolation, without waiting for the whole engine. It loads the context and the open() members now. A step also reads solver state held outside ctx in SWMMEngine members (DW tiles, router state, the hydrology solvers): `rtdump` and `hydrodump` print those, and the loader has to learn to read them back before the per-step test.
 
-
-1. TableData.cpp and MultiColumnSeriesFile (external series files) — in progress; then swap the stub in catchment_handler.rs.
-2. SWMMEngine::initialize. In progress as four parallel pieces:
-   * initHydraulics: Router::init, DW/KW init, structures, outfall map.
-   * initHydrology: runoff, infiltration, gage, climate, snow, GW, LID and RDII inits.
-   * initQuality, initGeometry and initMassBalance.
-   * The context loader.
+1. **SWMMEngine::initialize itself.** The four init legs are in; what is left is initialize's own work around them:
+   * the state checks and the state-seeding phase before init_modules (SWMMEngine.cpp from about line 1026 to 1569: node and link initial depths, volumes and flows, `lidnode::initialize`, the backwater and area seeding the comments there describe);
+   * hotstart (USE HOTSTART: `hotstart_deferred_`, `hotstart_runoff_`, `hotstart_species_`, applyLegacyRunoffSection);
+   * init_modules: the legs in upstream's order (initHydraulics, initHydrology, initQuality, the hotstart blocks, initGeometry, initMassBalance), then `ctx_.forcing.resize`.
    
-   Each init is gated on its own: a harness compiled with `#define private public` calls upstream's private init method straight after open, and the Rust side does the same. Then the orchestration (initialize's state seeding, hotstart, init_modules wiring, start) is gated whole by `ctxopen <deck> init`. Gate: `gate/diff/ctxopen` dumps the reference engine's own context after swmm_engine_open (the C API handle is the SWMMEngine); the translation's open must dump the same.
+   Gate: `ctxopen <deck> init` on both sides (a `ctxgate.sh open init` mode), which the loader's cross test already reads on 680 decks.
+2. **start()**, then **step()**: the per-step state gate and the loader's step k → k+1 test, extended to the solver members.

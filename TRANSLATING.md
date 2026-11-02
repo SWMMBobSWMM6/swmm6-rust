@@ -27,6 +27,11 @@ These conventions apply to every file in `crates/engine`. `crates/engine/src/dat
 * Member initializers carry into `Default`. Derive it only when every initializer equals Rust's default; otherwise write `impl Default` by hand with upstream's values.
 * `#![forbid(unsafe_code)]` holds for the whole crate.
 
+## Where upstream throws
+
+* An exception upstream catches becomes an `Err` the caller handles at the catch site.
+* An exception that escapes a `noexcept` function (so upstream calls `std::terminate`) becomes `Err(Terminated { exception, what })` from that function, using `core::engine_init_hydraulics::Terminated` with upstream's exception type (`"std::invalid_argument"`) and `what()` (`"stod"`). Never `panic!` and never `std::process::abort` in the library; only a gate harness may abort, to reproduce the exit code.
+
 ## Each file's header
 
 ```rust

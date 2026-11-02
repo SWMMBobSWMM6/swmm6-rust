@@ -196,3 +196,12 @@ impl HourlyMeteorology {
         &self.records
     }
 }
+
+/// Gate only (cargo feature `gate`): replace the records, for the context loader in
+/// examples/common/ctxload.rs. Not part of the translation.
+#[cfg(feature = "gate")]
+impl HourlyMeteorology {
+    pub fn gate_set_records(&mut self, records: Vec<HourlyMetRecord>) {
+        self.records = records;
+    }
+}

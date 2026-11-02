@@ -1,0 +1,11 @@
+STATION           DATE     TMAX     TMIN     EVAP     AWND    
+GHCND:USW0001     20200128 50       -20      15       30
+GHCND:USW0001     20200129 53       -18      16       31
+GHCND:USW0001     20200130 56       -16      17       32
+GHCND:USW0001     20200131 59       -14      18       33
+GHCND:USW0001     20200201 62       -12      19       34
+GHCND:USW0001     20200202 65       -10      20       35
+GHCND:USW0001     20200203 68       -8       21       36
+GHCND:USW0001     20200204 71       -6       22       37
+GHCND:USW0001     20200205 74       -4       23       38
+GHCND:USW0001     20200206 77       -2       24       39
