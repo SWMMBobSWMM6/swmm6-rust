@@ -1,0 +1,20 @@
+[TITLE]
+synthetic: REACTION_* sections are kept verbatim
+
+[OPTIONS]
+FLOW_UNITS CFS
+
+[REACTION_OPTIONS]
+SOLVER RK5 ; comment
+TIMESTEP 60
+
+[REACTION_SPECIES]
+;;name type units
+BULK A MG
+BULK B MG
+
+[REACTION_TERMS]
+k1  0.5*A
+
+[LABELS]
+1 2 "hello"

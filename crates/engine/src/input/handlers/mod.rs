@@ -33,6 +33,16 @@ fn capture(ctx: &mut SimulationContext, tag: &[u8], lines: &[Bytes]) {
     dst.extend_from_slice(lines);
 }
 
+/// transport::reactionSectionTags() (ReactionsComponent.cpp): the REACTION_* sections, which
+/// DefaultInputPlugin keeps verbatim for the reaction component to read later.
+pub const REACTION_SECTION_TAGS: &[&str] = &[
+    "REACTION_OPTIONS", "REACTION_SPECIES", "REACTION_COEFFICIENTS", "REACTION_TERMS",
+    "REACTION_PIPES", "REACTION_TANKS", "REACTION_SOURCES", "REACTION_QUALITY",
+    "REACTION_PARAMETERS", "REACTION_PATTERNS", "REACTION_REPORT", "REACTION_SUBCATCHMENTS",
+    "REACTION_RAINFALL", "REACTION_SUBSURFACE", "REACTION_WALLS", "REACTION_LIDS",
+    "REACTION_BUILDUP",
+];
+
 /// Register the handlers named in `on` (or all with `all`), as DefaultInputPlugin does,
 /// without the 2D sections. Filled in as handlers are translated.
 pub fn register_reference_handlers(reg: &mut SectionRegistry, on: &[String], all: bool) {
@@ -128,4 +138,15 @@ pub fn register_reference_handlers(reg: &mut SectionRegistry, on: &[String], all
     r("USER_FLAG_VALUES", user_flag_values_handler::handle_user_flag_values);
     r("PLUGINS", plugins_handler::handle_plugins);
     r("PROCESS_COMPONENTS", process_components_handler::handle_process_components);
+
+    // REACTION_* sections: kept as (tag, lines) in embedded_component_sections.
+    drop(r);
+    for tag in REACTION_SECTION_TAGS {
+        if all || on.iter().any(|s| s == tag) {
+            let t: Bytes = tag.as_bytes().to_vec();
+            reg.register_builtin(tag.as_bytes(), move |ctx: &mut SimulationContext, lines: &[Bytes]| {
+                ctx.embedded_component_sections.push((t.clone(), lines.to_vec()));
+            });
+        }
+    }
 }

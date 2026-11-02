@@ -18,6 +18,7 @@
 #include "input/handlers/SpatialHandler.hpp"
 #include "input/handlers/ControlsHandler.hpp"
 #include "core/SimulationContext.hpp"
+#include "transport/components/ReactionModule/ReactionsComponent.hpp"
 #include <set>
 #include <string>
 namespace openswmm::input {
@@ -115,5 +116,10 @@ void register_reference_handlers(SectionRegistry& reg, const std::set<std::strin
     r("WASHOFF", input::handle_washoff);
     r("TREATMENT", input::handle_treatment);
     r("INITIAL_QUALITY", input::handle_initial_quality);
+    for (const auto& tag : transport::reactionSectionTags())
+        if (all || on.count(tag))
+            reg.register_builtin(tag, [tag](SimulationContext& ctx, const std::vector<std::string>& lines) {
+                ctx.embedded_component_sections.emplace_back(tag, lines);
+            });
 }
 }

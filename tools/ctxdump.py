@@ -279,7 +279,7 @@ CTX_SCALARS = ['error_code', 'warning_code', 'error_message', 'warnings', 'error
                'adjust_temp', 'adjust_evap', 'adjust_rain', 'adjust_hydcon', 'subcatch_n_perv_pattern',
                'subcatch_d_store_pattern', 'subcatch_infil_pattern', 'base_n_perv', 'base_ds_perv',
                'has_subcatch_adj_patterns', 'xsect_generation', 'gpkg_units_internal',
-               'pending_gw_nodes', 'pending_gw_aquifers', 'deferred_section_rows']
+               'pending_gw_nodes', 'pending_gw_aquifers', 'deferred_section_rows', 'embedded_component_sections']
 
 def main():
     collect_enums()
