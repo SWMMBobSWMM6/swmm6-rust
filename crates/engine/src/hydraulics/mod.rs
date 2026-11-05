@@ -13,6 +13,7 @@ pub mod node;
 pub mod outfall;
 pub mod routing;
 pub mod street;
+pub mod timestep_controller;
 pub mod topo_sort;
 pub mod transect;
 pub mod transect_types;

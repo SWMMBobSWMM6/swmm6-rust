@@ -423,3 +423,52 @@ pub fn init_state(ctx: &mut SimulationContext) {
         }
     }
 }
+
+// ============================================================================
+// msxsurf::remainingBuildup (MsxSurfaceQuality.cpp). Translated 5 November 2026 for
+// SWMMEngine::init_modules, which re-books a hot-started species' initial buildup.
+// ============================================================================
+
+/// remainingBuildup(ctx, m): species m's mass still on the land (buildup, ponded, LID
+/// units and carry, ponds written off), in user mass units.
+pub fn remaining_buildup(ctx: &SimulationContext, m: i32) -> f64 {
+    let s = &ctx.reactions.surface;
+    if !s.active() || m < 0 || m >= s.n_species {
+        return 0.0;
+    }
+    let mut total = 0.0;
+    let nlu = s.n_landuses;
+    for sc in 0..ctx.n_subcatches() {
+        let usc = sc as usize;
+        for lu in 0..nlu {
+            let cov = usc * nlu as usize + lu as usize;
+            let frac = if cov < ctx.subcatches.coverage.len() { ctx.subcatches.coverage[cov] / 100.0 } else { 0.0 };
+            if frac <= 0.0 {
+                continue;
+            }
+            let norm = if s.bu_normalizer[s.pidx(lu, m)] == 0 { frac * ctx.subcatches.area[usc] } else { frac * ctx.subcatches.curb_length[usc] };
+            let k = s.bu_idx(sc, lu, m);
+            if k < s.buildup.len() {
+                total += s.buildup[k] * norm;
+            }
+        }
+        let pk = s.sidx(sc, m);
+        if pk < s.ponded_qual.len() {
+            total += s.ponded_qual[pk] * s.mcf[m as usize];
+        }
+    }
+    let mut k = m as usize;
+    while k < ctx.reactions.lid.mass.len() {
+        total += ctx.reactions.lid.mass[k] * 28.317 * s.mcf[m as usize];
+        k += s.n_species as usize;
+    }
+    let mut k = m as usize;
+    while k < ctx.reactions.lid.surface_carry.len() {
+        total += ctx.reactions.lid.surface_carry[k] * 28.317 * s.mcf[m as usize];
+        k += s.n_species as usize;
+    }
+    if (m as usize) < s.led_ponded_lost.len() {
+        total += s.led_ponded_lost[m as usize];
+    }
+    total
+}

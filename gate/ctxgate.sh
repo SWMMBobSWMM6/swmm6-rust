@@ -35,6 +35,21 @@
 #       initialize yet, so only the cross test runs. A deck upstream aborts on (no dump) is
 #       counted apart.
 #
+#   gate/ctxgate.sh init | start
+#       the run lifecycle (gate/diff/ctxstep, examples/ctxstep): open, SWMMEngine::initialize
+#       (and SWMMEngine::start(1) for "start"), then the whole state: the context, the open()
+#       members, the router and hydraulic solvers, the hydrology solvers, the quality members
+#       and the lifecycle members (lifedump). Files a deck SAVEs to ([FILES], gate/savefiles.py)
+#       are backed up before each side runs and restored after, since start() truncates them.
+#   gate/ctxgate.sh step [N]
+#       the same, then up to N routing steps (default 1) through SWMMEngine::step, the dump of
+#       each step hashed (FNV-1a 64). A deck counts as identical when both sides print the same
+#       (both ran N steps, or to the end, or stopped on the same error); as "stub" when the
+#       translation stopped at a call into code not translated yet ("stub <phase> <what>", its
+#       last line) with everything before it identical; otherwise it differs, and with
+#       CTXGATE_DIFFDIR=dir the first differing deck's full dumps at the first differing step
+#       are written there (c.txt, r.txt).
+#
 # DECKLIST=file runs the decks listed in it (one path per line) instead of the default set.
 # CTXGATE_KEEP=file keeps the list of differing decks; CTXGATE_SHOW=n shows the first n.
 H=$(cd "$(dirname "$0")/.." && pwd); W=$(mktemp -d)
@@ -60,6 +75,49 @@ if [ "${1:-}" = loadrt ]; then
   [ "$M" != init ] && echo "ctxgate loadrt $M rust: $rs identical, $rd differ"
   echo "ctxgate loadrt $M cross: $xs identical, $xd differ, $xn without an upstream dump"
   head -${CTXGATE_SHOW:-5} "$W/differ.txt"
+  [ -n "$CTXGATE_KEEP" ] && cp "$W/differ.txt" "$CTXGATE_KEEP"; rm -rf "$W"
+  exit 0
+fi
+
+if [ "${1:-}" = init ] || [ "${1:-}" = start ] || [ "${1:-}" = step ]; then
+  M=$1; NS=${2:-1}; C_BIN="$H/gate/diff/ctxstep"; R_BIN="$E/ctxstep"
+  same=0; diff=0; stubn=0; : > "$W/differ.txt"; : > "$W/stubs.txt"; mkdir -p "$W/bak"
+  if [ "$M" = step ]; then A2=(step "$NS" hash); else A2=("$M"); fi
+  while IFS= read -r d; do
+    # back up the files the deck SAVEs to; restore them after each side's run
+    python3 "$H/gate/savefiles.py" "$d" > "$W/saves.txt" 2>/dev/null; k=0
+    while IFS= read -r f; do k=$((k+1)); rm -f "$W/bak/$k"; [ -f "$f" ] && cp -p "$f" "$W/bak/$k"; done < "$W/saves.txt"
+    restore() { local k=0; while IFS= read -r f; do k=$((k+1)); if [ -f "$W/bak/$k" ]; then cp -p "$W/bak/$k" "$f"; else rm -f "$f"; fi; done < "$W/saves.txt"; }
+    ( cd "$(dirname "$d")" && timeout 600 "$C_BIN" "$d" "${A2[@]}" > "$W/c.txt" 2>/dev/null; echo "exit $?" >> "$W/c.txt" ) 2>/dev/null; restore
+    ( cd "$(dirname "$d")" && timeout 600 "$R_BIN" "$d" "${A2[@]}" > "$W/r.txt" 2>/dev/null; echo "exit $?" >> "$W/r.txt" ) 2>/dev/null; restore
+    if cmp -s "$W/c.txt" "$W/r.txt"; then same=$((same+1)); continue; fi
+    # a stub: the Rust side's last line before "exit 0" is "stub ...", and everything before
+    # it matches upstream's output
+    nr=$(wc -l < "$W/r.txt"); sl=$(sed -n "$((nr-1))p" "$W/r.txt")
+    if [ "${sl%% *}" = stub ] && [ "$(tail -1 "$W/r.txt")" = "exit 0" ] && cmp -s <(head -n $((nr-2)) "$W/r.txt") <(head -n $((nr-2)) "$W/c.txt"); then
+      stubn=$((stubn+1)); echo "$sl  $d" >> "$W/stubs.txt"; continue
+    fi
+    diff=$((diff+1)); echo "$d" >> "$W/differ.txt"
+    if [ -n "$CTXGATE_DIFFDIR" ] && [ ! -f "$CTXGATE_DIFFDIR/c.txt" ]; then
+      mkdir -p "$CTXGATE_DIFFDIR"; echo "$d" > "$CTXGATE_DIFFDIR/deck.txt"
+      if [ "$M" = step ]; then
+        # the first differing line names the step (hash <k> or step <k> ...)
+        fl=$(cmp "$W/c.txt" "$W/r.txt" 2>/dev/null | sed -n 's/.* line \([0-9]*\).*/\1/p')
+        lk=$(sed -n "${fl}p" "$W/c.txt"); set -- $lk; K=${2:-0}; [ "$K" = start ] && K=0
+        ( cd "$(dirname "$d")" && timeout 600 "$C_BIN" "$d" step "$NS" full "$K" > "$CTXGATE_DIFFDIR/c.txt" 2>/dev/null ) 2>/dev/null; restore
+        ( cd "$(dirname "$d")" && timeout 600 "$R_BIN" "$d" step "$NS" full "$K" > "$CTXGATE_DIFFDIR/r.txt" 2>/dev/null ) 2>/dev/null; restore
+      else
+        cp "$W/c.txt" "$CTXGATE_DIFFDIR/c.txt"; cp "$W/r.txt" "$CTXGATE_DIFFDIR/r.txt"
+      fi
+    fi
+  done < "$W/decks.txt"
+  if [ "$M" = step ]; then
+    echo "ctxgate step $NS: $same identical, $stubn stopped at a stub, $diff differ"
+    sed 's/  .*//' "$W/stubs.txt" | sort | uniq -c | sort -rn
+  else
+    echo "ctxgate $M: $same identical, $diff differ (stub reached on $stubn)"
+  fi
+  head -${CTXGATE_SHOW:-5} "$W/differ.txt"; head -3 "$W/stubs.txt"
   [ -n "$CTXGATE_KEEP" ] && cp "$W/differ.txt" "$CTXGATE_KEEP"; rm -rf "$W"
   exit 0
 fi

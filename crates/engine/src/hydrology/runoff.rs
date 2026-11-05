@@ -301,3 +301,14 @@ impl RunoffSolver {
         &mut self.soa_
     }
 }
+
+// RunoffSolver::infil_get_state / infil_set_state (translated 5 November 2026 for the legacy
+// hot-start runoff section).
+impl RunoffSolver {
+    pub fn infil_get_state(&self, i: i32, model: &mut i32, state: &mut [f64; 6]) {
+        self.infil_bank_.pack(i, model, state);
+    }
+    pub fn infil_set_state(&mut self, i: i32, model: i32, state: &[f64; 6]) {
+        self.infil_bank_.unpack(i, model, state);
+    }
+}

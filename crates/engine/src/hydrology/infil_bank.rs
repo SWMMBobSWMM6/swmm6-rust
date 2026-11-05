@@ -120,3 +120,88 @@ impl InfilBank {
         &self.cumulative_
     }
 }
+
+// InfilBank::pack / unpack (translated 5 November 2026 for the legacy hot-start runoff
+// section, SWMMEngine::applyLegacyRunoffSection).
+impl InfilBank {
+    /// pack(i, model, state): the method code and its six state slots (zeros for an
+    /// external owner, a CONSTANT method or an index out of range, where model is 0).
+    pub fn pack(&self, i: i32, model: &mut i32, state: &mut [f64; 6]) {
+        *state = [0.0; 6];
+        if i < 0 || i as usize >= self.methods_.len() {
+            *model = 0;
+            return;
+        }
+        let ui = i as usize;
+        *model = self.methods_[ui];
+        if self.owners_[ui] == Owner::External {
+            return;
+        }
+        match self.methods_[ui] {
+            m if m == InfilModel::Horton as i32 || m == InfilModel::ModHorton as i32 => {
+                let h = &self.horton_[ui];
+                state[0] = h.tp;
+                state[1] = h.Fe;
+                state[2] = h.Fmh;
+            }
+            m if m == InfilModel::GreenAmpt as i32 || m == InfilModel::ModGreenAmpt as i32 => {
+                let g = &self.grnampt_[ui];
+                state[0] = g.IMD;
+                state[1] = g.F;
+                state[2] = g.Fu;
+                state[3] = g.T;
+                state[4] = if g.saturated { 1.0 } else { 0.0 };
+            }
+            m if m == InfilModel::CurveNum as i32 => {
+                let c = &self.curvenum_[ui];
+                state[0] = c.S;
+                state[1] = c.Se;
+                state[2] = c.P;
+                state[3] = c.F;
+                state[4] = c.f;
+                state[5] = c.T;
+            }
+            _ => {}
+        }
+    }
+
+    /// unpack(i, model, state): restore the six slots when `model` is the entry's method.
+    pub fn unpack(&mut self, i: i32, model: i32, state: &[f64; 6]) {
+        if i < 0 || i as usize >= self.methods_.len() {
+            return;
+        }
+        let ui = i as usize;
+        if self.owners_[ui] == Owner::External {
+            return;
+        }
+        if model != self.methods_[ui] {
+            return;
+        }
+        match self.methods_[ui] {
+            m if m == InfilModel::Horton as i32 || m == InfilModel::ModHorton as i32 => {
+                let h = &mut self.horton_[ui];
+                h.tp = state[0];
+                h.Fe = state[1];
+                h.Fmh = state[2];
+            }
+            m if m == InfilModel::GreenAmpt as i32 || m == InfilModel::ModGreenAmpt as i32 => {
+                let g = &mut self.grnampt_[ui];
+                g.IMD = state[0];
+                g.F = state[1];
+                g.Fu = state[2];
+                g.T = state[3];
+                g.saturated = state[4] != 0.0;
+            }
+            m if m == InfilModel::CurveNum as i32 => {
+                let c = &mut self.curvenum_[ui];
+                c.S = state[0];
+                c.Se = state[1];
+                c.P = state[2];
+                c.F = state[3];
+                c.f = state[4];
+                c.T = state[5];
+            }
+            _ => {}
+        }
+    }
+}
