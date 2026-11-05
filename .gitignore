@@ -33,3 +33,4 @@ gate/diff/initqual
 gate/diff/umaporder
 __pycache__/
 *.pyc
+gate/diff/routestep

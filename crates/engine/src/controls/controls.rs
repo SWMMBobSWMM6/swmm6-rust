@@ -229,6 +229,13 @@ pub struct NamedVariable {
     pub param: i32,
 }
 
+/// `var` has no initializer upstream; NODE_DEPTH (0) here.
+impl Default for NamedVariable {
+    fn default() -> Self {
+        NamedVariable { name: Bytes::new(), var: ConditionVar::NodeDepth, idx: -1, param: 0 }
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct Rule {
     pub name: Bytes,
@@ -277,6 +284,14 @@ pub struct PendingAction {
     pub priority: f64,
     pub rule_idx: i32,
     pub type_: ActionType,
+}
+
+/// Upstream leaves link_idx, value, priority and rule_idx uninitialized; zero here (the
+/// loader sizes vectors of them before filling every member).
+impl Default for PendingAction {
+    fn default() -> Self {
+        PendingAction { link_idx: 0, value: 0.0, priority: 0.0, rule_idx: 0, type_: ActionType::Numeric }
+    }
 }
 
 #[derive(Debug, Clone, Default)]

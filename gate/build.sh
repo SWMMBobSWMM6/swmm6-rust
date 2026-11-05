@@ -16,12 +16,15 @@ build() { # name, sources...
   local n=$1; shift
   echo "g++ $n"; $CXX $INC "$@" -o "gate/diff/$n" $LIB
 }
-ALL="ctxread ctxopen msxiq pathres inithyd inithydro initqual umaporder steptrace"
+ALL="ctxread ctxopen msxiq pathres inithyd inithydro initqual routestep umaporder steptrace"
 for h in ${@:-$ALL}; do
   case $h in
     ctxread) build ctxread gate/diff/ctxread.cpp gate/diff/ctxread_handlers.cpp ;;
     msxiq) build msxiq gate/diff/msxiq.cpp gate/diff/ctxread_handlers.cpp ;;
     ctxopen|pathres|inithyd|inithydro|initqual) build $h gate/diff/$h.cpp ;;
+    # -Wl,-E exports the harness's own SWMMEngine::stepRouting, so the library's PLT call
+    # from step() binds to it (see routestep.cpp)
+    routestep) build routestep gate/diff/routestep.cpp -Wl,-E -ldl ;;
     umaporder) echo "g++ umaporder"; g++ -std=c++20 -O1 -I$U/src/engine gate/diff/umaporder.cpp -o gate/diff/umaporder ;;
     steptrace) echo "cc steptrace"; cc -O2 gate/steptrace.c -I$U/include/openswmm/engine -I$B/include -o gate/steptrace $LIB ;;
     *) echo "unknown harness $h"; exit 2 ;;
