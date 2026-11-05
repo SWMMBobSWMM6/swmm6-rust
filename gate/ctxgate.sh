@@ -35,10 +35,12 @@
 #       initialize yet, so only the cross test runs. A deck upstream aborts on (no dump) is
 #       counted apart.
 #
+# DECKLIST=file runs the decks listed in it (one path per line) instead of the default set.
 # CTXGATE_KEEP=file keeps the list of differing decks; CTXGATE_SHOW=n shows the first n.
 H=$(cd "$(dirname "$0")/.." && pwd); W=$(mktemp -d)
 E="$H/target/release/examples"
-{ find /root/work/corpus -name '*.inp'; find /root/work/swmm6src/upstream/tests -name '*.inp'; find "$H/gate/decks" -name '*.inp'; } | sort > "$W/decks.txt"
+if [ -n "$DECKLIST" ]; then sort "$DECKLIST" > "$W/decks.txt"      # DECKLIST=file: one deck path per line
+else { find /root/work/corpus -name '*.inp'; find /root/work/swmm6src/upstream/tests -name '*.inp'; find "$H/gate/decks" -name '*.inp'; } | sort > "$W/decks.txt"; fi
 
 if [ "${1:-}" = loadrt ]; then
   M=${2:-open}; C_BIN="$H/gate/diff/ctxopen"; R_BIN="$E/ctxopen"; L_BIN="$E/ctxload"
