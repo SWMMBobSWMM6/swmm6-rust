@@ -10,14 +10,16 @@
 // The explicit finite-volume network router (FLOW_ROUTING FV): the mesh, state and
 // section-closure data the Router owns. The closure kernels and the exact section
 // geometry are in `kernels`, the mesh builder in `mesh_builder`, the CPU backend's
-// initialization half in `explicit_solver`.
+// initialization half in `explicit_solver` and its step in `explicit_step`, `explicit_flux`
+// and `explicit_nodes` (with INetworkSolver's step interface and the checked advance,
+// CheckedNetworkAdvance.hpp); `native_gmres` is the GMRES the FV quality mixer uses.
 //
-// NOT YET TRANSLATED (phase 1e): the implicit and pressurized solvers (ImplicitNetworkSolver,
-// ImplicitReachSolver, PressurizedHeadSolver, NativeGmres, NativeBlockIlu,
-// NativeConduitCondensation, NativeLinearWorkspace, NonlinearPressureStorage), the
-// checked advance (CheckedNetworkAdvance.hpp), INetworkSolver's step interface, and
-// NetworkSolverFactory's GPU-plugin search: a 1D reference build has no plugin library,
-// so makeNetworkSolver always returns the CPU ExplicitFvSolver (see Router::init_fv).
+// NOT YET TRANSLATED: the implicit and pressurized solvers (ImplicitNetworkSolver,
+// ImplicitReachSolver, PressurizedHeadSolver, NativeBlockIlu, NativeConduitCondensation,
+// NativeLinearWorkspace, NonlinearPressureStorage), reached only through the solver options
+// Router::fv_not_translated refuses (no gate deck sets them), and NetworkSolverFactory's
+// GPU-plugin search: a 1D reference build has no plugin library, so makeNetworkSolver always
+// returns the CPU ExplicitFvSolver (see Router::init_fv).
 //
 // Differences in form, never in result:
 //   * FvGeometry's `XSectParams xs` borrows transect tables upstream; here it is

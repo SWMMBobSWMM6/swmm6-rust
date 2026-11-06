@@ -11,11 +11,12 @@
 // Router::initFv, Router::enableLinkStepStats, and the small inline accessors
 // (hasCycle, setDWNumThreads, setStructureSolver, lastStepConverged, fv* getters).
 //
-// NOT YET TRANSLATED (run-time step functions, with the routing step): step, stepImpl,
-// getAdaptiveStep, fvStepSink, accumulateLinkStepStats, initNodeFlows,
-// computeConduitLosses, executeSteadyFlow, updateLinkStates, stepFv,
-// accumulateStructureFlows, refreshFvBoundaryFlows, publishFv, acceptedQualityWater,
-// restoreFvClassicState, privateDynamicWaveWindow, publishDynamicWaveWindow, the
+// The run-time step functions are in routing_step.rs (step, stepImpl, getAdaptiveStep,
+// accumulateLinkStepStats, initNodeFlows, computeConduitLosses, executeSteadyFlow,
+// updateLinkStates) and routing_fv.rs (stepFv, fvStepSink, accumulateStructureFlows,
+// refreshFvBoundaryFlows, publishFv, acceptedQualityWater).
+//
+// NOT YET TRANSLATED: restoreFvClassicState (a C API hotstart setter, off the run path), privateDynamicWaveWindow, publishDynamicWaveWindow, the
 // checkpoint session (enableCheckpointing, beginCheckpointStep,
 // acceptCheckpointBoundary, saveCheckpoint, loadCheckpoint and their private helpers in
 // RoutingCheckpoint.cpp), and the file-local buildXSP of Routing.cpp (used by the step).
