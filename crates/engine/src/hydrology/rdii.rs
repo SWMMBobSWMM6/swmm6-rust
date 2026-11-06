@@ -23,9 +23,10 @@
 //     for NaN or out-of-range values, where `as i64` saturates).
 //   * The members are public so the gate dumper can read them; upstream's groups_,
 //     uh_name_to_idx_, node_rdii_flow_ and the grid members are private.
-//   * NOT YET TRANSLATED (run-time step functions, phase 1c): getRecoveryRate,
-//     updateIA_exp, uhOrdinate, advance, emitTick, applyRdiiInflows and the file-static
-//     helpers (updateIA_linear, fToC, updateDryPeriod, ...).
+//   * The run-time functions were translated on 5 November 2026 for the runoff step:
+//     uhOrdinate, getRecoveryRate, updateIA_exp, advance, emitTick, applyRdiiInflows and
+//     the file-static helpers (updateIA_linear, fToC, updateDryPeriod). pending_rates'
+//     `erase(begin())` is Vec::remove(0).
 
 #![allow(non_snake_case)]
 
@@ -504,5 +505,301 @@ impl RDIISolver {
         }
         self.grid_node_.sort();
         self.grid_node_.dedup();
+    }
+}
+
+// ============================================================================
+// Run-time RDII (RDII.cpp), translated 5 November 2026 for the runoff step
+// ============================================================================
+
+/// getRecoveryRate: k_rec(T) = k_0 + k_T exp(theta_rec (T - T_ref)), zero below T_freeze.
+pub fn get_recovery_rate(dp: &ExpDecayParams, t_celsius: f64) -> f64 {
+    if t_celsius < dp.T_freeze {
+        return 0.0;
+    }
+    let k = dp.k_0 + dp.k_T * (dp.theta_rec * (t_celsius - dp.T_ref)).exp(); // LIBM
+    cmax(0.0, k)
+}
+
+fn f_to_c(tf: f64) -> f64 {
+    (tf - 32.0) * 5.0 / 9.0
+}
+
+/// updateIA_linear (legacy applyIA).
+fn update_ia_linear(uh: &UnitHydParams, rd: &mut UHResponseData, month: i32, response: i32, rain_depth: f64, dt_sec: f64) -> f64 {
+    let m = (month % 12) as usize;
+    let k = (response % 3) as usize;
+    let ia_max = uh.iaMax[m][k];
+    let mut ia = ia_max - rd.ia_used;
+    ia = cmax(ia, 0.0);
+    let mut net_rain_depth;
+    if rain_depth > 0.0 {
+        net_rain_depth = rain_depth - ia;
+        net_rain_depth = cmax(net_rain_depth, 0.0);
+        rd.ia_used += rain_depth - net_rain_depth;
+    } else {
+        rd.ia_used -= dt_sec / 86400.0 * uh.iaRecov[m][k];
+        rd.ia_used = cmax(rd.ia_used, 0.0);
+        net_rain_depth = 0.0;
+    }
+    net_rain_depth
+}
+
+/// updateIA_exp: exponential IA depletion, temperature-dependent recovery, optional
+/// degree-day snow partition.
+#[allow(clippy::too_many_arguments)]
+pub fn update_ia_exp(uh: &UnitHydParams, rd: &mut UHResponseData, dp: &ExpDecayParams, month: i32, response: i32, mut rain_depth: f64, dt_sec: f64, ctx: &SimulationContext) -> f64 {
+    let m = (month % 12) as usize;
+    let k = (response % 3) as usize;
+    let ia_max = uh.iaMax[m][k];
+
+    let mut ia_avail = ia_max - rd.ia_used;
+    ia_avail = crate::core::cmath::cclamp(ia_avail, 0.0, ia_max);
+
+    let t_c = if ctx.options.temp_source != 0 { f_to_c(ctx.climate_state.temperature) } else { dp.T_ref };
+
+    if dp.snow_on {
+        if t_c <= dp.snow_T {
+            rd.swe += rain_depth;
+            rain_depth = 0.0;
+        } else if rd.swe > 0.0 {
+            let melt = cmin(rd.swe, dp.snow_ddf * (t_c - dp.snow_T) * dt_sec / 86400.0);
+            rd.swe -= melt;
+            rain_depth += melt;
+        }
+    }
+
+    if rain_depth > 0.0 {
+        let mut ia_new = ia_avail * (-dp.k_dep * rain_depth).exp(); // LIBM
+        ia_new = cmax(0.0, ia_new);
+        let ia_consumed = ia_avail - ia_new;
+        let net_rain = cmax(0.0, rain_depth - ia_consumed);
+        rd.ia_used = ia_max - ia_new;
+        return net_rain;
+    }
+
+    let kr = get_recovery_rate(dp, t_c);
+    if kr <= 0.0 {
+        return 0.0;
+    }
+    let dt_hr = dt_sec / 3600.0;
+    let mut ia_new = ia_max - (ia_max - ia_avail) * (-kr * dt_hr).exp(); // LIBM
+    ia_new = crate::core::cmath::cclamp(ia_new, 0.0, ia_max);
+    rd.ia_used = ia_max - ia_new;
+    0.0
+}
+
+/// updateDryPeriod (legacy updateDryPeriod).
+fn update_dry_period(rd: &mut UHResponseData, rain_depth: f64, rain_interval: i32) {
+    if rain_depth > 0.0 {
+        if rd.dry_seconds >= (rain_interval as i64) * (rd.max_periods as i64) {
+            for i in 0..rd.max_periods as usize {
+                rd.past_rain[i] = 0.0;
+            }
+            rd.period = 0;
+        }
+        rd.dry_seconds = 0;
+        rd.has_past_rain = 1;
+    } else {
+        rd.dry_seconds += rain_interval as i64;
+        if rd.dry_seconds >= (rain_interval as i64) * (rd.max_periods as i64) {
+            rd.has_past_rain = 0;
+        } else {
+            rd.has_past_rain = 1;
+        }
+    }
+}
+
+impl RDIISolver {
+    /// uhOrdinate: the triangular unit hydrograph ordinate (1/hr) at t seconds.
+    pub fn uh_ordinate(&self, uh: &UnitHydParams, month: i32, response: i32, t: f64) -> f64 {
+        let m = (month % 12) as usize;
+        let k = (response % 3) as usize;
+        let tp = uh.tPeak[m][k];
+        let t_base = uh.tBase[m][k];
+        if tp <= 0.0 || t_base <= 0.0 {
+            return 0.0;
+        }
+        if t >= t_base {
+            return 0.0;
+        }
+        let q_peak = 2.0 / t_base * 3600.0;
+        let t2 = t_base - tp;
+        let mut f = if t <= tp { t / tp } else if t2 > 0.0 { 1.0 - (t - tp) / t2 } else { 0.0 };
+        f = cmax(f, 0.0);
+        f * q_peak
+    }
+
+    /// advance: record the gage rate for every chunk the runoff substep covered, then emit
+    /// every grid tick the runoff clock has reached (legacy createRdiiFile's driver).
+    pub fn advance(&mut self, ctx: &mut SimulationContext, new_elapsed_sec: f64) {
+        if self.groups_.count == 0 || self.grid_step_ <= 0.0 {
+            return;
+        }
+        for g in 0..self.groups_.count as usize {
+            let ri = self.groups_.rain_interval[g];
+            if ri <= 0 {
+                continue;
+            }
+            let gi = self.groups_.gage_idx[g];
+            let mut rate = 0.0;
+            if gi >= 0 && (gi as usize) < ctx.gages.rainfall.len() {
+                rate = ctx.gages.rainfall[gi as usize];
+            }
+            while self.groups_.rate_recorded_until[g] < new_elapsed_sec {
+                self.groups_.pending_rates[g].push(rate);
+                self.groups_.rate_recorded_until[g] += ri as f64;
+            }
+        }
+        while self.next_tick_ <= new_elapsed_sec {
+            let t = self.next_tick_;
+            self.emit_tick(ctx, t);
+            self.next_tick_ += self.grid_step_;
+        }
+    }
+
+    /// emitTick: the rain chunks up to tick T, the unit hydrograph convolution, the
+    /// per-node flows (float32) appended to the grid.
+    pub fn emit_tick(&mut self, ctx: &mut SimulationContext, t_tick: f64) {
+        let unit_sys = crate::core::unit_conversion::get_unit_system(ctx.options.flow_units as i32) as usize;
+        use crate::core::unit_conversion as ucf;
+        const ZERO_RDII: f64 = 0.0001;
+
+        let tick_date = datetime::add_seconds(ctx.options.start_date, t_tick);
+        let tick_month = datetime::month_of_year(tick_date) - 1;
+
+        self.node_rdii_flow_.fill(0.0);
+
+        for ug in 0..self.groups_.count as usize {
+            let uh_i = self.groups_.uh_idx[ug];
+            if uh_i < 0 || uh_i >= self.uh_params.len() as i32 {
+                continue;
+            }
+            let uh = self.uh_params[uh_i as usize];
+            let ri = self.groups_.rain_interval[ug];
+            if ri <= 0 {
+                continue;
+            }
+
+            let mut have_tick_rate = false;
+            let mut tick_rate = 0.0;
+            while self.groups_.gage_elapsed[ug] < t_tick {
+                let c = self.groups_.gage_elapsed[ug];
+                let pend = &mut self.groups_.pending_rates[ug];
+                let rate = if pend.is_empty() { 0.0 } else { pend[0] };
+                if !pend.is_empty() {
+                    pend.remove(0);
+                }
+                if !have_tick_rate {
+                    tick_rate = rate;
+                    have_tick_rate = true;
+                }
+                let rain_depth = tick_rate * ri as f64 / 3600.0;
+                let sewer_area_ft2 = self.groups_.area[ug] / ucf::UCF[ucf::LANDAREA as usize][unit_sys];
+                ctx.mass_balance.rdii_rainfall += rain_depth / ucf::UCF[ucf::RAINDEPTH as usize][unit_sys] * sewer_area_ft2;
+
+                let chunk_date = datetime::add_seconds(ctx.options.start_date, c);
+                let chunk_month = datetime::month_of_year(chunk_date) - 1;
+
+                for k in 0..3usize {
+                    let exp_on = (uh_i as usize) < self.decay_params.len() && self.decay_params[uh_i as usize][k].active;
+                    let dp = if exp_on { Some(self.decay_params[uh_i as usize][k]) } else { None };
+                    let rd = &mut self.groups_.uh_data[ug * 3 + k];
+                    if rd.max_periods <= 0 {
+                        continue;
+                    }
+                    let excess_depth = match dp {
+                        Some(dp) => update_ia_exp(&uh, rd, &dp, chunk_month, k as i32, rain_depth, ri as f64, ctx),
+                        None => update_ia_linear(&uh, rd, chunk_month, k as i32, rain_depth, ri as f64),
+                    };
+
+                    update_dry_period(rd, excess_depth, ri);
+
+                    let mut p = rd.period;
+                    if p >= rd.max_periods {
+                        p = 0;
+                    }
+                    rd.past_rain[p as usize] = excess_depth;
+                    rd.past_month[p as usize] = tick_month;
+                    rd.period = p + 1;
+                }
+                self.groups_.gage_elapsed[ug] = c + ri as f64;
+            }
+
+            let mut rdii_group = 0.0;
+            for k in 0..3usize {
+                let rd = &self.groups_.uh_data[ug * 3 + k];
+                if rd.has_past_rain == 0 || rd.max_periods <= 0 {
+                    continue;
+                }
+                let p_max = rd.max_periods;
+                let mut i_buf = rd.period - 1;
+                if i_buf < 0 {
+                    i_buf = p_max - 1;
+                }
+                let mut p = 1;
+                while p < p_max {
+                    let v = rd.past_rain[i_buf as usize];
+                    let m = rd.past_month[i_buf as usize];
+                    if v > 0.0 {
+                        let t = (p as f64 - 0.5) * ri as f64;
+                        let u = self.uh_ordinate(&uh, m, k as i32, t) * uh.r[(m % 12) as usize][k];
+                        rdii_group += u * v;
+                    }
+                    p += 1;
+                    i_buf -= 1;
+                    if i_buf < 0 {
+                        i_buf = p_max - 1;
+                    }
+                }
+            }
+
+            let area_ft2 = self.groups_.area[ug] / ucf::UCF[ucf::LANDAREA as usize][unit_sys];
+            let rdii_cfs = rdii_group * area_ft2 / ucf::UCF[ucf::RAINFALL as usize][unit_sys];
+            let ni = self.groups_.node_idx[ug];
+            if ni >= 0 && (ni as usize) < self.node_rdii_flow_.len() {
+                self.node_rdii_flow_[ni as usize] += rdii_cfs;
+            }
+        }
+
+        for col in 0..self.grid_node_.len() {
+            let un = self.grid_node_[col] as usize;
+            let mut q = if un < self.node_rdii_flow_.len() { self.node_rdii_flow_[un] } else { 0.0 };
+            if q < ZERO_RDII {
+                q = 0.0;
+            }
+            if q > 0.0 {
+                ctx.mass_balance.rdii_produced += q * self.grid_step_;
+            }
+            let qf = q as f32;
+            self.node_rdii_flow_[un] = qf as f64;
+            self.grid_flows_.push(qf);
+        }
+    }
+
+    /// applyRdiiInflows: add the grid row covering the routing time to node RDII inflows
+    /// (legacy addRdiiInflows). stepRouting calls it.
+    pub fn apply_rdii_inflows(&self, ctx: &mut SimulationContext, elapsed_sec: f64) {
+        if self.grid_step_ <= 0.0 || self.grid_node_.is_empty() {
+            return;
+        }
+        if elapsed_sec < 0.0 {
+            return;
+        }
+        let row = (elapsed_sec / self.grid_step_).floor() as usize;
+        let ncol = self.grid_node_.len();
+        if (row + 1) * ncol > self.grid_flows_.len() {
+            return;
+        }
+        for col in 0..ncol {
+            let q = self.grid_flows_[row * ncol + col] as f64;
+            if q.abs() < crate::core::constants::FLOW_TOL {
+                continue;
+            }
+            let un = self.grid_node_[col] as usize;
+            if un < ctx.nodes.rdii_inflow.len() {
+                ctx.nodes.rdii_inflow[un] += q;
+            }
+        }
     }
 }

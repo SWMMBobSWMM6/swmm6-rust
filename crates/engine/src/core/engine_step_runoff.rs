@@ -27,11 +27,10 @@
 //   * The local `total_sec_clamp` at the top of stepRunoff is computed and never used
 //     upstream; it is left out.
 //   * Code a deck reaches whose solver is not translated yet returns Err(stub(...)) at the
-//     point upstream would first act (see `stub_if`): the degree-day snow melt and plow
-//     (DegreeDaySnow::plowSnow/execute on an enabled pack), UEB
+//     point upstream would first act (see `stub_if`): UEB snow
 //     (ueb::advanceSubcatchments), the LID units (LIDSolver::execute on a unit with
 //     area), groundwater (stepGroundwater), RDII (RDIISolver::advance with groups, SAVE
-//     RDII), surface quality (stepSurfaceQuality with pollutants, bookWashoffLoads), the
+//     RDII), the
 //     water-age and heat transport hooks, the reactions surface species, and the runoff
 //     interface file (USE RUNOFF readResults, SAVE RUNOFF saveResults).
 
@@ -50,6 +49,7 @@ use crate::hydrology::climate_file::DailyClimateRecord;
 use crate::hydrology::climate_types::EvapMethod;
 use crate::hydrology::gage;
 use crate::hydrology::snow;
+use crate::quality::surface_species_kernel as sskernel;
 
 fn stub_if(cond: bool, what: &'static str) -> Result<(), Terminated> {
     if cond {
@@ -315,8 +315,12 @@ impl SwmmEngine {
             if self.rdii_iface_file_.is_open() && !self.rdii_iface_file_.is_writing() {
                 // [FILES] USE RDII: flows come from the interface file in stepRouting
             } else {
-                stub_if(self.rdii_.groups_.count != 0 && self.rdii_.grid_step_ > 0.0, "RDIISolver::advance")?;
-                stub_if(self.rdii_iface_file_.is_open() && self.rdii_iface_file_.is_writing(), "RdiiInterfaceFile::saveFlows (SAVE RDII)")?;
+                let t = self.new_runoff_time_;
+                self.rdii_.advance(&mut self.ctx_, t);
+                // [FILES] SAVE RDII: export the freshly computed flows (legacy saveRdiiFlows)
+                if self.rdii_iface_file_.is_open() && self.rdii_iface_file_.is_writing() {
+                    self.rdii_iface_file_.save_flows(abs_time, self.rdii_.node_flows());
+                }
             }
         }
 
@@ -605,16 +609,9 @@ impl SwmmEngine {
         }
 
         // Accumulation + plowing BEFORE melt (legacy runoff.c:254), then melt.
-        {
-            let soa = self.snow_.state();
-            let mut any = false;
-            for j in 0..soa.n_subcatch as usize {
-                if soa.enabled[j] != 0 && !(j < soa.external.len() && soa.external[j]) {
-                    any = true;
-                }
-            }
-            stub_if(any, "DegreeDaySnow::plowSnow / execute")?;
-        }
+        self.snow_.plow_snow(&self.ctx_, dt_runoff, &self.snow_snow_);
+        let cs = self.ctx_.climate_state;
+        self.snow_.execute(&self.ctx_, dt_runoff, cs.temperature, cs.wind_speed, &self.snow_rain_, &self.snow_snow_, cs.gamma, cs.ea);
         stub_if(self.ctx_.snowpacks.runtime.active, "ueb::advanceSubcatchments")?;
 
         // A3a (Gap #20): per-subcatch snow-modified net precip
@@ -668,7 +665,6 @@ impl SwmmEngine {
             let d = self.subcatch_snow_depth(i);
             self.ctx_.subcatches.snow_depth[i as usize] = d;
         }
-        let _ = dt_runoff;
         Ok(())
     }
 
@@ -998,26 +994,140 @@ impl SwmmEngine {
         }
     }
 
-    /// SWMMEngine::stepGroundwater. NOT YET TRANSLATED (GWSolver::execute).
-    pub(crate) fn step_groundwater(&mut self, _dt_runoff: f64) -> Result<(), Terminated> {
-        Err(stub("SWMMEngine::stepGroundwater"))
+    /// SWMMEngine::stepGroundwater: the aquifer inputs as legacy subcatch_getRunoff hands
+    /// them to gwater_getGroundwater, the GW solver, then the flows and statistics.
+    pub(crate) fn step_groundwater(&mut self, dt_runoff: f64) -> Result<(), Terminated> {
+        let ns = self.ctx_.n_subcatches();
+        let uns = ns as usize;
+        let ucf_landarea = ucf::ucf(ucf::LANDAREA, &self.ctx_.options);
+
+        self.gw_frac_perv_.clear();
+        self.gw_frac_perv_.resize(uns, 0.0);
+        self.gw_perv_evap_.clear();
+        self.gw_perv_evap_.resize(uns, 0.0);
+        self.gw_infil_rate_.clear();
+        self.gw_infil_rate_.resize(uns, 0.0);
+        {
+            self.gw_lid_perv_area_.clear();
+            self.gw_lid_perv_area_.resize(uns, 0.0);
+            self.gw_lid_infil_vol_.clear();
+            self.gw_lid_infil_vol_.resize(uns, 0.0);
+            self.gw_lid_perv_evap_vol_.clear();
+            self.gw_lid_perv_evap_vol_.resize(uns, 0.0);
+            for t in 0..self.lid_.num_groups() {
+                let g = self.lid_.group(t);
+                for u in 0..g.count as usize {
+                    let sc = g.subcatch_idx[u];
+                    if sc < 0 || sc >= ns {
+                        continue;
+                    }
+                    let usc = sc as usize;
+                    let pervious = g.stor_thick[u] == 0.0 || g.stor_ksat[u] > 0.0;
+                    self.gw_lid_infil_vol_[usc] += g.infil_loss[u] * g.area[u];
+                    if pervious {
+                        self.gw_lid_perv_area_[usc] += g.area[u];
+                        self.gw_lid_perv_evap_vol_[usc] += g.evap_loss[u] * g.area[u];
+                    }
+                }
+            }
+            let rsoa = self.runoff_.soa();
+            for ui in 0..uns {
+                let total_area = self.ctx_.subcatches.area[ui] / ucf_landarea;
+                if total_area <= 0.0 {
+                    continue;
+                }
+                let mut frac_perv = 1.0 - self.ctx_.subcatches.frac_imperv[ui];
+                let lid_area = if ui < self.ctx_.subcatches.total_lid_area_ft2.len() { self.ctx_.subcatches.total_lid_area_ft2[ui] } else { 0.0 };
+                if lid_area > 0.0 {
+                    frac_perv = (frac_perv * (total_area - lid_area) + self.gw_lid_perv_area_[ui]) / total_area;
+                    frac_perv = cmin(frac_perv, 1.0);
+                }
+                self.gw_frac_perv_[ui] = frac_perv;
+                let v_pevap = (if ui < rsoa.perv_evap_vol.len() { rsoa.perv_evap_vol[ui] } else { 0.0 }) + self.gw_lid_perv_evap_vol_[ui];
+                let v_infil = (if ui < rsoa.infil_vol.len() { rsoa.infil_vol[ui] } else { 0.0 }) + self.gw_lid_infil_vol_[ui];
+                self.gw_perv_evap_[ui] = v_pevap / total_area / dt_runoff;
+                self.gw_infil_rate_[ui] = v_infil / total_area / dt_runoff;
+            }
+        }
+
+        // Legacy dates the monthly aquifer evaporation pattern on NewRunoffTime.
+        let gw_evap_month = datetime::month_of_year(datetime::add_seconds(self.ctx_.options.start_date, (self.new_runoff_ms_ + 1.0) / 1000.0));
+        let sw_head = self.ctx_.subcatches.gw_sw_head.clone();
+        let evap = self.ctx_.climate_state.evap_rate;
+        if let Err(w) = self.groundwater_.execute(&mut self.ctx_, dt_runoff, evap, &self.gw_infil_rate_, &sw_head, &self.gw_frac_perv_, &self.gw_perv_evap_, gw_evap_month) {
+            return Err(stub(w));
+        }
+
+        for ui in 0..uns {
+            let gw_rate = self.groundwater_.state().gw_flow[ui];
+            let area_ft2 = self.ctx_.subcatches.area[ui] / ucf::ucf(ucf::LANDAREA, &self.ctx_.options);
+            self.ctx_.subcatches.gw_flow[ui] = gw_rate * area_ft2;
+            if self.ctx_.subcatches.gw_aquifer[ui] >= 0 {
+                self.ctx_.subcatches.gw_max_infil_vol[ui] = self.groundwater_.state().max_infil_vol[ui];
+            }
+        }
+
+        let gws = self.groundwater_.state();
+        let sc = &mut self.ctx_.subcatches;
+        for ui in 0..uns {
+            if sc.gw_aquifer[ui] < 0 {
+                continue;
+            }
+            let area_ft2 = sc.area[ui] / ucf::ucf(ucf::LANDAREA, &self.ctx_.options);
+            sc.stat_gw_infil_vol[ui] += self.gw_infil_rate_[ui] * area_ft2 * dt_runoff;
+            sc.stat_gw_upper_evap_vol[ui] += gws.upper_evap[ui] * area_ft2 * dt_runoff;
+            sc.stat_gw_lower_evap_vol[ui] += gws.lower_evap[ui] * area_ft2 * dt_runoff;
+            sc.stat_gw_deep_perc_vol[ui] += gws.deep_loss[ui] * area_ft2 * dt_runoff;
+            let flow_cfs = sc.gw_flow[ui];
+            sc.stat_gw_flow_vol[ui] += flow_cfs * dt_runoff;
+            if flow_cfs > sc.stat_gw_max_flow[ui] {
+                sc.stat_gw_max_flow[ui] = flow_cfs;
+            }
+            let water_table = gws.lower_depth[ui] + gws.bottom_elev[ui];
+            sc.stat_gw_sum_theta[ui] += gws.theta[ui] * dt_runoff;
+            sc.stat_gw_sum_depth[ui] += water_table * dt_runoff;
+            sc.stat_gw_final_theta[ui] = gws.theta[ui];
+            sc.stat_gw_final_depth[ui] = water_table;
+            sc.stat_gw_time[ui] += dt_runoff;
+            sc.stat_gw_steps[ui] += 1;
+        }
+        Ok(())
     }
 
-    /// SWMMEngine::stepSurfaceQuality: buildup and washoff (surfacespecies::step).
-    /// NOT YET TRANSLATED beyond its guard.
-    pub(crate) fn step_surface_quality(&mut self, _dt_runoff: f64) -> Result<(), Terminated> {
-        stub_if(self.ctx_.n_pollutants() > 0, "SWMMEngine::stepSurfaceQuality")
+    /// SWMMEngine::stepSurfaceQuality: buildup and washoff (surfacespecies::step over the
+    /// pollutant family).
+    pub(crate) fn step_surface_quality(&mut self, dt_runoff: f64) -> Result<(), Terminated> {
+        if self.ctx_.n_pollutants() > 0 {
+            let mcf = sskernel::pollutant_surface_mcf(&self.ctx_);
+            sskernel::step_pollutants(&mut self.ctx_, &self.landuse_solver_, &mut self.surface_quality_.buildup, &mcf, dt_runoff, self.old_runoff_time_);
+        }
+        Ok(())
     }
 
-    /// SWMMEngine::bookWashoffLoads. NOT YET TRANSLATED beyond its guard.
-    fn book_washoff_loads(&mut self, _dt_runoff: f64) -> Result<(), Terminated> {
+    /// SWMMEngine::bookWashoffLoads: the washoff mass bookings against the post-LID volumes.
+    fn book_washoff_loads(&mut self, dt_runoff: f64) -> Result<(), Terminated> {
         let np = self.ctx_.n_pollutants();
         let ns = self.ctx_.n_subcatches();
         let species = self.ctx_.reactions.surface.active();
         if (np <= 0 && !species) || ns <= 0 || self.ctx_.options.ignore_quality {
             return Ok(());
         }
-        Err(stub("SWMMEngine::bookWashoffLoads"))
+        let mut lid_infil_vol = vec![0.0f64; ns as usize];
+        for t in 0..self.lid_.num_groups() {
+            let g = self.lid_.group(t);
+            for u in 0..g.count as usize {
+                let sc = g.subcatch_idx[u];
+                if sc < 0 || sc >= ns {
+                    continue;
+                }
+                lid_infil_vol[sc as usize] += g.infil_loss[u] * g.area[u];
+            }
+        }
+        if np > 0 {
+            let mcf = sskernel::pollutant_surface_mcf(&self.ctx_);
+            sskernel::book_post_lid_pollutants(&mut self.ctx_, &mcf, dt_runoff, &lid_infil_vol);
+        }
+        stub_if(species, "msxsurf::bookPostLid")
     }
 
     /// SWMMEngine::accumulateRunoffMassBalance: the runoff ledger for one runoff step.
