@@ -32,10 +32,8 @@
 //     upstream; it is left out.
 //   * Code a deck reaches whose solver is not translated yet returns Err(stub(...)) at the
 //     point upstream would first act (see `stub_if`). NOT YET TRANSLATED: the UEB
-//     EQUILIBRIUM surface-temperature kernel (refused before ueb::advanceSubcatchments),
-//     the reactions surface and LID species (msxsurf::step, bookPostLid, addLidDrain,
-//     addLidDrainRunon, msxlid::routeUnits / publishUnits), and the runoff interface file
-//     (USE RUNOFF readResults, SAVE RUNOFF saveResults).
+//     EQUILIBRIUM surface-temperature kernel (refused before ueb::advanceSubcatchments)
+//     and the runoff interface file (USE RUNOFF readResults, SAVE RUNOFF saveResults).
 
 use crate::core::cmath::{cclamp, cmax, cmin};
 use crate::core::context::FileMode;
@@ -373,7 +371,9 @@ impl SwmmEngine {
 
         if !self.ctx_.options.ignore_quality {
             self.step_surface_quality(dt_runoff)?;
-            stub_if(self.ctx_.reactions.surface.active() && dt_runoff > 0.0, "msxsurf::step")?;
+            // BW-MSX: the same buildup / washoff arithmetic over the reactions component's
+            // species (separate store, same cadence).
+            crate::transport::msx_surface::step(&mut self.ctx_, dt_runoff, self.old_runoff_time_)?;
         }
 
         // A6. LID performance
@@ -388,8 +388,7 @@ impl SwmmEngine {
         }
         // A4: LID layer ages; H5b: temperature column
         if !self.ctx_.options.ignore_quality {
-            let r = &self.ctx_.reactions;
-            stub_if(!(r.lid_controls.is_empty() || r.lid.group_offsets.is_empty() || !(dt_runoff > 0.0)), "msxlid::routeUnits")?;
+            crate::quality::msx_lid::route_units(&mut self.ctx_, &self.lid_, dt_runoff)?;
         }
         crate::transport::water_age_lid::route_lid_layer_age(&mut self.ctx_, &self.lid_, dt_runoff);
         crate::transport::heat_lid::route_lid_layer_temperature(&mut self.ctx_, &self.lid_, dt_runoff).map_err(Terminated::from)?;
@@ -424,7 +423,7 @@ impl SwmmEngine {
 
         // A6c'. The quality half
         if !self.ctx_.options.ignore_quality {
-            stub_if(self.ctx_.reactions.n_species() > 0 && self.ctx_.n_subcatches() > 0, "msxlid::publishUnits")?;
+            crate::quality::msx_lid::publish_units(&mut self.ctx_, dt_runoff);
             self.book_washoff_loads(dt_runoff)?;
         }
         Ok(())
@@ -989,7 +988,8 @@ impl SwmmEngine {
                             }
                         }
                     }
-                    stub_if(species, "msxsurf::addLidDrainRunon")?;
+                    let source: Option<Vec<f64>> = crate::quality::msx_lid::drain_values(&self.ctx_, t, u, g.control_idx[uu]).map(|v| v.to_vec());
+                    crate::transport::msx_surface::add_lid_drain_runon(&mut self.ctx_, g.control_idx[uu], sc, runon_sc, drain_cfs, g.to_perv[uu] != 0, is_runoff_load_r, dt_runoff, source.as_deref());
                     dest_node = -1;
                 }
                 if dest_node >= 0 && dest_node < self.ctx_.n_nodes() {
@@ -1046,7 +1046,10 @@ impl SwmmEngine {
                             }
                         }
                     }
-                    stub_if(species, "msxsurf::addLidDrain")?;
+                    // Multispecies Phase 2 (S3): the species ride the same drain water to the
+                    // same node.
+                    let source: Option<Vec<f64>> = crate::quality::msx_lid::drain_values(&self.ctx_, t, u, g.control_idx[uu]).map(|v| v.to_vec());
+                    crate::transport::msx_surface::add_lid_drain(&mut self.ctx_, g.control_idx[uu], sc, dest_node, drain_cfs, g.to_perv[uu] != 0, g.drain_node[uu] >= 0 || g.drain_subcatch[uu] == sc, dt_runoff, source.as_deref());
                 }
             }
         }
@@ -1347,7 +1350,11 @@ impl SwmmEngine {
             let mcf = sskernel::pollutant_surface_mcf(&self.ctx_);
             sskernel::book_post_lid_pollutants(&mut self.ctx_, &mcf, dt_runoff, &lid_infil_vol);
         }
-        stub_if(species, "msxsurf::bookPostLid")
+        // Multispecies Phase 2: the species' post-LID bookings, same volumes.
+        if species {
+            crate::transport::msx_surface::book_post_lid(&mut self.ctx_, dt_runoff, &lid_infil_vol);
+        }
+        Ok(())
     }
 
     /// SWMMEngine::accumulateRunoffMassBalance: the runoff ledger for one runoff step.

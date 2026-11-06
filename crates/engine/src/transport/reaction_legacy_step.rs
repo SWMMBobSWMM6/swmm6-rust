@@ -28,7 +28,8 @@
 // NOT YET TRANSLATED (StepError::NotTranslated; SWMMEngine::stepRouting refuses such a deck
 // before any state changes): the ROS2 and BDF2 solvers, EQUIL species (the joint Newton),
 // booster sources (reactionBoosterMass with a booster row, reactionSourceFactor), and the
-// reaction-species LID controls (msxlid::prepareNodes / reactNodes).
+// reactions-LID storage node rows (msxlid::prepareNodes / reactNodes past their no-node
+// path, quality/msx_lid.rs).
 
 use crate::core::cmath::{cclamp, cmax, cmin};
 use crate::core::context::SimulationContext;
@@ -50,8 +51,8 @@ const K_MIN_STEP_FRAC: f64 = 1.0e-8;
 /// SWMMEngine::stepRouting before the step changes anything).
 pub fn reactions_not_translated(ctx: &SimulationContext) -> Option<&'static str> {
     let rx = &ctx.reactions;
-    if !rx.lid_controls.is_empty() {
-        return Some("reaction species LID controls");
+    if !rx.lid_controls.is_empty() && crate::quality::msx_lid::has_enabled_node(ctx) {
+        return Some("reaction species LID storage nodes (msxlid::prepareNodes / reactNodes)");
     }
     if rx.sources.iter().any(|s| s.booster != 0) {
         return Some("reaction booster sources");
@@ -531,7 +532,7 @@ pub(crate) fn integrator_step(rx: &ReactionData, forms: &[ReactionExprForm], spa
 // ReactionGeometry.hpp
 // ---------------------------------------------------------------------------
 
-fn reaction_area_factor(units: ReactionAreaUnits) -> f64 {
+pub(crate) fn reaction_area_factor(units: ReactionAreaUnits) -> f64 {
     if units == ReactionAreaUnits::M2 {
         0.09290304
     } else if units == ReactionAreaUnits::Cm2 {
@@ -867,7 +868,7 @@ pub(crate) fn reaction_booster_mass(ctx: &SimulationContext, node: i32, species:
 
 /// armMsxRoutingLedger: zero and arm the routing ledger once, booking the opening inventory.
 /// `fv_retained`: the FV transport's retained species mass (state_accessors).
-fn arm_msx_routing_ledger(ctx: &mut SimulationContext, fv_retained: &[f64]) {
+pub(crate) fn arm_msx_routing_ledger(ctx: &mut SimulationContext, fv_retained: &[f64]) {
     ensure_msx_state(ctx);
     let nn = ctx.n_nodes();
     let nl = ctx.n_links();

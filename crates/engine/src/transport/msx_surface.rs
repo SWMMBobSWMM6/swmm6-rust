@@ -542,3 +542,346 @@ pub fn deliver(ctx: &mut SimulationContext, _dt_routing: f64) {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// The runoff-step kernels (6 November 2026): speciesParams, reactPondedPools, reactBuildup,
+// step, bookPostLid, addLidDrain, addLidDrainRunon, consumeLidDrainRunon. The species
+// Block (speciesBlock) is quality::surface_species_kernel's step_species /
+// book_post_lid_species, which the family's MsxSurfaceData is lent to.
+//
+// Differences of form, never in result:
+//   * SurfaceScratchLease's thread_local SurfaceScratch is per-call locals here: every value
+//     the kernels read from it is written first in the same call (mixed is assigned, values,
+//     before, normalizer, forms and expressions are assigned or filled before use; the
+//     workspace is re-initialized by workspace.init at the top of each kernel).
+//   * ReactionIntegrator::step's paths that are not translated return StepError (a stub).
+// ---------------------------------------------------------------------------
+
+use crate::core::engine_step_routing::StepError;
+use crate::data::reaction::ReactionExprForm;
+use crate::data::reaction_tokens::RxHydVar;
+use crate::quality::landuse::{BuildupParams, BuildupType, WashoffParams, WashoffType};
+use crate::quality::surface_species_kernel::{book_post_lid_species, step_species, SpeciesParams, SpeciesReacted};
+use crate::transport::reaction_legacy_step::{integrator_step, note_negative_clamp, reaction_area_factor, Ws};
+
+fn species_params(s: &crate::data::msx_surface::MsxSurfaceData) -> SpeciesParams {
+    let n = s.bu_type.len();
+    let mut p = SpeciesParams { bu: vec![BuildupParams::default(); n], wo: vec![WashoffParams::default(); n] };
+    for k in 0..n {
+        let bp = &mut p.bu[k];
+        bp.type_ = BuildupType::from_i32(s.bu_type[k]);
+        bp.coeff[0] = s.bu_c1[k];
+        bp.coeff[1] = s.bu_c2[k];
+        bp.coeff[2] = s.bu_c3[k];
+        bp.normalizer = s.bu_normalizer[k];
+        bp.max_days = s.bu_max_days[k];
+        let wp = &mut p.wo[k];
+        wp.type_ = WashoffType::from_i32(s.wo_type[k]);
+        wp.coeff = s.wo_coeff[k];
+        wp.expon = s.wo_expon[k];
+        wp.sweep_effic = s.wo_sweep_effic[k];
+        wp.bmp_effic = s.wo_bmp_effic[k];
+    }
+    p
+}
+
+/// reactPondedPools: react each wet subcatchment's mixed ponded pool; returns the mixed
+/// (reacted) masses, sized as ponded_qual.
+fn react_ponded_pools(ctx: &mut SimulationContext, dt: f64) -> Result<Vec<f64>, StepError> {
+    let ns = ctx.reactions.n_species();
+    let mut mixed = vec![0.0f64; ctx.reactions.surface.ponded_qual.len()];
+    let mut species = vec![0.0f64; ns as usize];
+    let mut before = vec![0.0f64; species.len()];
+    let mut workspace = Ws::new(&ctx.reactions);
+    let area_factor = ucf(crate::core::unit_conversion::LANDAREA, &ctx.options);
+    const LITRES_PER_FT3: f64 = 28.317;
+    for sc in 0..ctx.n_subcatches() {
+        let i = sc as usize;
+        if !ctx.reactions.wet_enabled(sc) {
+            continue;
+        }
+        let mut forms = ctx.reactions.subcatch_form.clone();
+        let mut expressions = ctx.reactions.subcatch_expr.clone();
+        for law in ctx.reactions.wet_laws.iter() {
+            if law.subcatchment == sc {
+                forms[law.species as usize] = law.form;
+                expressions[law.species as usize] = law.compiled.clone();
+            }
+        }
+        let lid = if i < ctx.subcatches.total_lid_area_ft2.len() { ctx.subcatches.total_lid_area_ft2[i] } else { 0.0 };
+        let area = ctx.subcatches.area[i] / area_factor - lid;
+        if !(area > 0.0) {
+            continue;
+        }
+        let rain_volume = cmax(0.0, ctx.subcatches.rainfall[i]) * area * dt;
+        let volume = ctx.subcatches.old_ponded_depth[i] * area + rain_volume + ctx.subcatches.runon_inflow[i] * dt;
+        if !(volume > 0.0) {
+            continue;
+        }
+        let litres = volume * LITRES_PER_FT3;
+        for m in 0..ns {
+            let k = ctx.reactions.surface.sidx(sc, m);
+            let rain = if m < ctx.reactions.rain_conc.len() as i32 { ctx.reactions.rain_conc[m as usize] } else { 0.0 };
+            mixed[k] = ctx.reactions.surface.ponded_qual[k] + rain * LITRES_PER_FT3 * rain_volume + ctx.reactions.surface.runon_qual_rate[k] * dt;
+        }
+        if volume <= crate::quality::quality_routing::ZERO_VOLUME {
+            continue;
+        }
+        for m in 0..ns as usize {
+            species[m] = mixed[ctx.reactions.surface.sidx(sc, m as i32)] / litres;
+            before[m] = species[m];
+        }
+        let mut variables = [0.0f64; RxHydVar::Count as usize];
+        variables[RxHydVar::Temp as usize] = ctx.reactions.default_temp_c;
+        if ctx.options.heat_transport && i < ctx.heat_state.subcatch_runoff_temp.len() && ctx.heat_state.subcatch_runoff_temp[i].is_finite() {
+            variables[RxHydVar::Temp as usize] = ctx.heat_state.subcatch_runoff_temp[i];
+        }
+        let report = {
+            let rx = &ctx.reactions;
+            integrator_step(rx, &forms, &expressions, dt, &mut species, &mut variables, &mut workspace, None, None, &rx.coef_value)?
+        };
+        let mut physical = report.ok;
+        let mut m = 0;
+        while m < ns as usize && physical {
+            physical = species[m].is_finite() && (species[m] >= 0.0 || forms[m] == ReactionExprForm::Rate);
+            m += 1;
+        }
+        if !physical {
+            if !ctx.reactions.warned_react_failure {
+                ctx.reactions.warned_react_failure = true;
+                ctx.warnings.push(if report.ok { b"negative algebraic concentration".to_vec() } else { report.error.clone() });
+            }
+            continue;
+        }
+        for m in 0..ns as usize {
+            let raw = species[m];
+            let clamped = cmax(0.0, raw);
+            let factor = litres * ctx.reactions.surface.mcf[m];
+            ctx.reactions.surface.led_reacted[m] += (before[m] - raw) * factor;
+            ctx.reactions.surface.led_reaction_clamped[m] += (clamped - raw) * factor;
+            if clamped != raw {
+                note_negative_clamp(ctx, b"a wet subcatchment pool");
+            }
+            mixed[ctx.reactions.surface.sidx(sc, m as i32)] = clamped * litres;
+        }
+    }
+    Ok(mixed)
+}
+
+/// reactBuildup: react the dry buildup stores under the [REACTIONS] BUILDUP laws.
+fn react_buildup(ctx: &mut SimulationContext, dt: f64) -> Result<(), StepError> {
+    if ctx.reactions.buildup_laws.is_empty() {
+        return Ok(());
+    }
+    let ns = ctx.reactions.n_species();
+    let uns = ns as usize;
+    let mut ws = Ws::new(&ctx.reactions);
+    let mut y = vec![0.0f64; uns];
+    let mut before = vec![0.0f64; uns];
+    let mut normalizer = vec![0.0f64; uns];
+    let mut forms = vec![ReactionExprForm::None; uns];
+    let mut expr = vec![crate::data::reaction_tokens::RxExprSpan::default(); uns];
+    let nlu = ctx.reactions.surface.n_landuses;
+    for sc in 0..ctx.n_subcatches() {
+        for lu in 0..nlu {
+            let cov = sc as usize * nlu as usize + lu as usize;
+            let fraction = if cov < ctx.subcatches.coverage.len() { ctx.subcatches.coverage[cov] / 100. } else { 0. };
+            let area = fraction * ctx.subcatches.area[sc as usize] / ucf(crate::core::unit_conversion::LANDAREA, &ctx.options) * reaction_area_factor(ctx.reactions.area_units);
+            if !(area > 0.0) {
+                continue;
+            }
+            for f in forms.iter_mut() {
+                *f = ReactionExprForm::None;
+            }
+            let mut any = false;
+            for selected in [-1, sc] {
+                for l in ctx.reactions.buildup_laws.iter() {
+                    if l.landuse == lu && l.subcatchment == selected {
+                        forms[l.species as usize] = l.form;
+                        expr[l.species as usize] = l.compiled.clone();
+                        any = true;
+                    }
+                }
+            }
+            if !any {
+                continue;
+            }
+            let mut supported = true;
+            {
+                let s = &ctx.reactions.surface;
+                for m in 0..ns {
+                    let um = m as usize;
+                    let norm = fraction * (if s.bu_normalizer[s.pidx(lu, m)] == 0 { ctx.subcatches.area[sc as usize] } else { ctx.subcatches.curb_length[sc as usize] });
+                    normalizer[um] = norm;
+                    y[um] = if norm > 0.0 { s.buildup[s.bu_idx(sc, lu, m)] * norm / s.mcf[um] / area } else { 0. };
+                    before[um] = y[um];
+                    if forms[um] != ReactionExprForm::None && !(norm > 0.0) {
+                        supported = false;
+                    }
+                }
+            }
+            let mut vars = [0.0f64; RxHydVar::Count as usize];
+            vars[RxHydVar::Temp as usize] = ctx.reactions.default_temp_c;
+            let report = if supported {
+                let rx = &ctx.reactions;
+                integrator_step(rx, &forms, &expr, dt, &mut y, &mut vars, &mut ws, None, None, &rx.coef_value)?
+            } else {
+                crate::transport::reaction_legacy_step::StepReport { ok: true, error: Vec::new() }
+            };
+            let mut physical = supported && report.ok;
+            let mut m = 0;
+            while m < uns && physical {
+                physical = y[m].is_finite() && (y[m] >= 0.0 || forms[m] == ReactionExprForm::Rate);
+                m += 1;
+            }
+            if !physical {
+                if !ctx.reactions.warned_react_failure {
+                    ctx.reactions.warned_react_failure = true;
+                    ctx.warnings.push(b"Dry buildup reaction failed or has a zero normalizer; original inventory retained.".to_vec());
+                }
+                continue;
+            }
+            for m in 0..ns {
+                let um = m as usize;
+                let bounded = cmax(0., y[um]);
+                let factor = area * ctx.reactions.surface.mcf[um];
+                ctx.reactions.surface.led_reacted[um] += (before[um] - y[um]) * factor;
+                ctx.reactions.surface.led_reaction_clamped[um] += (bounded - y[um]) * factor;
+                if y[um] != bounded {
+                    note_negative_clamp(ctx, b"a dry buildup store");
+                }
+                if normalizer[um] > 0.0 {
+                    let k = ctx.reactions.surface.bu_idx(sc, lu, m);
+                    ctx.reactions.surface.buildup[k] = bounded * factor / normalizer[um];
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// msxsurf::step: dry buildup reactions, wet ponded-pool reactions, then the species
+/// family's buildup/washoff/ponded step.
+pub fn step(ctx: &mut SimulationContext, dt_runoff: f64, old_runoff_time: f64) -> Result<(), StepError> {
+    if !ctx.reactions.surface.active() || !(dt_runoff > 0.0) {
+        return Ok(());
+    }
+    let params = species_params(&ctx.reactions.surface);
+    react_buildup(ctx, dt_runoff)?;
+    let mut reacted: Vec<f64> = Vec::new();
+    let mut wet_mask = vec![0u8; ctx.n_subcatches().max(0) as usize];
+    let has = ctx.reactions.has_subcatch_reactions();
+    if has {
+        reacted = react_ponded_pools(ctx, dt_runoff)?;
+        for sc in 0..ctx.n_subcatches() {
+            wet_mask[sc as usize] = ctx.reactions.wet_enabled(sc) as u8;
+        }
+    }
+    let mut s = std::mem::take(&mut ctx.reactions.surface);
+    let r = SpeciesReacted { ponded_reacted_mass: &reacted, ponded_reactor_mask: &wet_mask };
+    step_species(ctx, &mut s, &params, if has { Some(&r) } else { None }, dt_runoff, old_runoff_time);
+    ctx.reactions.surface = s;
+    Ok(())
+}
+
+/// msxsurf::bookPostLid.
+pub fn book_post_lid(ctx: &mut SimulationContext, dt_runoff: f64, lid_infil_vol: &[f64]) {
+    if !ctx.reactions.surface.active() || ctx.n_subcatches() <= 0 {
+        return;
+    }
+    let mut s = std::mem::take(&mut ctx.reactions.surface);
+    book_post_lid_species(ctx, &mut s, dt_runoff, lid_infil_vol);
+    ctx.reactions.surface = s;
+}
+
+/// msxsurf::addLidDrain: a LID drain's species load to its outlet node (source: the LID
+/// unit's own concentrations, or None for the subcatchment's washoff).
+#[allow(clippy::too_many_arguments)]
+pub fn add_lid_drain(ctx: &mut SimulationContext, control: i32, sc: i32, node: i32, drain_cfs: f64, to_perv: bool, runoff_load: bool, dt_runoff: f64, source: Option<&[f64]>) {
+    let n_nodes = ctx.n_nodes();
+    let s = &mut ctx.reactions.surface;
+    if !s.active() || node < 0 || node >= n_nodes {
+        return;
+    }
+    let nm = s.n_species;
+    let want = n_nodes as usize * nm as usize;
+    if s.lid_drain_load.len() != want {
+        s.lid_drain_load.clear();
+        s.lid_drain_load.resize(want, 0.0);
+    }
+    for m in 0..nm {
+        let um = m as usize;
+        let rk = (control as usize).wrapping_mul(nm as usize).wrapping_add(um);
+        let rmvl = if control >= 0 && rk < s.lid_rmvl.len() { s.lid_rmvl[rk] } else { 0.0 };
+        let c_src = match source {
+            Some(src) => src[um],
+            None => s.washoff_conc[s.sidx(sc, m)],
+        };
+        s.lid_drain_load[node as usize * nm as usize + um] += drain_cfs * c_src * (1.0 - rmvl);
+        if !to_perv {
+            let w = drain_cfs * c_src * dt_runoff * 28.317 * s.mcf[um];
+            if source.is_some() {
+                let k = s.sidx(sc, m);
+                s.led_subcatch_load[k] += w;
+            }
+            if w > 0.0 {
+                s.led_bmp_removal[um] += rmvl * w;
+                if runoff_load {
+                    s.led_runoff_load[um] += w * (1.0 - rmvl);
+                }
+            }
+        }
+    }
+}
+
+/// msxsurf::addLidDrainRunon: a LID drain's species load routed onto a receiving subcatchment.
+#[allow(clippy::too_many_arguments)]
+pub fn add_lid_drain_runon(ctx: &mut SimulationContext, control: i32, sc: i32, receiver: i32, drain_cfs: f64, to_perv: bool, runoff_load: bool, dt_runoff: f64, source: Option<&[f64]>) {
+    let n_sub = ctx.n_subcatches();
+    let s = &mut ctx.reactions.surface;
+    if !s.active() || receiver < 0 || receiver >= n_sub {
+        return;
+    }
+    let nm = s.n_species;
+    for m in 0..nm {
+        let um = m as usize;
+        let rk = (control as usize).wrapping_mul(nm as usize).wrapping_add(um);
+        let rmvl = if control >= 0 && rk < s.lid_rmvl.len() { s.lid_rmvl[rk] } else { 0.0 };
+        let c_src = match source {
+            Some(src) => src[um],
+            None => s.washoff_conc[s.sidx(sc, m)],
+        };
+        let k = s.sidx(receiver, m);
+        if k < s.lid_drain_runon_load.len() {
+            s.lid_drain_runon_load[k] += (drain_cfs * c_src * 28.317) * (1.0 - rmvl);
+        }
+        if !to_perv {
+            let w = drain_cfs * c_src * dt_runoff * 28.317 * s.mcf[um];
+            if source.is_some() {
+                let k = s.sidx(sc, m);
+                s.led_subcatch_load[k] += w;
+            }
+            if w > 0.0 {
+                s.led_bmp_removal[um] += rmvl * w;
+                if runoff_load {
+                    s.led_runoff_load[um] += w * (1.0 - rmvl);
+                }
+            }
+        }
+    }
+}
+
+/// msxsurf::consumeLidDrainRunon.
+pub fn consume_lid_drain_runon(ctx: &mut SimulationContext, receiver: i32) {
+    let s = &mut ctx.reactions.surface;
+    if !s.active() {
+        return;
+    }
+    for m in 0..s.n_species {
+        let k = s.sidx(receiver, m);
+        if k < s.lid_drain_runon_load.len() && k < s.runon_qual_rate.len() {
+            s.runon_qual_rate[k] += s.lid_drain_runon_load[k];
+            s.lid_drain_runon_load[k] = 0.0;
+        }
+    }
+}

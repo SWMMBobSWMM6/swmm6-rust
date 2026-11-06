@@ -34,8 +34,8 @@
 // NOT YET TRANSLATED (each returns StepError::NotTranslated where upstream would first act;
 // SWMMEngine::stepRouting refuses such a deck before any state changes, so none is reached):
 //   the FV branch of execute (FvQualityTransport::execute, applyPollutantDecay, the bed
-//   exchange), msxlid::prepareNodes / reactNodes (reaction-species LID controls),
-//   heat::applyBedSoluteExchange. (routeLegacyAge, routeLegacyHeat, routeLegacyMsx and
+//   exchange), and msxlid::prepareNodes / reactNodes for a reactions-LID storage node row
+//   (quality/msx_lid.rs translates the rest of them). (routeLegacyAge, routeLegacyHeat, routeLegacyMsx and
 //   reactLegacyNodes / reactLegacyLinks are in transport/water_age_legacy.rs,
 //   heat_legacy.rs and reaction_legacy_step.rs.)
 //   FvQualityTransport.cpp: execute, applyPollutantDecay, dryRestartState,
@@ -662,9 +662,9 @@ impl QualitySolver {
             return Err(nt("FV quality transport (FvQualityTransport::execute)"));
         }
         lidq::prepare_quality(ctx, dt)?;
-        // msxlid::prepareNodes
-        if !ctx.reactions.lid_controls.is_empty() && dt > 0.0 {
-            return Err(nt("reaction species LID controls"));
+        {
+            let held = crate::transport::reaction_legacy_step::fv_retained_species_mass(&self.fv_transport_.held_, ctx.n_pollutants(), ctx.reactions.n_species());
+            crate::quality::msx_lid::prepare_nodes(ctx, dt, &held)?;
         }
         let coupled_lids = self.n_pollutants_ > 0 && ctx.node_subtypes.storages.lid_state.iter().any(|state| !state.cells.is_empty());
         if coupled_lids {
@@ -729,10 +729,7 @@ impl QualitySolver {
         self.apply_treatment(ctx, dt, true);
         if legacy_reactions_active(ctx) {
             crate::transport::reaction_legacy_step::react_legacy_nodes(ctx, dt)?;
-            // msxlid::reactNodes: a no-op without reaction-species LID controls (refused above)
-            if !ctx.reactions.lid_controls.is_empty() {
-                return Err(nt("reaction species LID controls"));
-            }
+            crate::quality::msx_lid::react_nodes(ctx, dt)?;
         } else {
             self.apply_decay(ctx, dt);
         }
