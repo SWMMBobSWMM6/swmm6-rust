@@ -17,7 +17,7 @@ Phase 1a (1D) is under way. Done, and identical to upstream on every gate deck:
 
 * the output side and the end of the run: the `.out` writer (header, every report period, the closing records), the `.rpt` writer (preamble, warnings and errors, every continuity block and summary table, the timing lines, the report of a run that fails in open, initialize or start), the report-period snapshot with its interpolation and time-step averaging, SAVE HOTSTART in the legacy format, `end()`, `report()`, `close()`, and the command-line program `openswmm` (`src/bin/openswmm.rs`, upstream's `src/cli/main.cpp`). Checked by `ctxgate.sh out`, which loads upstream's own mid-run and end-of-run state into the translated writers (PLAN.md).
 
-Not yet translated: quality routing and the FV router (and the SWMM6-only hooks PLAN.md lists); `step()` calls the missing pieces through stub files, and `openswmm` stops at one with exit status 3. A deck that needs none of them runs end to end through `openswmm`. [PLAN.md](PLAN.md) has the phases, the end-to-end counts and what comes next. 2D comes after 1D.
+Not yet translated: quality routing and the FV router (and the SWMM6-only hooks PLAN.md lists); `step()` calls the missing pieces through stub files, and `openswmm` stops at one with exit status 3. A deck that needs none of them runs end to end through `openswmm`, and on every such gate deck (832 of the 932) the `.out` is byte-identical to the C++ engine's, the `.rpt` identical but its three clock lines, and the exit code the same. [PLAN.md](PLAN.md) has the phases, the end-to-end counts and what comes next. 2D comes after 1D.
 
 ## How it is checked
 
