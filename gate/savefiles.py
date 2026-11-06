@@ -28,7 +28,7 @@ for ln in lines:
         t = s.split()
     if sec == '[LID_USAGE]':
         if len(t) >= 9 and t[8] != '*':
-            p = t[8]
+            p = t[8].replace('\\', '/')  # upstream's PathResolver turns '\' into '/'
             print(p if os.path.isabs(p) else os.path.join(d, p))
         continue
     if len(t) >= 3 and t[0].upper() == 'SAVE':
