@@ -163,7 +163,7 @@ impl SwmmEngine {
             if self.rdii_iface_file_.is_open() && !self.rdii_iface_file_.is_writing() {
                 self.rdii_iface_file_.apply_flows(&mut self.ctx_, routing_date);
             } else {
-                apply_rdii_inflows(&self.rdii_, &mut self.ctx_, routing_secs);
+                self.rdii_.apply_rdii_inflows(&mut self.ctx_, routing_secs);
             }
         }
 
@@ -324,28 +324,3 @@ fn drain_msx_coupling_queue(ctx: &mut SimulationContext, dt: f64) {
     }
 }
 
-/// RDIISolver::applyRdiiInflows: the grid row at the step's date into rdii_inflow.
-fn apply_rdii_inflows(rdii: &crate::hydrology::rdii::RDIISolver, ctx: &mut SimulationContext, elapsed_sec: f64) {
-    if rdii.grid_step_ <= 0.0 || rdii.grid_node_.is_empty() {
-        return;
-    }
-    if elapsed_sec < 0.0 {
-        return;
-    }
-    let row = (elapsed_sec / rdii.grid_step_).floor() as usize;
-    let ncol = rdii.grid_node_.len();
-    if (row + 1) * ncol > rdii.grid_flows_.len() {
-        return;
-    }
-    let flows = &rdii.grid_flows_[row * ncol..];
-    for col in 0..ncol {
-        let q = flows[col] as f64;
-        if q.abs() < crate::core::constants::FLOW_TOL {
-            continue;
-        }
-        let un = rdii.grid_node_[col] as usize;
-        if un < ctx.nodes.rdii_inflow.len() {
-            ctx.nodes.rdii_inflow[un] += q;
-        }
-    }
-}

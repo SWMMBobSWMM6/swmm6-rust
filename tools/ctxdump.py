@@ -835,9 +835,12 @@ def hydro_dumper():
     R.append('    for u in &e.rdii_solver().uh_params { for m in 0..12 { for k in 0..3 { pf(o, "rdii_.uh_params[].r", u.r[m][k]); pf(o, "rdii_.uh_params[].tPeak", u.tPeak[m][k]); pf(o, "rdii_.uh_params[].tBase", u.tBase[m][k]); pf(o, "rdii_.uh_params[].iaMax", u.iaMax[m][k]); pf(o, "rdii_.uh_params[].iaRecov", u.iaRecov[m][k]); pf(o, "rdii_.uh_params[].iaInit", u.iaInit[m][k]); } } }')
     C.append('  { std::vector<std::pair<std::string, int>> m(e.rdii_.uh_name_to_idx_.begin(), e.rdii_.uh_name_to_idx_.end()); std::sort(m.begin(), m.end()); for (auto& kv : m) { ps("rdii_.uh_name_to_idx_.key", kv.first); pi("rdii_.uh_name_to_idx_.val", kv.second); } }')
     R.append('    { let mut m = e.rdii_solver().uh_name_to_idx_.clone(); m.sort(); for kv in &m { ps(o, "rdii_.uh_name_to_idx_.key", &kv.0); pi(o, "rdii_.uh_name_to_idx_.val", kv.1 as i64); } }')
-    # LIDSolver::rpt_files_ holds std::ofstream objects: dumped as its size only
+    # LIDSolver::rpt_files_ holds std::ofstream objects: dumped as its size and its keys
+    # (group, unit) in map order
     C.append('  pi("lid_.rpt_files_.size", (long long)e.lid_.rpt_files_.size());')
+    C.append('  for (auto& kv : e.lid_.rpt_files_) { pi("lid_.rpt_files_.key.first", kv.first.first); pi("lid_.rpt_files_.key.second", kv.first.second); }')
     R.append('    pi(o, "lid_.rpt_files_.size", e.lid_solver().rpt_files_.len() as i64);')
+    R.append('    for (k, v) in e.lid_solver().rpt_files_.iter() { pi(o, "lid_.rpt_files_.key.first", k.0 as i64); pi(o, "lid_.rpt_files_.key.second", k.1 as i64); let _ = v; }')
     emit('e.gage_states_', 'e.gage_states()', 'gage_states_', kind('std::vector<gage::GageState>'), C, R)
     C.append('  pi("last_melt_doy_", e.last_melt_doy_);'); R.append('    pi(o, "last_melt_doy_", e.last_melt_doy() as i64);')
     R.append('    { let v = e.hydrology_vectors();')

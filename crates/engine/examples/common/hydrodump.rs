@@ -366,6 +366,7 @@ pub fn hydrodump(e: &mut SwmmEngine) -> Vec<u8> {
     for u in &e.rdii_solver().uh_params { for m in 0..12 { for k in 0..3 { pf(o, "rdii_.uh_params[].r", u.r[m][k]); pf(o, "rdii_.uh_params[].tPeak", u.tPeak[m][k]); pf(o, "rdii_.uh_params[].tBase", u.tBase[m][k]); pf(o, "rdii_.uh_params[].iaMax", u.iaMax[m][k]); pf(o, "rdii_.uh_params[].iaRecov", u.iaRecov[m][k]); pf(o, "rdii_.uh_params[].iaInit", u.iaInit[m][k]); } } }
     { let mut m = e.rdii_solver().uh_name_to_idx_.clone(); m.sort(); for kv in &m { ps(o, "rdii_.uh_name_to_idx_.key", &kv.0); pi(o, "rdii_.uh_name_to_idx_.val", kv.1 as i64); } }
     pi(o, "lid_.rpt_files_.size", e.lid_solver().rpt_files_.len() as i64);
+    for (k, v) in e.lid_solver().rpt_files_.iter() { pi(o, "lid_.rpt_files_.key.first", k.0 as i64); pi(o, "lid_.rpt_files_.key.second", k.1 as i64); let _ = v; }
     pi(o, "gage_states_.n", (e.gage_states()).len() as i64);
     for e122 in (e.gage_states()).iter() {
     pf(o, "gage_states_[].rainfall", ((*e122).rainfall) as f64);

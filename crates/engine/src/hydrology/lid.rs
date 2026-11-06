@@ -17,11 +17,12 @@
 //     lazily by the step functions (none at init).
 //   * The solver's members are public so the gate dumper can read them; upstream's are
 //     private.
-//   * NOT YET TRANSLATED (run-time step functions, phase 1c): waterTrial,
-//     executeCompleted, checkpoint, validateCheckpoint, totalStoredVolume,
-//     totalInitVolume, totalInfilVolume, totalEvapVolume, execute, anyWet,
-//     saveLidReport, the eight batch*Flux kernels and LID.cpp's file-static process
-//     code (LidProcView, runUnitLegacy, ...).
+//   * The run-time process kernel (LidProcView, LegacyLidKernel, runUnitLegacy),
+//     LIDSolver::execute and saveLidReport are in lid_kernel.rs (5 November 2026); anyWet
+//     is SwmmEngine::lid_any_wet (core/engine_step_runoff.rs). NOT YET TRANSLATED:
+//     waterTrial, executeCompleted (2D), checkpoint, validateCheckpoint, totalStoredVolume,
+//     totalInitVolume, totalInfilVolume, totalEvapVolume and the eight batch*Flux kernels
+//     (not on the stepRunoff path).
 
 use std::collections::BTreeMap;
 

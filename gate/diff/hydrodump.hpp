@@ -358,6 +358,7 @@ inline void hydrodump(openswmm::SWMMEngine& e) {
   for (auto& u : e.rdii_.uh_params) for (int m = 0; m < 12; ++m) for (int k = 0; k < 3; ++k) { pf("rdii_.uh_params[].r", u.r[m][k]); pf("rdii_.uh_params[].tPeak", u.tPeak[m][k]); pf("rdii_.uh_params[].tBase", u.tBase[m][k]); pf("rdii_.uh_params[].iaMax", u.iaMax[m][k]); pf("rdii_.uh_params[].iaRecov", u.iaRecov[m][k]); pf("rdii_.uh_params[].iaInit", u.iaInit[m][k]); }
   { std::vector<std::pair<std::string, int>> m(e.rdii_.uh_name_to_idx_.begin(), e.rdii_.uh_name_to_idx_.end()); std::sort(m.begin(), m.end()); for (auto& kv : m) { ps("rdii_.uh_name_to_idx_.key", kv.first); pi("rdii_.uh_name_to_idx_.val", kv.second); } }
   pi("lid_.rpt_files_.size", (long long)e.lid_.rpt_files_.size());
+  for (auto& kv : e.lid_.rpt_files_) { pi("lid_.rpt_files_.key.first", kv.first.first); pi("lid_.rpt_files_.key.second", kv.first.second); }
   pi("gage_states_.n", (long long)(e.gage_states_).size());
   for (const auto& e122 : e.gage_states_) {
   pf("gage_states_[].rainfall", (double)(e122.rainfall));

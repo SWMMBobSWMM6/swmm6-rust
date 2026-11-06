@@ -273,7 +273,7 @@ impl FromI64 for bool {
         }
     }
 }
-fn bad_enum(name: &str, v: i64) -> ! {
+pub(crate) fn bad_enum(name: &str, v: i64) -> ! {
     panic!("ctxload: {} has no variant with value {}", name, v)
 }
 
@@ -337,35 +337,35 @@ impl<T, const N: usize> SeqLen for [T; N] {
         }
     }
 }
-fn seq_len_with<T>(v: &mut Vec<T>, n: usize, f: impl FnMut() -> T) {
+pub(crate) fn seq_len_with<T>(v: &mut Vec<T>, n: usize, f: impl FnMut() -> T) {
     v.clear();
     v.resize_with(n, f);
 }
-fn set_vi<S: SeqSet>(d: &mut S, v: Vec<i64>)
+pub(crate) fn set_vi<S: SeqSet>(d: &mut S, v: Vec<i64>)
 where
     S::Elem: FromI64,
 {
     d.seq_set(v.into_iter().map(S::Elem::from_i64).collect());
 }
-fn set_vf<S: SeqSet>(d: &mut S, v: Vec<f64>)
+pub(crate) fn set_vf<S: SeqSet>(d: &mut S, v: Vec<f64>)
 where
     S::Elem: FromF64,
 {
     d.seq_set(v.into_iter().map(S::Elem::from_f64).collect());
 }
-fn set_va<const N: usize>(d: &mut Vec<[f64; N]>, flat: Vec<f64>) {
+pub(crate) fn set_va<const N: usize>(d: &mut Vec<[f64; N]>, flat: Vec<f64>) {
     if N == 0 || flat.len() % N != 0 {
         panic!("ctxload: {} values for rows of {}", flat.len(), N);
     }
     *d = flat.chunks_exact(N).map(|c| <[f64; N]>::try_from(c).unwrap()).collect();
 }
-fn set_fpp(d: &mut Vec<FilePathPair>, o: Vec<Bytes>, a: Vec<Bytes>) {
+pub(crate) fn set_fpp(d: &mut Vec<FilePathPair>, o: Vec<Bytes>, a: Vec<Bytes>) {
     if o.len() != a.len() {
         panic!("ctxload: {} paths, {} absolute paths", o.len(), a.len());
     }
     *d = o.into_iter().zip(a).map(|(original, absolute)| FilePathPair { absolute, original }).collect();
 }
-fn opt_new<T: Default>(_: &Option<T>) -> T {
+pub(crate) fn opt_new<T: Default>(_: &Option<T>) -> T {
     T::default()
 }
 /// std::map members (std::map iterates in key order, as BTreeMap does).
@@ -400,14 +400,14 @@ impl<K: Eq + std::hash::Hash + Default, V: Default> MapLoad for HashMap<K, V> {
         }
     }
 }
-fn map_k<M: MapLoad>(_: &M) -> M::K {
+pub(crate) fn map_k<M: MapLoad>(_: &M) -> M::K {
     M::K::default()
 }
-fn map_v<M: MapLoad>(_: &M) -> M::V {
+pub(crate) fn map_v<M: MapLoad>(_: &M) -> M::V {
     M::V::default()
 }
 /// A NameIndex from its names in index order (the map is rebuilt by add()).
-fn load_names(ix: &mut NameIndex, v: Vec<Bytes>) {
+pub(crate) fn load_names(ix: &mut NameIndex, v: Vec<Bytes>) {
     ix.clear();
     for s in &v {
         if let Err(e) = ix.add(s) {
@@ -417,17 +417,17 @@ fn load_names(ix: &mut NameIndex, v: Vec<Bytes>) {
 }
 /// UserFlags::make_key joined object type, name and flag with ':'; any split at two colons
 /// rebuilds the same key.
-fn split_flag_key(k: &[u8]) -> Option<(&[u8], &[u8], &[u8])> {
+pub(crate) fn split_flag_key(k: &[u8]) -> Option<(&[u8], &[u8], &[u8])> {
     let a = k.iter().position(|&c| c == b':')?;
     let b = a + 1 + k[a + 1..].iter().position(|&c| c == b':')?;
     Some((&k[..a], &k[a + 1..b], &k[b + 1..]))
 }
 #[cfg(feature = "gate")]
-fn set_met_records(_r: &Rd, m: &mut HourlyMeteorology, recs: Vec<HourlyMetRecord>) {
+pub(crate) fn set_met_records(_r: &Rd, m: &mut HourlyMeteorology, recs: Vec<HourlyMetRecord>) {
     m.gate_set_records(recs);
 }
 #[cfg(not(feature = "gate"))]
-fn set_met_records(r: &Rd, _m: &mut HourlyMeteorology, _recs: Vec<HourlyMetRecord>) {
+pub(crate) fn set_met_records(r: &Rd, _m: &mut HourlyMeteorology, _recs: Vec<HourlyMetRecord>) {
     r.fail("hourly meteorology records need the `gate` feature");
 }
 

@@ -30,7 +30,7 @@ use crate::core::unit_conversion as ucf;
 use crate::data::lid_node::{LidNodeBottom, LidNodeLayerKind, LidNodeState, LidPortTransfer, LidWaterTransfer};
 use crate::hydraulics::node;
 use crate::hydraulics::node_step;
-use crate::hydrology::green_ampt_step::grnampt_get_infil;
+use crate::hydrology::infiltration::grnampt_get_infil;
 use crate::hydrology::infiltration::InfilModel;
 use crate::hydrology::lid_node::layers;
 
@@ -233,7 +233,7 @@ pub fn prepare_step(ctx: &mut SimulationContext, dt: f64, evaporation: f64) -> R
                             trial.saturated = false;
                         }
                         if factor > 0.0 && (head > 0.0 || !wet_from_below) {
-                            q = grnampt_get_infil(&mut trial, 0.0, head, step, InfilModel::ModGreenAmpt, factor, cmax(recovery_factor, 1.0e-12)) * c.area;
+                            q = grnampt_get_infil(&mut trial, 0.0, head, step, InfilModel::ModGreenAmpt as i32, factor, cmax(recovery_factor, 1.0e-12)) * c.area;
                         }
                         state.surface_infil.T = trial.T;
                         state.surface_infil.saturated = trial.saturated;

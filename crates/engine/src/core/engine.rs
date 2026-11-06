@@ -911,6 +911,14 @@ pub struct GateHydrology<'a> {
     pub snow_: &'a mut SnowSolver,
     pub groundwater_: &'a mut GWSolver,
     pub lid_: &'a mut LIDSolver,
+    /// the rest of what the hydrology dump covers (examples/common/hydroload.rs)
+    pub rdii_: &'a mut RDIISolver,
+    pub gage_states_: &'a mut Vec<GageState>,
+    pub last_melt_doy_: &'a mut i32,
+    /// gw_frac_perv_ ... old_gw_rate_, in the hydrology dump's order
+    pub vectors: [&'a mut Vec<f64>; 12],
+    pub gw_q_node_: &'a mut Vec<i32>,
+    pub climate_file_: &'a mut ClimateFileReader,
 }
 
 /// Gate only (cargo feature `gate`): the solver members rtdump prints, writable, for the
@@ -1018,7 +1026,31 @@ impl SwmmEngine {
         }
     }
     pub fn gate_hydrology(&mut self) -> GateHydrology<'_> {
-        GateHydrology { runoff_: &mut self.runoff_, snow_: &mut self.snow_, groundwater_: &mut self.groundwater_, lid_: &mut self.lid_ }
+        GateHydrology {
+            runoff_: &mut self.runoff_,
+            snow_: &mut self.snow_,
+            groundwater_: &mut self.groundwater_,
+            lid_: &mut self.lid_,
+            rdii_: &mut self.rdii_,
+            gage_states_: &mut self.gage_states_,
+            last_melt_doy_: &mut self.last_melt_doy_,
+            vectors: [
+                &mut self.gw_frac_perv_,
+                &mut self.gw_perv_evap_,
+                &mut self.gw_lid_perv_area_,
+                &mut self.gw_lid_infil_vol_,
+                &mut self.gw_lid_perv_evap_vol_,
+                &mut self.gw_2d_recharge_vol_,
+                &mut self.gw_infil_with_2d_,
+                &mut self.gw_infil_rate_,
+                &mut self.snow_rain_,
+                &mut self.snow_snow_,
+                &mut self.gw_q_interp_,
+                &mut self.old_gw_rate_,
+            ],
+            gw_q_node_: &mut self.gw_q_node_,
+            climate_file_: &mut self.climate_file_,
+        }
     }
     pub fn gate_members(&mut self) -> GateMembers<'_> {
         GateMembers {

@@ -30,6 +30,18 @@
 //          (assembleLateralInflows(dt); decks with street inlets are skipped, as computeAll
 //          belongs to the routing step), forcings (resetStepMassBalance, applyForcings(dt)).
 //          dt is the last step's (elapsed_ms - old_elapsed_ms) / 1000, or ROUTING_STEP at K 0.
+//   runoff K M SIDE [full J]   (the runoff step's differential) open, initialize, start, run
+//          K real steps, then (K > 0) write the context (SIDE.ctx), the hydrology solvers
+//          (SIDE.hyd, hydrodump) and the engine members the runoff step reads (SIDE.eng);
+//          then M times: save_lat_qual_state, resetStepMassBalance, applyForcings(dt) and
+//          stepRunoff(dt) as step() calls them, printing "runoff m" and the hash of the runoff
+//          dump after the first and the last call and after every call that took a runoff step (runoff_dump: the context, hydrodump and the runoff engine members;
+//          the full dump at m = J), then advance the routing clock by hand
+//          (old_elapsed_ms = elapsed_ms; elapsed_ms += 1000 dt, capped at the duration),
+//          stopping once elapsed_ms reaches the duration. dt is the last step's, or
+//          ROUTING_STEP at K 0. An exception stepRunoff throws prints "runoff m threw <what>"
+//          and ends the loop. The Rust twin loads SIDE.* (K > 0) into its own started
+//          engine and runs its translation the same way.
 // A dump is only printed after a call returns; where upstream terminates (U1, U57) stdout
 // is lost with the process, as before.
 #include <algorithm>
@@ -325,6 +337,154 @@ static int helper_mode(SWMM_Engine h, openswmm::SWMMEngine* eng, int k_steps, co
     return 0;
 }
 
+// the runoff step's dump: the context, the hydrology solvers and the engine members the
+// runoff step writes (the router, quality-routing and lifecycle state are not loaded on the
+// Rust side and the runoff step does not touch them, so they are left out)
+static void runoff_dump(openswmm::SWMMEngine* eng) {
+    ctxdump::dump(eng->ctx_);
+    ctxdump::hydrodump(*eng);
+    ctxdump::pf("old_runoff_time_", eng->old_runoff_time_);
+    ctxdump::pf("new_runoff_time_", eng->new_runoff_time_);
+    ctxdump::pf("old_runoff_ms_", eng->old_runoff_ms_);
+    ctxdump::pf("prev_runoff_step_sec_", eng->prev_runoff_step_sec_);
+    ctxdump::pf("new_runoff_ms_", eng->new_runoff_ms_);
+    ctxdump::pi("has_runoff_", eng->has_runoff_ ? 1 : 0);
+    ctxdump::pi("has_snow_", eng->has_snow_ ? 1 : 0);
+    ctxdump::vf("wet_q_interp_", eng->wet_q_interp_);
+    ctxdump::vf("lid_drain_q_interp_", eng->lid_drain_q_interp_);
+    for (auto& q : eng->lid_drain_q_units_) {
+        ctxdump::pi("lid_drain_q_units_.first", q.first);
+        ctxdump::pf("lid_drain_q_units_.second", q.second);
+    }
+    ctxdump::vf("lid_vlidin_vol_", eng->lid_vlidin_vol_);
+    ctxdump::vf("lid_qsurf_cfs_", eng->lid_qsurf_cfs_);
+    ctxdump::vf("surface_quality_.buildup", eng->surface_quality_.buildup);
+}
+
+static unsigned long long hashed_runoff(openswmm::SWMMEngine* eng) {
+    std::fflush(stdout);
+    char path[] = "/tmp/ctxstepXXXXXX";
+    const int fd = mkstemp(path);
+    const int saved = dup(1);
+    dup2(fd, 1);
+    runoff_dump(eng);
+    std::fflush(stdout);
+    dup2(saved, 1);
+    close(saved);
+    unsigned long long h = 1469598103934665603ULL;
+    lseek(fd, 0, SEEK_SET);
+    unsigned char buf[65536];
+    ssize_t n;
+    while ((n = read(fd, buf, sizeof buf)) > 0)
+        for (ssize_t i = 0; i < n; ++i) {
+            h ^= buf[i];
+            h *= 1099511628211ULL;
+        }
+    close(fd);
+    unlink(path);
+    return h;
+}
+
+// the side file of the runoff step: the engine members stepRunoff reads that neither the
+// context dump nor hydrodump covers (the lifecycle's runoff clocks and work vectors, the
+// surface quality buildup)
+static void write_runoff_side(openswmm::SWMMEngine* eng, const char* side, int k, int rc) {
+    {
+        std::string p = std::string(side) + ".ctx";
+        std::fflush(stdout);
+        FILE* f = std::fopen(p.c_str(), "w");
+        const int saved = dup(1);
+        dup2(fileno(f), 1);
+        ctxdump::dump(eng->ctx_);
+        std::fflush(stdout);
+        dup2(saved, 1);
+        close(saved);
+        std::fclose(f);
+    }
+    {
+        std::string p = std::string(side) + ".hyd";
+        std::fflush(stdout);
+        FILE* f = std::fopen(p.c_str(), "w");
+        const int saved = dup(1);
+        dup2(fileno(f), 1);
+        ctxdump::hydrodump(*eng);
+        std::fflush(stdout);
+        dup2(saved, 1);
+        close(saved);
+        std::fclose(f);
+    }
+    std::string p = std::string(side) + ".eng";
+    FILE* f = std::fopen(p.c_str(), "w");
+    std::fprintf(f, "runoff_at %d rc %d\n", k, rc);
+    wnum(f, "old_runoff_time_", eng->old_runoff_time_);
+    wnum(f, "new_runoff_time_", eng->new_runoff_time_);
+    wnum(f, "old_runoff_ms_", eng->old_runoff_ms_);
+    wnum(f, "prev_runoff_step_sec_", eng->prev_runoff_step_sec_);
+    wnum(f, "new_runoff_ms_", eng->new_runoff_ms_);
+    std::fprintf(f, "has_runoff_ %d\n", eng->has_runoff_ ? 1 : 0);
+    std::fprintf(f, "has_snow_ %d\n", eng->has_snow_ ? 1 : 0);
+    wvec(f, "wet_q_interp_", eng->wet_q_interp_);
+    wvec(f, "lid_drain_q_interp_", eng->lid_drain_q_interp_);
+    std::vector<double> un, uq;
+    for (auto& q : eng->lid_drain_q_units_) {
+        un.push_back(q.first);
+        uq.push_back(q.second);
+    }
+    wvec(f, "lid_units_node", un);
+    wvec(f, "lid_units_q", uq);
+    wvec(f, "lid_vlidin_vol_", eng->lid_vlidin_vol_);
+    wvec(f, "lid_qsurf_cfs_", eng->lid_qsurf_cfs_);
+    wvec(f, "buildup", eng->surface_quality_.buildup);
+    std::fprintf(f, "end\n");
+    std::fclose(f);
+}
+
+static int runoff_mode(SWMM_Engine h, openswmm::SWMMEngine* eng, int k_steps, int m_calls, const char* side,
+                       int full_at) {
+    int rc = 0;
+    int k = 0;
+    for (; rc == 0 && k < k_steps; ++k) {
+        double elapsed = -1.0;
+        rc = swmm_engine_step(h, &elapsed);
+        if (elapsed == 0.0)
+            break;
+    }
+    auto& ctx = eng->ctx_;
+    std::printf("runoff_at %d rc %d\n", k, rc);
+    if (k_steps > 0)
+        write_runoff_side(eng, side, k, rc);
+    if (rc != 0)
+        return 0;
+    const double dt = k > 0 ? (ctx.elapsed_ms - ctx.old_elapsed_ms) / 1000.0 : ctx.options.routing_step;
+    const double total = ctx.options.totalDurationMs();
+    double last_new_ms = eng->new_runoff_ms_;
+    for (int m = 1; m <= m_calls && ctx.elapsed_ms < total; ++m) {
+        ctx.save_lat_qual_state();
+        eng->resetStepMassBalance();
+        eng->applyForcings(dt);
+        try {
+            eng->stepRunoff(dt);
+        } catch (const std::exception& e) {
+            std::printf("runoff %d threw %s\n", m, e.what());
+            break;
+        }
+        // dumped after the first and last call and after every call that took a runoff step
+        if (m == 1 || m == m_calls || m == full_at || eng->new_runoff_ms_ != last_new_ms) {
+            std::printf("runoff %d\n", m);
+            if (m == full_at)
+                runoff_dump(eng);
+            else
+                std::printf("hash %d %016llx\n", m, hashed_runoff(eng));
+        }
+        last_new_ms = eng->new_runoff_ms_;
+        ctx.old_elapsed_ms = ctx.elapsed_ms;
+        ctx.elapsed_ms += 1000.0 * dt;
+        if (ctx.elapsed_ms > total)
+            ctx.elapsed_ms = total;
+    }
+    return 0;
+}
+
 int main(int argc, char** argv) {
     const char* mode = argc > 2 ? argv[2] : "init";
     const int nsteps = argc > 3 ? std::atoi(argv[3]) : 1;
@@ -353,6 +513,10 @@ int main(int argc, char** argv) {
     }
     if (std::strcmp(mode, "helper") == 0)
         return rc == 0 ? helper_mode(h, eng, nsteps, argv[4], argv[5]) : 0;
+    if (std::strcmp(mode, "runoff") == 0) {
+        const int full_j = (argc > 7 && std::strcmp(argv[6], "full") == 0) ? std::atoi(argv[7]) : -1;
+        return rc == 0 ? runoff_mode(h, eng, nsteps, std::atoi(argv[4]), argv[5], full_j) : 0;
+    }
     dump_or_hash(eng, hashing && full_at != 0, "start");
     for (int k = 1; rc == 0 && k <= nsteps; ++k) {
         double elapsed = -1.0;

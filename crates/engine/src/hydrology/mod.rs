@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
+pub mod climate;
 pub mod climate_file;
 pub mod climate_types;
 pub mod gage;
 pub mod gage_report;
-pub mod green_ampt_step;
 pub mod groundwater;
 pub mod groundwater_parse;
 pub mod hourly_meteorology;
@@ -12,6 +12,7 @@ pub mod infiltration;
 pub mod inflow;
 pub mod inflow_step;
 pub mod lid;
+pub mod lid_kernel;
 pub mod lid_node;
 pub mod lid_node_step;
 pub mod lid_node_held;

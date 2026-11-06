@@ -16,7 +16,7 @@ use crate::core::unit_conversion as ucf;
 use crate::data::lid_node::{GreenAmptState, LidNodeBottom};
 use crate::hydraulics::exfiltration::ExfilSolver;
 use crate::hydraulics::node;
-use crate::hydrology::green_ampt_step::grnampt_get_infil;
+use crate::hydrology::infiltration::grnampt_get_infil;
 use crate::hydrology::infiltration::InfilModel;
 use crate::hydrology::lid_node_step as lidnode;
 
@@ -25,7 +25,7 @@ fn ga_rate(ga: &mut GreenAmptState, d: f64, dt: f64, infil_factor: f64, recovery
     if ga.IMDmax == 0.0 {
         return ga.Ks * infil_factor;
     }
-    grnampt_get_infil(ga, 0.0, d, dt, InfilModel::ModGreenAmpt, infil_factor, recovery_factor)
+    grnampt_get_infil(ga, 0.0, d, dt, InfilModel::ModGreenAmpt as i32, infil_factor, recovery_factor)
 }
 
 impl ExfilSolver {
