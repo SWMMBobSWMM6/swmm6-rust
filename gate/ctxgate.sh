@@ -65,6 +65,26 @@
 #       between calls; the translation loads that state (K > 0) into its own started engine
 #       and does the same. The whole dump is hashed after each call (FNV-1a 64); with
 #       CTXGATE_DIFFDIR the full dumps at the first differing call are written there.
+#   gate/ctxgate.sh route [K1 [K0 [hyd]]]
+#       the routing-step cross test (default calls 1..300). Per deck, upstream
+#       (gate/diff/routestep) is opened, initialized and started through its C API and stepped
+#       with swmm_engine_step; the harness's own SWMMEngine::stepRouting (the library calls it
+#       through its PLT) dumps the whole state before and after the library's stepRouting for
+#       calls K0..K1 (context, rtdump, qualdump, stepdump). examples/routestep then, for each
+#       call, opens the deck, runs the translated init legs, loads upstream's BEFORE dump
+#       (ctxload: load, load_rt, load_qual), runs the translated step_routing with upstream's
+#       dt and dumps, comparing as it goes (upstream's output is piped in, never written to
+#       disk): first the loader's round trip (load, dump, cmp with the BEFORE block), then the
+#       AFTER block; it stops at the first difference. Results: identical N, differ (first
+#       call, label, element), loaddiff, nottranslated (the translation stops on a path it
+#       does not translate yet), nostart (upstream's open/initialize/start failed), nosteps,
+#       panic, noresult. (examples/routestep deck file [step|load] and gate/routecmp.py
+#       compare saved streams by hand.)
+#       "hyd" runs each dumped call with options.ignore_quality set on both sides (the
+#       hydraulic step of a deck with pollutants, while quality routing is not translated).
+#       CTXGATE_LOG=file appends one line per deck. Files a deck SAVEs to (gate/savefiles.py)
+#       are backed up before the run and restored after, since upstream's start() truncates
+#       them and another deck may USE them.
 #
 # DECKLIST=file runs the decks listed in it (one path per line) instead of the default set.
 # CTXGATE_KEEP=file keeps the list of differing decks; CTXGATE_STUBS=file the stub lines (step,
@@ -73,6 +93,32 @@ H=$(cd "$(dirname "$0")/.." && pwd); W=$(mktemp -d)
 E="$H/target/release/examples"
 if [ -n "$DECKLIST" ]; then sort "$DECKLIST" > "$W/decks.txt"      # DECKLIST=file: one deck path per line
 else { find /root/work/corpus -name '*.inp'; find /root/work/swmm6src/upstream/tests -name '*.inp'; find "$H/gate/decks" -name '*.inp'; } | sort > "$W/decks.txt"; fi
+
+if [ "${1:-}" = route ]; then
+  K1=${2:-300}; K0=${3:-1}; HYD=${4:-}; C_BIN="$H/gate/diff/routestep"; R_BIN="$E/routestep"
+  : > "$W/res.txt"
+  mkdir -p "$W/bak"
+  while IFS= read -r d; do
+    # back up the files the deck SAVEs to; restore them after the run
+    python3 "$H/gate/savefiles.py" "$d" > "$W/saves.txt" 2>/dev/null; k=0
+    while IFS= read -r f; do k=$((k+1)); rm -f "$W/bak/$k"; [ -f "$f" ] && cp -p "$f" "$W/bak/$k"; done < "$W/saves.txt"
+    # upstream's dumps are piped straight into the translation (no file: a big deck's 300
+    # dumped calls run to gigabytes); examples/routestep stream prints one result line
+    ( cd "$(dirname "$d")" && timeout 3600 "$C_BIN" "$d" "$K0" "$K1" $HYD 2>/dev/null | timeout 3600 "$R_BIN" "$d" stream > "$W/r.txt" 2> "$W/err.txt" ) 2>/dev/null
+    k=0; while IFS= read -r f; do k=$((k+1)); if [ -f "$W/bak/$k" ]; then cp -p "$W/bak/$k" "$f"; else rm -f "$f"; fi; done < "$W/saves.txt"
+    res=$(head -1 "$W/r.txt")
+    if grep -q panicked "$W/err.txt"; then res="panic $(grep -m1 -A1 panicked "$W/err.txt" | tail -1 | head -c 160)"
+    elif [ -z "$res" ]; then res="noresult"; fi
+    echo "$res $d" >> "$W/res.txt"
+    [ -n "$CTXGATE_LOG" ] && echo "$res $d" >> "$CTXGATE_LOG"
+  done < "$W/decks.txt"
+  for k in identical differ loaddiff nottranslated nostart nosteps panic noresult; do
+    printf '%s %s\n' "$k" "$(grep -c "^$k " "$W/res.txt")"
+  done | tr '\n' ' '; echo "(route calls $K0..$K1 $HYD)"
+  grep -v '^identical \|^nostart \|^nosteps ' "$W/res.txt" | head -${CTXGATE_SHOW:-5}
+  [ -n "$CTXGATE_KEEP" ] && cp "$W/res.txt" "$CTXGATE_KEEP"; rm -rf "$W"
+  exit 0
+fi
 
 if [ "${1:-}" = loadrt ]; then
   M=${2:-open}; C_BIN="$H/gate/diff/ctxopen"; R_BIN="$E/ctxopen"; L_BIN="$E/ctxload"

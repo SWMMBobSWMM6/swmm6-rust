@@ -76,55 +76,55 @@ pub fn load_hydro(r: &mut Rd, e: &mut SwmmEngine) {
     set_vf(&mut (*h.runoff_).soa_.imperv_runoff_cfs, r.vf("runoff_.soa_.imperv_runoff_cfs"));
     set_vf(&mut (*h.runoff_).soa_.perv_runoff_cfs, r.vf("runoff_.soa_.perv_runoff_cfs"));
     set_vf(&mut (*h.runoff_).soa_.outflow_vol, r.vf("runoff_.soa_.outflow_vol"));
-    { let n = r.count("runoff_.soa_.completed.n"); SeqLen::seq_len(&mut (*h.runoff_).soa_.completed, n); for e97 in ((*h.runoff_).soa_.completed).iter_mut() {
-    { let n = r.count("runoff_.soa_.completed[].n"); SeqLen::seq_len(&mut (*e97), n); for e98 in ((*e97)).iter_mut() {
-    (*e98).area = FromF64::from_f64(r.pf("runoff_.soa_.completed[][].area"));
-    (*e98).opening = FromF64::from_f64(r.pf("runoff_.soa_.completed[][].opening"));
-    (*e98).rain = FromF64::from_f64(r.pf("runoff_.soa_.completed[][].rain"));
-    (*e98).runon = FromF64::from_f64(r.pf("runoff_.soa_.completed[][].runon"));
-    (*e98).evaporation = FromF64::from_f64(r.pf("runoff_.soa_.completed[][].evaporation"));
-    (*e98).infiltration = FromF64::from_f64(r.pf("runoff_.soa_.completed[][].infiltration"));
-    (*e98).spatial_infiltration = FromF64::from_f64(r.pf("runoff_.soa_.completed[][].spatial_infiltration"));
-    (*e98).outflow = FromF64::from_f64(r.pf("runoff_.soa_.completed[][].outflow"));
-    (*e98).outlet = FromF64::from_f64(r.pf("runoff_.soa_.completed[][].outlet"));
-    (*e98).closing = FromF64::from_f64(r.pf("runoff_.soa_.completed[][].closing"));
+    { let n = r.count("runoff_.soa_.completed.n"); SeqLen::seq_len(&mut (*h.runoff_).soa_.completed, n); for e102 in ((*h.runoff_).soa_.completed).iter_mut() {
+    { let n = r.count("runoff_.soa_.completed[].n"); SeqLen::seq_len(&mut (*e102), n); for e103 in ((*e102)).iter_mut() {
+    (*e103).area = FromF64::from_f64(r.pf("runoff_.soa_.completed[][].area"));
+    (*e103).opening = FromF64::from_f64(r.pf("runoff_.soa_.completed[][].opening"));
+    (*e103).rain = FromF64::from_f64(r.pf("runoff_.soa_.completed[][].rain"));
+    (*e103).runon = FromF64::from_f64(r.pf("runoff_.soa_.completed[][].runon"));
+    (*e103).evaporation = FromF64::from_f64(r.pf("runoff_.soa_.completed[][].evaporation"));
+    (*e103).infiltration = FromF64::from_f64(r.pf("runoff_.soa_.completed[][].infiltration"));
+    (*e103).spatial_infiltration = FromF64::from_f64(r.pf("runoff_.soa_.completed[][].spatial_infiltration"));
+    (*e103).outflow = FromF64::from_f64(r.pf("runoff_.soa_.completed[][].outflow"));
+    (*e103).outlet = FromF64::from_f64(r.pf("runoff_.soa_.completed[][].outlet"));
+    (*e103).closing = FromF64::from_f64(r.pf("runoff_.soa_.completed[][].closing"));
     } }
     } }
     set_vf(&mut (*h.runoff_).spatial_full_area_ft2_, r.vf("runoff_.spatial_full_area_ft2_"));
     set_vi(&mut (*h.runoff_).infil_bank_.methods_, r.vi("runoff_.infil_bank_.methods_"));
     set_vi(&mut (*h.runoff_).infil_bank_.owners_, r.vi("runoff_.infil_bank_.owners_"));
-    { let n = r.count("runoff_.infil_bank_.horton_.n"); SeqLen::seq_len(&mut (*h.runoff_).infil_bank_.horton_, n); for e99 in ((*h.runoff_).infil_bank_.horton_).iter_mut() {
-    (*e99).f0 = FromF64::from_f64(r.pf("runoff_.infil_bank_.horton_[].f0"));
-    (*e99).fmin = FromF64::from_f64(r.pf("runoff_.infil_bank_.horton_[].fmin"));
-    (*e99).decay = FromF64::from_f64(r.pf("runoff_.infil_bank_.horton_[].decay"));
-    (*e99).regen = FromF64::from_f64(r.pf("runoff_.infil_bank_.horton_[].regen"));
-    (*e99).Fmax = FromF64::from_f64(r.pf("runoff_.infil_bank_.horton_[].Fmax"));
-    (*e99).tp = FromF64::from_f64(r.pf("runoff_.infil_bank_.horton_[].tp"));
-    (*e99).Fe = FromF64::from_f64(r.pf("runoff_.infil_bank_.horton_[].Fe"));
-    (*e99).Fmh = FromF64::from_f64(r.pf("runoff_.infil_bank_.horton_[].Fmh"));
+    { let n = r.count("runoff_.infil_bank_.horton_.n"); SeqLen::seq_len(&mut (*h.runoff_).infil_bank_.horton_, n); for e104 in ((*h.runoff_).infil_bank_.horton_).iter_mut() {
+    (*e104).f0 = FromF64::from_f64(r.pf("runoff_.infil_bank_.horton_[].f0"));
+    (*e104).fmin = FromF64::from_f64(r.pf("runoff_.infil_bank_.horton_[].fmin"));
+    (*e104).decay = FromF64::from_f64(r.pf("runoff_.infil_bank_.horton_[].decay"));
+    (*e104).regen = FromF64::from_f64(r.pf("runoff_.infil_bank_.horton_[].regen"));
+    (*e104).Fmax = FromF64::from_f64(r.pf("runoff_.infil_bank_.horton_[].Fmax"));
+    (*e104).tp = FromF64::from_f64(r.pf("runoff_.infil_bank_.horton_[].tp"));
+    (*e104).Fe = FromF64::from_f64(r.pf("runoff_.infil_bank_.horton_[].Fe"));
+    (*e104).Fmh = FromF64::from_f64(r.pf("runoff_.infil_bank_.horton_[].Fmh"));
     } }
-    { let n = r.count("runoff_.infil_bank_.grnampt_.n"); SeqLen::seq_len(&mut (*h.runoff_).infil_bank_.grnampt_, n); for e100 in ((*h.runoff_).infil_bank_.grnampt_).iter_mut() {
-    (*e100).S = FromF64::from_f64(r.pf("runoff_.infil_bank_.grnampt_[].S"));
-    (*e100).Ks = FromF64::from_f64(r.pf("runoff_.infil_bank_.grnampt_[].Ks"));
-    (*e100).IMDmax = FromF64::from_f64(r.pf("runoff_.infil_bank_.grnampt_[].IMDmax"));
-    (*e100).IMD = FromF64::from_f64(r.pf("runoff_.infil_bank_.grnampt_[].IMD"));
-    (*e100).F = FromF64::from_f64(r.pf("runoff_.infil_bank_.grnampt_[].F"));
-    (*e100).Fu = FromF64::from_f64(r.pf("runoff_.infil_bank_.grnampt_[].Fu"));
-    (*e100).Fumax = FromF64::from_f64(r.pf("runoff_.infil_bank_.grnampt_[].Fumax"));
-    (*e100).Lu = FromF64::from_f64(r.pf("runoff_.infil_bank_.grnampt_[].Lu"));
-    (*e100).T = FromF64::from_f64(r.pf("runoff_.infil_bank_.grnampt_[].T"));
-    (*e100).saturated = FromI64::from_i64(r.pi("runoff_.infil_bank_.grnampt_[].saturated"));
+    { let n = r.count("runoff_.infil_bank_.grnampt_.n"); SeqLen::seq_len(&mut (*h.runoff_).infil_bank_.grnampt_, n); for e105 in ((*h.runoff_).infil_bank_.grnampt_).iter_mut() {
+    (*e105).S = FromF64::from_f64(r.pf("runoff_.infil_bank_.grnampt_[].S"));
+    (*e105).Ks = FromF64::from_f64(r.pf("runoff_.infil_bank_.grnampt_[].Ks"));
+    (*e105).IMDmax = FromF64::from_f64(r.pf("runoff_.infil_bank_.grnampt_[].IMDmax"));
+    (*e105).IMD = FromF64::from_f64(r.pf("runoff_.infil_bank_.grnampt_[].IMD"));
+    (*e105).F = FromF64::from_f64(r.pf("runoff_.infil_bank_.grnampt_[].F"));
+    (*e105).Fu = FromF64::from_f64(r.pf("runoff_.infil_bank_.grnampt_[].Fu"));
+    (*e105).Fumax = FromF64::from_f64(r.pf("runoff_.infil_bank_.grnampt_[].Fumax"));
+    (*e105).Lu = FromF64::from_f64(r.pf("runoff_.infil_bank_.grnampt_[].Lu"));
+    (*e105).T = FromF64::from_f64(r.pf("runoff_.infil_bank_.grnampt_[].T"));
+    (*e105).saturated = FromI64::from_i64(r.pi("runoff_.infil_bank_.grnampt_[].saturated"));
     } }
-    { let n = r.count("runoff_.infil_bank_.curvenum_.n"); SeqLen::seq_len(&mut (*h.runoff_).infil_bank_.curvenum_, n); for e101 in ((*h.runoff_).infil_bank_.curvenum_).iter_mut() {
-    (*e101).Smax = FromF64::from_f64(r.pf("runoff_.infil_bank_.curvenum_[].Smax"));
-    (*e101).S = FromF64::from_f64(r.pf("runoff_.infil_bank_.curvenum_[].S"));
-    (*e101).Se = FromF64::from_f64(r.pf("runoff_.infil_bank_.curvenum_[].Se"));
-    (*e101).P = FromF64::from_f64(r.pf("runoff_.infil_bank_.curvenum_[].P"));
-    (*e101).F = FromF64::from_f64(r.pf("runoff_.infil_bank_.curvenum_[].F"));
-    (*e101).f = FromF64::from_f64(r.pf("runoff_.infil_bank_.curvenum_[].f"));
-    (*e101).regen = FromF64::from_f64(r.pf("runoff_.infil_bank_.curvenum_[].regen"));
-    (*e101).T = FromF64::from_f64(r.pf("runoff_.infil_bank_.curvenum_[].T"));
-    (*e101).Tmax = FromF64::from_f64(r.pf("runoff_.infil_bank_.curvenum_[].Tmax"));
+    { let n = r.count("runoff_.infil_bank_.curvenum_.n"); SeqLen::seq_len(&mut (*h.runoff_).infil_bank_.curvenum_, n); for e106 in ((*h.runoff_).infil_bank_.curvenum_).iter_mut() {
+    (*e106).Smax = FromF64::from_f64(r.pf("runoff_.infil_bank_.curvenum_[].Smax"));
+    (*e106).S = FromF64::from_f64(r.pf("runoff_.infil_bank_.curvenum_[].S"));
+    (*e106).Se = FromF64::from_f64(r.pf("runoff_.infil_bank_.curvenum_[].Se"));
+    (*e106).P = FromF64::from_f64(r.pf("runoff_.infil_bank_.curvenum_[].P"));
+    (*e106).F = FromF64::from_f64(r.pf("runoff_.infil_bank_.curvenum_[].F"));
+    (*e106).f = FromF64::from_f64(r.pf("runoff_.infil_bank_.curvenum_[].f"));
+    (*e106).regen = FromF64::from_f64(r.pf("runoff_.infil_bank_.curvenum_[].regen"));
+    (*e106).T = FromF64::from_f64(r.pf("runoff_.infil_bank_.curvenum_[].T"));
+    (*e106).Tmax = FromF64::from_f64(r.pf("runoff_.infil_bank_.curvenum_[].Tmax"));
     } }
     set_vf(&mut (*h.runoff_).infil_bank_.constant_, r.vf("runoff_.infil_bank_.constant_"));
     set_vf(&mut (*h.runoff_).infil_bank_.cumulative_, r.vf("runoff_.infil_bank_.cumulative_"));
@@ -200,136 +200,136 @@ pub fn load_hydro(r: &mut Rd, e: &mut SwmmEngine) {
     set_vf(&mut (*h.groundwater_).soa_.lower_evap, r.vf("groundwater_.soa_.lower_evap"));
     set_vf(&mut (*h.groundwater_).soa_.deep_loss, r.vf("groundwater_.soa_.deep_loss"));
     set_vf(&mut (*h.groundwater_).soa_.max_infil_vol, r.vf("groundwater_.soa_.max_infil_vol"));
-    { let n = r.count("groundwater_.soa_.lateral_expr.n"); SeqLen::seq_len(&mut (*h.groundwater_).soa_.lateral_expr, n); for e102 in ((*h.groundwater_).soa_.lateral_expr).iter_mut() {
-    { let n = r.count("groundwater_.soa_.lateral_expr[].postfix.n"); SeqLen::seq_len(&mut (*e102).postfix, n); for e103 in ((*e102).postfix).iter_mut() {
-    (*e103).type_ = FromI64::from_i64(r.pi("groundwater_.soa_.lateral_expr[].postfix[].type"));
-    (*e103).value = FromF64::from_f64(r.pf("groundwater_.soa_.lateral_expr[].postfix[].value"));
-    (*e103).var_idx = FromI64::from_i64(r.pi("groundwater_.soa_.lateral_expr[].postfix[].var_idx"));
-    (*e103).var_name = r.ps("groundwater_.soa_.lateral_expr[].postfix[].var_name");
+    { let n = r.count("groundwater_.soa_.lateral_expr.n"); SeqLen::seq_len(&mut (*h.groundwater_).soa_.lateral_expr, n); for e107 in ((*h.groundwater_).soa_.lateral_expr).iter_mut() {
+    { let n = r.count("groundwater_.soa_.lateral_expr[].postfix.n"); SeqLen::seq_len(&mut (*e107).postfix, n); for e108 in ((*e107).postfix).iter_mut() {
+    (*e108).type_ = FromI64::from_i64(r.pi("groundwater_.soa_.lateral_expr[].postfix[].type"));
+    (*e108).value = FromF64::from_f64(r.pf("groundwater_.soa_.lateral_expr[].postfix[].value"));
+    (*e108).var_idx = FromI64::from_i64(r.pi("groundwater_.soa_.lateral_expr[].postfix[].var_idx"));
+    (*e108).var_name = r.ps("groundwater_.soa_.lateral_expr[].postfix[].var_name");
     } }
-    (*e102).valid = FromI64::from_i64(r.pi("groundwater_.soa_.lateral_expr[].valid"));
+    (*e107).valid = FromI64::from_i64(r.pi("groundwater_.soa_.lateral_expr[].valid"));
     } }
-    { let n = r.count("groundwater_.soa_.deep_expr.n"); SeqLen::seq_len(&mut (*h.groundwater_).soa_.deep_expr, n); for e104 in ((*h.groundwater_).soa_.deep_expr).iter_mut() {
-    { let n = r.count("groundwater_.soa_.deep_expr[].postfix.n"); SeqLen::seq_len(&mut (*e104).postfix, n); for e105 in ((*e104).postfix).iter_mut() {
-    (*e105).type_ = FromI64::from_i64(r.pi("groundwater_.soa_.deep_expr[].postfix[].type"));
-    (*e105).value = FromF64::from_f64(r.pf("groundwater_.soa_.deep_expr[].postfix[].value"));
-    (*e105).var_idx = FromI64::from_i64(r.pi("groundwater_.soa_.deep_expr[].postfix[].var_idx"));
-    (*e105).var_name = r.ps("groundwater_.soa_.deep_expr[].postfix[].var_name");
+    { let n = r.count("groundwater_.soa_.deep_expr.n"); SeqLen::seq_len(&mut (*h.groundwater_).soa_.deep_expr, n); for e109 in ((*h.groundwater_).soa_.deep_expr).iter_mut() {
+    { let n = r.count("groundwater_.soa_.deep_expr[].postfix.n"); SeqLen::seq_len(&mut (*e109).postfix, n); for e110 in ((*e109).postfix).iter_mut() {
+    (*e110).type_ = FromI64::from_i64(r.pi("groundwater_.soa_.deep_expr[].postfix[].type"));
+    (*e110).value = FromF64::from_f64(r.pf("groundwater_.soa_.deep_expr[].postfix[].value"));
+    (*e110).var_idx = FromI64::from_i64(r.pi("groundwater_.soa_.deep_expr[].postfix[].var_idx"));
+    (*e110).var_name = r.ps("groundwater_.soa_.deep_expr[].postfix[].var_name");
     } }
-    (*e104).valid = FromI64::from_i64(r.pi("groundwater_.soa_.deep_expr[].valid"));
+    (*e109).valid = FromI64::from_i64(r.pi("groundwater_.soa_.deep_expr[].valid"));
     } }
-    { let n = r.count("lid_.groups_.n"); SeqLen::seq_len(&mut (*h.lid_).groups_, n); for e106 in ((*h.lid_).groups_).iter_mut() {
-    (*e106).type_ = FromI64::from_i64(r.pi("lid_.groups_[].type"));
-    (*e106).count = FromI64::from_i64(r.pi("lid_.groups_[].count"));
-    (*e106).ucf_raindepth = FromF64::from_f64(r.pf("lid_.groups_[].ucf_raindepth"));
-    (*e106).ucf_rainfall = FromF64::from_f64(r.pf("lid_.groups_[].ucf_rainfall"));
-    set_vi(&mut (*e106).subcatch_idx, r.vi("lid_.groups_[].subcatch_idx"));
-    set_vi(&mut (*e106).control_idx, r.vi("lid_.groups_[].control_idx"));
-    set_vf(&mut (*e106).area, r.vf("lid_.groups_[].area"));
-    set_vf(&mut (*e106).from_imperv, r.vf("lid_.groups_[].from_imperv"));
-    set_vf(&mut (*e106).from_perv, r.vf("lid_.groups_[].from_perv"));
-    set_vi(&mut (*e106).to_perv, r.vi("lid_.groups_[].to_perv"));
-    set_vi(&mut (*e106).drain_node, r.vi("lid_.groups_[].drain_node"));
-    set_vi(&mut (*e106).drain_subcatch, r.vi("lid_.groups_[].drain_subcatch"));
-    set_vf(&mut (*e106).inflow, r.vf("lid_.groups_[].inflow"));
-    set_vf(&mut (*e106).evap_rate_unit, r.vf("lid_.groups_[].evap_rate_unit"));
-    set_vf(&mut (*e106).subcatch_rain, r.vf("lid_.groups_[].subcatch_rain"));
-    SeqSet::seq_set(&mut (*e106).rpt_path, r.vs("lid_.groups_[].rpt_path"));
-    set_vf(&mut (*e106).rpt_surf_infil, r.vf("lid_.groups_[].rpt_surf_infil"));
-    set_vf(&mut (*e106).rpt_pave_perc, r.vf("lid_.groups_[].rpt_pave_perc"));
-    set_vf(&mut (*e106).rpt_soil_perc, r.vf("lid_.groups_[].rpt_soil_perc"));
-    set_vf(&mut (*e106).surf_store, r.vf("lid_.groups_[].surf_store"));
-    set_vf(&mut (*e106).surf_rough, r.vf("lid_.groups_[].surf_rough"));
-    set_vf(&mut (*e106).surf_slope, r.vf("lid_.groups_[].surf_slope"));
-    set_vf(&mut (*e106).soil_thick, r.vf("lid_.groups_[].soil_thick"));
-    set_vf(&mut (*e106).soil_poros, r.vf("lid_.groups_[].soil_poros"));
-    set_vf(&mut (*e106).soil_fc, r.vf("lid_.groups_[].soil_fc"));
-    set_vf(&mut (*e106).soil_wp, r.vf("lid_.groups_[].soil_wp"));
-    set_vf(&mut (*e106).soil_ksat, r.vf("lid_.groups_[].soil_ksat"));
-    set_vf(&mut (*e106).soil_kslope, r.vf("lid_.groups_[].soil_kslope"));
-    set_vf(&mut (*e106).soil_suction, r.vf("lid_.groups_[].soil_suction"));
-    set_vf(&mut (*e106).stor_thick, r.vf("lid_.groups_[].stor_thick"));
-    set_vf(&mut (*e106).stor_void, r.vf("lid_.groups_[].stor_void"));
-    set_vf(&mut (*e106).stor_ksat, r.vf("lid_.groups_[].stor_ksat"));
-    set_vf(&mut (*e106).stor_clog, r.vf("lid_.groups_[].stor_clog"));
-    set_vi(&mut (*e106).stor_covered, r.vi("lid_.groups_[].stor_covered"));
-    set_vf(&mut (*e106).drain_coeff, r.vf("lid_.groups_[].drain_coeff"));
-    set_vf(&mut (*e106).drain_expon, r.vf("lid_.groups_[].drain_expon"));
-    set_vf(&mut (*e106).drain_offset, r.vf("lid_.groups_[].drain_offset"));
-    set_vf(&mut (*e106).drain_delay, r.vf("lid_.groups_[].drain_delay"));
-    set_vf(&mut (*e106).drain_hopen, r.vf("lid_.groups_[].drain_hopen"));
-    set_vf(&mut (*e106).drain_hclose, r.vf("lid_.groups_[].drain_hclose"));
-    set_vi(&mut (*e106).drain_open, r.vi("lid_.groups_[].drain_open"));
-    set_vf(&mut (*e106).pave_thick, r.vf("lid_.groups_[].pave_thick"));
-    set_vf(&mut (*e106).pave_void, r.vf("lid_.groups_[].pave_void"));
-    set_vf(&mut (*e106).pave_imperv_frac, r.vf("lid_.groups_[].pave_imperv_frac"));
-    set_vf(&mut (*e106).pave_ksat, r.vf("lid_.groups_[].pave_ksat"));
-    set_vf(&mut (*e106).pave_clog_factor, r.vf("lid_.groups_[].pave_clog_factor"));
-    set_vf(&mut (*e106).pave_regen_days, r.vf("lid_.groups_[].pave_regen_days"));
-    set_vf(&mut (*e106).pave_regen_deg, r.vf("lid_.groups_[].pave_regen_deg"));
-    set_vf(&mut (*e106).next_regen_day, r.vf("lid_.groups_[].next_regen_day"));
-    set_vf(&mut (*e106).drainmat_thick, r.vf("lid_.groups_[].drainmat_thick"));
-    set_vf(&mut (*e106).drainmat_void, r.vf("lid_.groups_[].drainmat_void"));
-    set_vf(&mut (*e106).drainmat_rough, r.vf("lid_.groups_[].drainmat_rough"));
-    set_vf(&mut (*e106).surf_void_frac, r.vf("lid_.groups_[].surf_void_frac"));
-    set_vf(&mut (*e106).surf_alpha, r.vf("lid_.groups_[].surf_alpha"));
-    set_vf(&mut (*e106).surf_side_slope, r.vf("lid_.groups_[].surf_side_slope"));
-    set_vf(&mut (*e106).full_width, r.vf("lid_.groups_[].full_width"));
-    set_vf(&mut (*e106).unit_area, r.vf("lid_.groups_[].unit_area"));
-    set_vf(&mut (*e106).unit_width, r.vf("lid_.groups_[].unit_width"));
-    set_vf(&mut (*e106).dry_time, r.vf("lid_.groups_[].dry_time"));
-    set_vf(&mut (*e106).surf_depth, r.vf("lid_.groups_[].surf_depth"));
-    set_vf(&mut (*e106).soil_moist, r.vf("lid_.groups_[].soil_moist"));
-    set_vf(&mut (*e106).stor_depth, r.vf("lid_.groups_[].stor_depth"));
-    set_vf(&mut (*e106).pave_depth, r.vf("lid_.groups_[].pave_depth"));
-    { let n = r.count("lid_.groups_[].soil_infil.n"); SeqLen::seq_len(&mut (*e106).soil_infil, n); for e107 in ((*e106).soil_infil).iter_mut() {
-    (*e107).S = FromF64::from_f64(r.pf("lid_.groups_[].soil_infil[].S"));
-    (*e107).Ks = FromF64::from_f64(r.pf("lid_.groups_[].soil_infil[].Ks"));
-    (*e107).IMDmax = FromF64::from_f64(r.pf("lid_.groups_[].soil_infil[].IMDmax"));
-    (*e107).IMD = FromF64::from_f64(r.pf("lid_.groups_[].soil_infil[].IMD"));
-    (*e107).F = FromF64::from_f64(r.pf("lid_.groups_[].soil_infil[].F"));
-    (*e107).Fu = FromF64::from_f64(r.pf("lid_.groups_[].soil_infil[].Fu"));
-    (*e107).Fumax = FromF64::from_f64(r.pf("lid_.groups_[].soil_infil[].Fumax"));
-    (*e107).Lu = FromF64::from_f64(r.pf("lid_.groups_[].soil_infil[].Lu"));
-    (*e107).T = FromF64::from_f64(r.pf("lid_.groups_[].soil_infil[].T"));
-    (*e107).saturated = FromI64::from_i64(r.pi("lid_.groups_[].soil_infil[].saturated"));
+    { let n = r.count("lid_.groups_.n"); SeqLen::seq_len(&mut (*h.lid_).groups_, n); for e111 in ((*h.lid_).groups_).iter_mut() {
+    (*e111).type_ = FromI64::from_i64(r.pi("lid_.groups_[].type"));
+    (*e111).count = FromI64::from_i64(r.pi("lid_.groups_[].count"));
+    (*e111).ucf_raindepth = FromF64::from_f64(r.pf("lid_.groups_[].ucf_raindepth"));
+    (*e111).ucf_rainfall = FromF64::from_f64(r.pf("lid_.groups_[].ucf_rainfall"));
+    set_vi(&mut (*e111).subcatch_idx, r.vi("lid_.groups_[].subcatch_idx"));
+    set_vi(&mut (*e111).control_idx, r.vi("lid_.groups_[].control_idx"));
+    set_vf(&mut (*e111).area, r.vf("lid_.groups_[].area"));
+    set_vf(&mut (*e111).from_imperv, r.vf("lid_.groups_[].from_imperv"));
+    set_vf(&mut (*e111).from_perv, r.vf("lid_.groups_[].from_perv"));
+    set_vi(&mut (*e111).to_perv, r.vi("lid_.groups_[].to_perv"));
+    set_vi(&mut (*e111).drain_node, r.vi("lid_.groups_[].drain_node"));
+    set_vi(&mut (*e111).drain_subcatch, r.vi("lid_.groups_[].drain_subcatch"));
+    set_vf(&mut (*e111).inflow, r.vf("lid_.groups_[].inflow"));
+    set_vf(&mut (*e111).evap_rate_unit, r.vf("lid_.groups_[].evap_rate_unit"));
+    set_vf(&mut (*e111).subcatch_rain, r.vf("lid_.groups_[].subcatch_rain"));
+    SeqSet::seq_set(&mut (*e111).rpt_path, r.vs("lid_.groups_[].rpt_path"));
+    set_vf(&mut (*e111).rpt_surf_infil, r.vf("lid_.groups_[].rpt_surf_infil"));
+    set_vf(&mut (*e111).rpt_pave_perc, r.vf("lid_.groups_[].rpt_pave_perc"));
+    set_vf(&mut (*e111).rpt_soil_perc, r.vf("lid_.groups_[].rpt_soil_perc"));
+    set_vf(&mut (*e111).surf_store, r.vf("lid_.groups_[].surf_store"));
+    set_vf(&mut (*e111).surf_rough, r.vf("lid_.groups_[].surf_rough"));
+    set_vf(&mut (*e111).surf_slope, r.vf("lid_.groups_[].surf_slope"));
+    set_vf(&mut (*e111).soil_thick, r.vf("lid_.groups_[].soil_thick"));
+    set_vf(&mut (*e111).soil_poros, r.vf("lid_.groups_[].soil_poros"));
+    set_vf(&mut (*e111).soil_fc, r.vf("lid_.groups_[].soil_fc"));
+    set_vf(&mut (*e111).soil_wp, r.vf("lid_.groups_[].soil_wp"));
+    set_vf(&mut (*e111).soil_ksat, r.vf("lid_.groups_[].soil_ksat"));
+    set_vf(&mut (*e111).soil_kslope, r.vf("lid_.groups_[].soil_kslope"));
+    set_vf(&mut (*e111).soil_suction, r.vf("lid_.groups_[].soil_suction"));
+    set_vf(&mut (*e111).stor_thick, r.vf("lid_.groups_[].stor_thick"));
+    set_vf(&mut (*e111).stor_void, r.vf("lid_.groups_[].stor_void"));
+    set_vf(&mut (*e111).stor_ksat, r.vf("lid_.groups_[].stor_ksat"));
+    set_vf(&mut (*e111).stor_clog, r.vf("lid_.groups_[].stor_clog"));
+    set_vi(&mut (*e111).stor_covered, r.vi("lid_.groups_[].stor_covered"));
+    set_vf(&mut (*e111).drain_coeff, r.vf("lid_.groups_[].drain_coeff"));
+    set_vf(&mut (*e111).drain_expon, r.vf("lid_.groups_[].drain_expon"));
+    set_vf(&mut (*e111).drain_offset, r.vf("lid_.groups_[].drain_offset"));
+    set_vf(&mut (*e111).drain_delay, r.vf("lid_.groups_[].drain_delay"));
+    set_vf(&mut (*e111).drain_hopen, r.vf("lid_.groups_[].drain_hopen"));
+    set_vf(&mut (*e111).drain_hclose, r.vf("lid_.groups_[].drain_hclose"));
+    set_vi(&mut (*e111).drain_open, r.vi("lid_.groups_[].drain_open"));
+    set_vf(&mut (*e111).pave_thick, r.vf("lid_.groups_[].pave_thick"));
+    set_vf(&mut (*e111).pave_void, r.vf("lid_.groups_[].pave_void"));
+    set_vf(&mut (*e111).pave_imperv_frac, r.vf("lid_.groups_[].pave_imperv_frac"));
+    set_vf(&mut (*e111).pave_ksat, r.vf("lid_.groups_[].pave_ksat"));
+    set_vf(&mut (*e111).pave_clog_factor, r.vf("lid_.groups_[].pave_clog_factor"));
+    set_vf(&mut (*e111).pave_regen_days, r.vf("lid_.groups_[].pave_regen_days"));
+    set_vf(&mut (*e111).pave_regen_deg, r.vf("lid_.groups_[].pave_regen_deg"));
+    set_vf(&mut (*e111).next_regen_day, r.vf("lid_.groups_[].next_regen_day"));
+    set_vf(&mut (*e111).drainmat_thick, r.vf("lid_.groups_[].drainmat_thick"));
+    set_vf(&mut (*e111).drainmat_void, r.vf("lid_.groups_[].drainmat_void"));
+    set_vf(&mut (*e111).drainmat_rough, r.vf("lid_.groups_[].drainmat_rough"));
+    set_vf(&mut (*e111).surf_void_frac, r.vf("lid_.groups_[].surf_void_frac"));
+    set_vf(&mut (*e111).surf_alpha, r.vf("lid_.groups_[].surf_alpha"));
+    set_vf(&mut (*e111).surf_side_slope, r.vf("lid_.groups_[].surf_side_slope"));
+    set_vf(&mut (*e111).full_width, r.vf("lid_.groups_[].full_width"));
+    set_vf(&mut (*e111).unit_area, r.vf("lid_.groups_[].unit_area"));
+    set_vf(&mut (*e111).unit_width, r.vf("lid_.groups_[].unit_width"));
+    set_vf(&mut (*e111).dry_time, r.vf("lid_.groups_[].dry_time"));
+    set_vf(&mut (*e111).surf_depth, r.vf("lid_.groups_[].surf_depth"));
+    set_vf(&mut (*e111).soil_moist, r.vf("lid_.groups_[].soil_moist"));
+    set_vf(&mut (*e111).stor_depth, r.vf("lid_.groups_[].stor_depth"));
+    set_vf(&mut (*e111).pave_depth, r.vf("lid_.groups_[].pave_depth"));
+    { let n = r.count("lid_.groups_[].soil_infil.n"); SeqLen::seq_len(&mut (*e111).soil_infil, n); for e112 in ((*e111).soil_infil).iter_mut() {
+    (*e112).S = FromF64::from_f64(r.pf("lid_.groups_[].soil_infil[].S"));
+    (*e112).Ks = FromF64::from_f64(r.pf("lid_.groups_[].soil_infil[].Ks"));
+    (*e112).IMDmax = FromF64::from_f64(r.pf("lid_.groups_[].soil_infil[].IMDmax"));
+    (*e112).IMD = FromF64::from_f64(r.pf("lid_.groups_[].soil_infil[].IMD"));
+    (*e112).F = FromF64::from_f64(r.pf("lid_.groups_[].soil_infil[].F"));
+    (*e112).Fu = FromF64::from_f64(r.pf("lid_.groups_[].soil_infil[].Fu"));
+    (*e112).Fumax = FromF64::from_f64(r.pf("lid_.groups_[].soil_infil[].Fumax"));
+    (*e112).Lu = FromF64::from_f64(r.pf("lid_.groups_[].soil_infil[].Lu"));
+    (*e112).T = FromF64::from_f64(r.pf("lid_.groups_[].soil_infil[].T"));
+    (*e112).saturated = FromI64::from_i64(r.pi("lid_.groups_[].soil_infil[].saturated"));
     } }
-    set_vf(&mut (*e106).old_drain_flow, r.vf("lid_.groups_[].old_drain_flow"));
-    set_vi(&mut (*e106).is_wet, r.vi("lid_.groups_[].is_wet"));
-    set_vi(&mut (*e106).can_overflow, r.vi("lid_.groups_[].can_overflow"));
-    set_vf(&mut (*e106).drainmat_alpha, r.vf("lid_.groups_[].drainmat_alpha"));
-    set_vf(&mut (*e106).surface_runoff, r.vf("lid_.groups_[].surface_runoff"));
-    set_vf(&mut (*e106).drain_flow, r.vf("lid_.groups_[].drain_flow"));
-    set_vf(&mut (*e106).evap_loss, r.vf("lid_.groups_[].evap_loss"));
-    set_vf(&mut (*e106).infil_loss, r.vf("lid_.groups_[].infil_loss"));
-    set_vf(&mut (*e106).drain_rmvl, r.vf("lid_.groups_[].drain_rmvl"));
-    (*e106).n_pollutants = FromI64::from_i64(r.pi("lid_.groups_[].n_pollutants"));
-    set_vf(&mut (*e106).in_surf, r.vf("lid_.groups_[].in_surf"));
-    set_vf(&mut (*e106).in_pave, r.vf("lid_.groups_[].in_pave"));
-    set_vf(&mut (*e106).in_soil, r.vf("lid_.groups_[].in_soil"));
-    set_vf(&mut (*e106).in_stor, r.vf("lid_.groups_[].in_stor"));
-    set_vf(&mut (*e106).evap_surf, r.vf("lid_.groups_[].evap_surf"));
-    set_vf(&mut (*e106).evap_pave, r.vf("lid_.groups_[].evap_pave"));
-    set_vf(&mut (*e106).evap_soil, r.vf("lid_.groups_[].evap_soil"));
-    set_vf(&mut (*e106).evap_stor, r.vf("lid_.groups_[].evap_stor"));
-    set_vf(&mut (*e106).f_old_surf, r.vf("lid_.groups_[].f_old_surf"));
-    set_vf(&mut (*e106).f_old_soil, r.vf("lid_.groups_[].f_old_soil"));
-    set_vf(&mut (*e106).f_old_stor, r.vf("lid_.groups_[].f_old_stor"));
-    set_vf(&mut (*e106).f_old_pave, r.vf("lid_.groups_[].f_old_pave"));
-    set_vf(&mut (*e106).wb_inflow, r.vf("lid_.groups_[].wb_inflow"));
-    set_vf(&mut (*e106).wb_evap, r.vf("lid_.groups_[].wb_evap"));
-    set_vf(&mut (*e106).spatial_infil_loss, r.vf("lid_.groups_[].spatial_infil_loss"));
-    set_vf(&mut (*e106).wb_spatial_infil, r.vf("lid_.groups_[].wb_spatial_infil"));
-    set_vf(&mut (*e106).wb_infil, r.vf("lid_.groups_[].wb_infil"));
-    set_vf(&mut (*e106).wb_surf_flow, r.vf("lid_.groups_[].wb_surf_flow"));
-    set_vf(&mut (*e106).wb_drain_flow, r.vf("lid_.groups_[].wb_drain_flow"));
-    set_vf(&mut (*e106).wb_init_vol, r.vf("lid_.groups_[].wb_init_vol"));
-    set_vf(&mut (*e106).wb_final_vol, r.vf("lid_.groups_[].wb_final_vol"));
-    set_vf(&mut (*e106).vol_treated, r.vf("lid_.groups_[].vol_treated"));
+    set_vf(&mut (*e111).old_drain_flow, r.vf("lid_.groups_[].old_drain_flow"));
+    set_vi(&mut (*e111).is_wet, r.vi("lid_.groups_[].is_wet"));
+    set_vi(&mut (*e111).can_overflow, r.vi("lid_.groups_[].can_overflow"));
+    set_vf(&mut (*e111).drainmat_alpha, r.vf("lid_.groups_[].drainmat_alpha"));
+    set_vf(&mut (*e111).surface_runoff, r.vf("lid_.groups_[].surface_runoff"));
+    set_vf(&mut (*e111).drain_flow, r.vf("lid_.groups_[].drain_flow"));
+    set_vf(&mut (*e111).evap_loss, r.vf("lid_.groups_[].evap_loss"));
+    set_vf(&mut (*e111).infil_loss, r.vf("lid_.groups_[].infil_loss"));
+    set_vf(&mut (*e111).drain_rmvl, r.vf("lid_.groups_[].drain_rmvl"));
+    (*e111).n_pollutants = FromI64::from_i64(r.pi("lid_.groups_[].n_pollutants"));
+    set_vf(&mut (*e111).in_surf, r.vf("lid_.groups_[].in_surf"));
+    set_vf(&mut (*e111).in_pave, r.vf("lid_.groups_[].in_pave"));
+    set_vf(&mut (*e111).in_soil, r.vf("lid_.groups_[].in_soil"));
+    set_vf(&mut (*e111).in_stor, r.vf("lid_.groups_[].in_stor"));
+    set_vf(&mut (*e111).evap_surf, r.vf("lid_.groups_[].evap_surf"));
+    set_vf(&mut (*e111).evap_pave, r.vf("lid_.groups_[].evap_pave"));
+    set_vf(&mut (*e111).evap_soil, r.vf("lid_.groups_[].evap_soil"));
+    set_vf(&mut (*e111).evap_stor, r.vf("lid_.groups_[].evap_stor"));
+    set_vf(&mut (*e111).f_old_surf, r.vf("lid_.groups_[].f_old_surf"));
+    set_vf(&mut (*e111).f_old_soil, r.vf("lid_.groups_[].f_old_soil"));
+    set_vf(&mut (*e111).f_old_stor, r.vf("lid_.groups_[].f_old_stor"));
+    set_vf(&mut (*e111).f_old_pave, r.vf("lid_.groups_[].f_old_pave"));
+    set_vf(&mut (*e111).wb_inflow, r.vf("lid_.groups_[].wb_inflow"));
+    set_vf(&mut (*e111).wb_evap, r.vf("lid_.groups_[].wb_evap"));
+    set_vf(&mut (*e111).spatial_infil_loss, r.vf("lid_.groups_[].spatial_infil_loss"));
+    set_vf(&mut (*e111).wb_spatial_infil, r.vf("lid_.groups_[].wb_spatial_infil"));
+    set_vf(&mut (*e111).wb_infil, r.vf("lid_.groups_[].wb_infil"));
+    set_vf(&mut (*e111).wb_surf_flow, r.vf("lid_.groups_[].wb_surf_flow"));
+    set_vf(&mut (*e111).wb_drain_flow, r.vf("lid_.groups_[].wb_drain_flow"));
+    set_vf(&mut (*e111).wb_init_vol, r.vf("lid_.groups_[].wb_init_vol"));
+    set_vf(&mut (*e111).wb_final_vol, r.vf("lid_.groups_[].wb_final_vol"));
+    set_vf(&mut (*e111).vol_treated, r.vf("lid_.groups_[].vol_treated"));
     } }
-    { let n = r.count("lid_.usage_order_.n"); SeqLen::seq_len(&mut (*h.lid_).usage_order_, n); for e108 in ((*h.lid_).usage_order_).iter_mut() {
-    (*e108).0 = FromI64::from_i64(r.pi("lid_.usage_order_[].first"));
-    (*e108).1 = FromI64::from_i64(r.pi("lid_.usage_order_[].second"));
+    { let n = r.count("lid_.usage_order_.n"); SeqLen::seq_len(&mut (*h.lid_).usage_order_, n); for e113 in ((*h.lid_).usage_order_).iter_mut() {
+    (*e113).0 = FromI64::from_i64(r.pi("lid_.usage_order_[].first"));
+    (*e113).1 = FromI64::from_i64(r.pi("lid_.usage_order_[].second"));
     } }
     (*h.lid_).old_runoff_sec_ = FromF64::from_f64(r.pf("lid_.old_runoff_sec_"));
     r.sk("lid_.rpt_files_");
@@ -338,18 +338,18 @@ pub fn load_hydro(r: &mut Rd, e: &mut SwmmEngine) {
     set_vf(&mut (*h.lid_).max_native_infil_, r.vf("lid_.max_native_infil_"));
     set_vf(&mut (*h.lid_).infil_factor_, r.vf("lid_.infil_factor_"));
     r.sk("rdii_.uh_params");
-    { let n = r.count("rdii_.decay_params.n"); SeqLen::seq_len(&mut (*h.rdii_).decay_params, n); for e109 in ((*h.rdii_).decay_params).iter_mut() {
-    { let n = r.count("rdii_.decay_params[].n"); SeqLen::seq_len(&mut (*e109), n); for e110 in ((*e109)).iter_mut() {
-    (*e110).active = FromI64::from_i64(r.pi("rdii_.decay_params[][].active"));
-    (*e110).k_dep = FromF64::from_f64(r.pf("rdii_.decay_params[][].k_dep"));
-    (*e110).k_0 = FromF64::from_f64(r.pf("rdii_.decay_params[][].k_0"));
-    (*e110).k_T = FromF64::from_f64(r.pf("rdii_.decay_params[][].k_T"));
-    (*e110).T_ref = FromF64::from_f64(r.pf("rdii_.decay_params[][].T_ref"));
-    (*e110).theta_rec = FromF64::from_f64(r.pf("rdii_.decay_params[][].theta_rec"));
-    (*e110).T_freeze = FromF64::from_f64(r.pf("rdii_.decay_params[][].T_freeze"));
-    (*e110).snow_on = FromI64::from_i64(r.pi("rdii_.decay_params[][].snow_on"));
-    (*e110).snow_T = FromF64::from_f64(r.pf("rdii_.decay_params[][].snow_T"));
-    (*e110).snow_ddf = FromF64::from_f64(r.pf("rdii_.decay_params[][].snow_ddf"));
+    { let n = r.count("rdii_.decay_params.n"); SeqLen::seq_len(&mut (*h.rdii_).decay_params, n); for e114 in ((*h.rdii_).decay_params).iter_mut() {
+    { let n = r.count("rdii_.decay_params[].n"); SeqLen::seq_len(&mut (*e114), n); for e115 in ((*e114)).iter_mut() {
+    (*e115).active = FromI64::from_i64(r.pi("rdii_.decay_params[][].active"));
+    (*e115).k_dep = FromF64::from_f64(r.pf("rdii_.decay_params[][].k_dep"));
+    (*e115).k_0 = FromF64::from_f64(r.pf("rdii_.decay_params[][].k_0"));
+    (*e115).k_T = FromF64::from_f64(r.pf("rdii_.decay_params[][].k_T"));
+    (*e115).T_ref = FromF64::from_f64(r.pf("rdii_.decay_params[][].T_ref"));
+    (*e115).theta_rec = FromF64::from_f64(r.pf("rdii_.decay_params[][].theta_rec"));
+    (*e115).T_freeze = FromF64::from_f64(r.pf("rdii_.decay_params[][].T_freeze"));
+    (*e115).snow_on = FromI64::from_i64(r.pi("rdii_.decay_params[][].snow_on"));
+    (*e115).snow_T = FromF64::from_f64(r.pf("rdii_.decay_params[][].snow_T"));
+    (*e115).snow_ddf = FromF64::from_f64(r.pf("rdii_.decay_params[][].snow_ddf"));
     } }
     } }
     (*h.rdii_).groups_.count = FromI64::from_i64(r.pi("rdii_.groups_.count"));
@@ -357,21 +357,21 @@ pub fn load_hydro(r: &mut Rd, e: &mut SwmmEngine) {
     set_vi(&mut (*h.rdii_).groups_.uh_idx, r.vi("rdii_.groups_.uh_idx"));
     set_vi(&mut (*h.rdii_).groups_.gage_idx, r.vi("rdii_.groups_.gage_idx"));
     set_vf(&mut (*h.rdii_).groups_.area, r.vf("rdii_.groups_.area"));
-    { let n = r.count("rdii_.groups_.uh_data.n"); SeqLen::seq_len(&mut (*h.rdii_).groups_.uh_data, n); for e111 in ((*h.rdii_).groups_.uh_data).iter_mut() {
-    set_vf(&mut (*e111).past_rain, r.vf("rdii_.groups_.uh_data[].past_rain"));
-    set_vi(&mut (*e111).past_month, r.vi("rdii_.groups_.uh_data[].past_month"));
-    (*e111).period = FromI64::from_i64(r.pi("rdii_.groups_.uh_data[].period"));
-    (*e111).max_periods = FromI64::from_i64(r.pi("rdii_.groups_.uh_data[].max_periods"));
-    (*e111).has_past_rain = FromI64::from_i64(r.pi("rdii_.groups_.uh_data[].has_past_rain"));
-    (*e111).ia_used = FromF64::from_f64(r.pf("rdii_.groups_.uh_data[].ia_used"));
-    (*e111).swe = FromF64::from_f64(r.pf("rdii_.groups_.uh_data[].swe"));
-    (*e111).dry_seconds = FromI64::from_i64(r.pi("rdii_.groups_.uh_data[].dry_seconds"));
+    { let n = r.count("rdii_.groups_.uh_data.n"); SeqLen::seq_len(&mut (*h.rdii_).groups_.uh_data, n); for e116 in ((*h.rdii_).groups_.uh_data).iter_mut() {
+    set_vf(&mut (*e116).past_rain, r.vf("rdii_.groups_.uh_data[].past_rain"));
+    set_vi(&mut (*e116).past_month, r.vi("rdii_.groups_.uh_data[].past_month"));
+    (*e116).period = FromI64::from_i64(r.pi("rdii_.groups_.uh_data[].period"));
+    (*e116).max_periods = FromI64::from_i64(r.pi("rdii_.groups_.uh_data[].max_periods"));
+    (*e116).has_past_rain = FromI64::from_i64(r.pi("rdii_.groups_.uh_data[].has_past_rain"));
+    (*e116).ia_used = FromF64::from_f64(r.pf("rdii_.groups_.uh_data[].ia_used"));
+    (*e116).swe = FromF64::from_f64(r.pf("rdii_.groups_.uh_data[].swe"));
+    (*e116).dry_seconds = FromI64::from_i64(r.pi("rdii_.groups_.uh_data[].dry_seconds"));
     } }
     set_vi(&mut (*h.rdii_).groups_.rain_interval, r.vi("rdii_.groups_.rain_interval"));
     set_vf(&mut (*h.rdii_).groups_.gage_elapsed, r.vf("rdii_.groups_.gage_elapsed"));
     set_vf(&mut (*h.rdii_).groups_.rate_recorded_until, r.vf("rdii_.groups_.rate_recorded_until"));
-    { let n = r.count("rdii_.groups_.pending_rates.n"); SeqLen::seq_len(&mut (*h.rdii_).groups_.pending_rates, n); for e112 in ((*h.rdii_).groups_.pending_rates).iter_mut() {
-    set_vf(&mut (*e112), r.vf("rdii_.groups_.pending_rates[]"));
+    { let n = r.count("rdii_.groups_.pending_rates.n"); SeqLen::seq_len(&mut (*h.rdii_).groups_.pending_rates, n); for e117 in ((*h.rdii_).groups_.pending_rates).iter_mut() {
+    set_vf(&mut (*e117), r.vf("rdii_.groups_.pending_rates[]"));
     } }
     r.sk("rdii_.uh_name_to_idx_");
     set_vf(&mut (*h.rdii_).node_rdii_flow_, r.vf("rdii_.node_rdii_flow_"));
@@ -382,23 +382,23 @@ pub fn load_hydro(r: &mut Rd, e: &mut SwmmEngine) {
     for u in h.rdii_.uh_params.iter_mut() { for m in 0..12 { for k in 0..3 { u.r[m][k] = r.pf("rdii_.uh_params[].r"); u.tPeak[m][k] = r.pf("rdii_.uh_params[].tPeak"); u.tBase[m][k] = r.pf("rdii_.uh_params[].tBase"); u.iaMax[m][k] = r.pf("rdii_.uh_params[].iaMax"); u.iaRecov[m][k] = r.pf("rdii_.uh_params[].iaRecov"); u.iaInit[m][k] = r.pf("rdii_.uh_params[].iaInit"); } } }
     { let mut t: Vec<(Bytes, i32)> = Vec::new(); while r.peek("rdii_.uh_name_to_idx_.key") { let k = r.ps("rdii_.uh_name_to_idx_.key"); let v = r.pi("rdii_.uh_name_to_idx_.val") as i32; t.push((k, v)); } let mut m = h.rdii_.uh_name_to_idx_.clone(); m.sort(); if m != t { r.fail("rdii_.uh_name_to_idx_ differs"); } }
     { let n = r.pi("lid_.rpt_files_.size"); h.lid_.rpt_files_.clear(); for _ in 0..n { let a = r.pi("lid_.rpt_files_.key.first") as i32; let b = r.pi("lid_.rpt_files_.key.second") as i32; let mut f = Box::new(swmm6_rust::hydrology::lid::LidRptFile::default()); f.failed = true; h.lid_.rpt_files_.insert((a, b), f); } }
-    { let n = r.count("gage_states_.n"); SeqLen::seq_len(&mut (*h.gage_states_), n); for e113 in ((*h.gage_states_)).iter_mut() {
-    (*e113).rainfall = FromF64::from_f64(r.pf("gage_states_[].rainfall"));
-    (*e113).snowfall = FromF64::from_f64(r.pf("gage_states_[].snowfall"));
-    (*e113).total_precip = FromF64::from_f64(r.pf("gage_states_[].total_precip"));
-    (*e113).rain_accum = FromF64::from_f64(r.pf("gage_states_[].rain_accum"));
-    (*e113).api_rainfall = FromF64::from_f64(r.pf("gage_states_[].api_rainfall"));
-    (*e113).snow_factor = FromF64::from_f64(r.pf("gage_states_[].snow_factor"));
-    (*e113).scale_factor = FromF64::from_f64(r.pf("gage_states_[].scale_factor"));
-    (*e113).units_factor = FromF64::from_f64(r.pf("gage_states_[].units_factor"));
-    (*e113).adjust_factor = FromF64::from_f64(r.pf("gage_states_[].adjust_factor"));
-    (*e113).rain_interval = FromF64::from_f64(r.pf("gage_states_[].rain_interval"));
-    (*e113).rain_type = FromI64::from_i64(r.pi("gage_states_[].rain_type"));
-    for q in 0..((*e113).past_rain).len() {
-    (*e113).past_rain[q] = FromF64::from_f64(r.pf("gage_states_[].past_rain[]"));
+    { let n = r.count("gage_states_.n"); SeqLen::seq_len(&mut (*h.gage_states_), n); for e118 in ((*h.gage_states_)).iter_mut() {
+    (*e118).rainfall = FromF64::from_f64(r.pf("gage_states_[].rainfall"));
+    (*e118).snowfall = FromF64::from_f64(r.pf("gage_states_[].snowfall"));
+    (*e118).total_precip = FromF64::from_f64(r.pf("gage_states_[].total_precip"));
+    (*e118).rain_accum = FromF64::from_f64(r.pf("gage_states_[].rain_accum"));
+    (*e118).api_rainfall = FromF64::from_f64(r.pf("gage_states_[].api_rainfall"));
+    (*e118).snow_factor = FromF64::from_f64(r.pf("gage_states_[].snow_factor"));
+    (*e118).scale_factor = FromF64::from_f64(r.pf("gage_states_[].scale_factor"));
+    (*e118).units_factor = FromF64::from_f64(r.pf("gage_states_[].units_factor"));
+    (*e118).adjust_factor = FromF64::from_f64(r.pf("gage_states_[].adjust_factor"));
+    (*e118).rain_interval = FromF64::from_f64(r.pf("gage_states_[].rain_interval"));
+    (*e118).rain_type = FromI64::from_i64(r.pi("gage_states_[].rain_type"));
+    for q in 0..((*e118).past_rain).len() {
+    (*e118).past_rain[q] = FromF64::from_f64(r.pf("gage_states_[].past_rain[]"));
     }
-    (*e113).past_rain_accum = FromF64::from_f64(r.pf("gage_states_[].past_rain_accum"));
-    (*e113).past_rain_interval = FromF64::from_f64(r.pf("gage_states_[].past_rain_interval"));
+    (*e118).past_rain_accum = FromF64::from_f64(r.pf("gage_states_[].past_rain_accum"));
+    (*e118).past_rain_interval = FromF64::from_f64(r.pf("gage_states_[].past_rain_interval"));
     } }
     *h.last_melt_doy_ = r.pi("last_melt_doy_") as i32;
     set_vf(&mut *h.vectors[0], r.vf("gw_frac_perv_"));

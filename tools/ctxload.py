@@ -401,6 +401,76 @@ fn load_climate_file(r: &mut Rd, cf: &mut ClimateFileReader) {
     cf.has_saved_line_ = r.pi("climate_file_.has_saved_line_") != 0;
 }
 '''
+# ---------------------------------------------------------------- router/solver and quality members
+# (the routing-step cross test, examples/routestep.rs). The Rust side rebuilds every solver with the
+# translated open + init legs, then loads upstream's dump over it, so the members ctxdump.py prints
+# through a custom emitter (RT_CUSTOM: tables of the XSectGroups, the FV backend, the RDII UH
+# parameters and name map, the control expressions) are consumed, not loaded: they are what the
+# init legs build, which the inithyd gate holds identical. The one exception is the XSectGroups
+# scratch buffers (buf_d, buf_r, buf_r2), which every step overwrites and which are loaded.
+# Checked by the round trip in `ctxgate.sh route` (load, dump again, cmp, before any step).
+RT_GATE_PATHS = {'e.router()': 'g.router_', 'e.control_engine()': 'g.controls_', 'e.inflow_solver()': 'g.inflow_',
+                 'e.rdii_solver()': 'g.rdii_', 'e.exfil_solver()': 'g.exfil_', 'e.inlet_solver()': 'g.inlet_',
+                 'e.structure_solver()': 'g.hydstruct_', 'e.interface_manager()': 'g.iface_'}
+
+def load_rt_struct(header, struct, path_r, label, L):
+    """Mirror of ctxdump.rt_dump_struct."""
+    for name, ty, arr in D.fields(header, struct):
+        pr, lb = f'{path_r}.{D.rname(name)}', f'{label}.{name}'
+        if (struct, name) == ('Router', 'groups_'):
+            # the group layout (shape, count) must be what the init legs built; the per-link
+            # geometry arrays are loaded (upstream's initialize can change them after
+            # initHydraulics, e.g. a force main's s_bot), the transect table views are not
+            L.append(f'    {{ let n = r.count("{lb}.n"); if n != ({pr}).num_groups() as usize {{ r.fail("XSectGroups layout differs from the init legs"); }} for gi in 0..n {{ let grp = ({pr}).gate_group_mut(gi as i32);')
+            L.append(f'    if r.pi("{lb}[].shape") != grp.shape as i64 || r.pi("{lb}[].count") != grp.count as i64 {{ r.fail("XSectGroups group differs from the init legs"); }}')
+            L.append(f'    set_vi(&mut grp.link_idx, r.vi("{lb}[].link_idx"));')
+            for f in ['y_full', 'a_full', 'r_full', 's_full', 'w_max', 'inv_y_full', 'y_bot', 'a_bot', 's_bot', 'r_bot']:
+                L.append(f'    set_vf(&mut grp.{f}, r.vf("{lb}[].{f}"));')
+            L.append(f'    while !r.peek("{lb}[].buf_d") {{ r.skip_item(); }}')
+            L.append(f'    *grp.buf_d.borrow_mut() = r.vf("{lb}[].buf_d"); *grp.buf_r.borrow_mut() = r.vf("{lb}[].buf_r"); *grp.buf_r2.borrow_mut() = r.vf("{lb}[].buf_r2"); }}')
+            L.append(f'    r.sk("{lb}.packed_groups_"); r.sk("{lb}.packed_count_"); r.sk("{lb}.mask_active_"); }}')
+            continue
+        if (struct, name) in D.RT_CUSTOM:
+            L.append(f'    r.skip_prefix("{lb}");')
+            continue
+        k = D.kind(ty)
+        if arr:
+            if k and k[0] in 'fi':
+                L.append(f'    for q in 0..({pr}).len() {{')
+                load(f'{pr}[q]', lb + '[]', k, L)
+                L.append('    }')
+            else:
+                skip(lb, L)
+            continue
+        t = ty.replace('const ', '').strip()
+        em = re.fullmatch(r'std::vector<(?:\w+::)*(\w+)>', t)
+        if k is None and em and em.group(1) in D.RT_ELEM_STRUCTS:
+            L.append(f'    {{ let n = r.count("{lb}.n"); SeqLen::seq_len(&mut {pr}, n); for el in ({pr}).iter_mut() {{')
+            load_rt_struct(D.RT_ELEM_STRUCTS[em.group(1)], em.group(1), '(*el)', lb + '[]', L)
+            L.append('    } }')
+            continue
+        if k is not None and k[0] == 'struct':
+            load_rt_struct(k[1], k[2], pr, lb, L)
+            continue
+        if k is None:
+            skip(lb, L)
+            continue
+        load(pr, lb, k, L)
+    for name, flag in D.RT_EXTRA.get(struct, []):
+        L.append(f'    r.pi("{label}.{name}");')
+
+def walk_rt():
+    saved = dict(D.STRUCTS)
+    D.STRUCTS.update(D.RT_STRUCTS)
+    L = []
+    for header, struct, pc, pr, label in D.RT_MEMBERS:
+        load_rt_struct(header, struct, RT_GATE_PATHS[pr], label, L)
+    L.append('    *g.next_event_ = FromI64::from_i64(r.pi("engine.next_event_")); *g.between_events_ = FromI64::from_i64(r.pi("engine.between_events_"));')
+    D.STRUCTS.clear(); D.STRUCTS.update(saved)
+    Q = ['    *q.hotstart_deferred_ = FromI64::from_i64(r.pi("engine.hotstart_deferred_"));']
+    for header, cls, pc, pr, label in D.QUALITY_MEMBERS:
+        load_struct(header, cls, 'q.' + pc.split('.')[1], label, Q)
+    return L, Q
 
 def fn_body(lines, header):
     """The lines of a generated Rust fn after its three opening lines, up to `std::mem::take(o)`."""
@@ -609,6 +679,36 @@ impl<'a> Rd<'a> {
         }
         self.p += 1;
         Some(&self.b[s..self.p])
+    }
+    /// Consume one dumped item: its label line and any continuation lines (vector values,
+    /// which start with a space).
+    pub fn skip_item(&mut self) {
+        if self.p >= self.b.len() {
+            self.fail("unexpected end of the dump");
+        }
+        loop {
+            while self.p < self.b.len() && self.b[self.p] != b'\n' {
+                self.p += 1;
+            }
+            self.p += 1;
+            if self.p >= self.b.len() || self.b[self.p] != b' ' {
+                break;
+            }
+        }
+    }
+    /// Consume every item whose label is `l` or starts with `l.` / `l[`, and `skip` lines of them.
+    pub fn skip_prefix(&mut self, l: &str) {
+        loop {
+            let mut r = &self.b[self.p..];
+            if r.starts_with(b"skip ") {
+                r = &r[5..];
+            }
+            if r.len() > l.len() && r.starts_with(l.as_bytes()) && matches!(r[l.len()], b'.' | b'[' | b' ') {
+                self.skip_item();
+            } else {
+                break;
+            }
+        }
     }
     pub fn at_end(&self) -> bool {
         self.p == self.b.len()
@@ -861,6 +961,15 @@ def main():
     out += ['}', '#[cfg(not(feature = "gate"))]',
             'pub fn load_engine(r: &mut Rd, _e: &mut SwmmEngine) {',
             '    r.fail("the engine members need the `gate` feature");', '}']
+    LR, LQ = walk_rt()
+    out += ['', '/// The members `rtdump::rtdump` prints, over solvers the init legs built (needs the `gate`',
+            '/// feature). See tools/ctxload.py walk_rt.', '#[cfg(feature = "gate")]',
+            'pub fn load_rt(r: &mut Rd, e: &mut SwmmEngine) {', '    let g = e.gate_solvers();']
+    out += LR
+    out += ['}', '', '/// The members `ctxdump::qualdump` prints (needs the `gate` feature).', '#[cfg(feature = "gate")]',
+            'pub fn load_qual(r: &mut Rd, e: &mut SwmmEngine) {', '    let q = e.gate_quality();']
+    out += LQ
+    out += ['}']
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
     open(OUT, 'w').write('\n'.join(out) + '\n')
     # 4. the hydrology loader, checked against hydrodump.rs the same way

@@ -34,3 +34,4 @@ gate/diff/umaporder
 gate/diff/ctxstep
 __pycache__/
 *.pyc
+gate/diff/routestep

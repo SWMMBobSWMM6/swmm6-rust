@@ -287,6 +287,8 @@ pub struct SwmmEngine {
     pub last_step_steady_: bool,
     /// Previous routing step's system flow RATES (cfs) for the eleven routing continuity terms
     pub routing_prev_rates_: [f64; 11],
+    /// lazy EULERIAN_ARD init after Router::init (read and set by stepRouting)
+    pub ard_init_attempted_: bool,
 }
 
 impl Default for SwmmEngine {
@@ -387,6 +389,7 @@ impl SwmmEngine {
             xsp_cache_gen_: !0u64,
             last_step_steady_: false,
             routing_prev_rates_: [0.0; 11],
+            ard_init_attempted_: false,
         };
         e.ctx_.state = EngineState::Created;
         e
@@ -928,8 +931,110 @@ pub struct GateHydrology<'a> {
     pub climate_file_: &'a mut ClimateFileReader,
 }
 
+/// Gate only (cargo feature `gate`): the solver members rtdump prints, writable, for the
+/// routing-step cross test's loader (examples/common/ctxload.rs load_rt). Not part of the
+/// translation.
+#[cfg(feature = "gate")]
+pub struct GateSolvers<'a> {
+    pub router_: &'a mut crate::hydraulics::routing::Router,
+    pub controls_: &'a mut crate::controls::controls::ControlEngine,
+    pub inflow_: &'a mut crate::hydrology::inflow::InflowSolver,
+    pub rdii_: &'a mut RDIISolver,
+    pub exfil_: &'a mut crate::hydraulics::exfiltration::ExfilSolver,
+    pub inlet_: &'a mut crate::hydraulics::inlet::InletSolver,
+    pub hydstruct_: &'a mut crate::hydraulics::hyd_structures::StructureSolver,
+    pub iface_: &'a mut crate::core::interface_file::InterfaceManager,
+    pub next_event_: &'a mut i32,
+    pub between_events_: &'a mut bool,
+}
+
+/// Gate only (cargo feature `gate`): the engine members the routing-step cross test's
+/// stepdump prints (examples/routestep.rs). Not part of the translation.
+#[cfg(feature = "gate")]
+pub struct GateStepState<'a> {
+    pub last_step_steady_: bool,
+    pub new_rule_time_ms_: f64,
+    pub checkpoint_enabled_: bool,
+    pub ard_init_attempted_: bool,
+    pub rdii_iface_open_: bool,
+    pub rdii_iface_writing_: bool,
+    pub wet_q_interp_: &'a [f64],
+    pub lid_drain_q_units_: &'a [(i32, f64)],
+    pub gw_q_interp_: &'a [f64],
+    pub gw_q_node_: &'a [i32],
+}
+/// Writable twin of GateStepState.
+#[cfg(feature = "gate")]
+pub struct GateStepStateMut<'a> {
+    pub last_step_steady_: &'a mut bool,
+    pub new_rule_time_ms_: &'a mut f64,
+    pub checkpoint_enabled_: &'a mut bool,
+    pub ard_init_attempted_: &'a mut bool,
+    pub wet_q_interp_: &'a mut Vec<f64>,
+    pub lid_drain_q_units_: &'a mut Vec<(i32, f64)>,
+    pub gw_q_interp_: &'a mut Vec<f64>,
+    pub gw_q_node_: &'a mut Vec<i32>,
+}
+
+/// Gate only (cargo feature `gate`): the quality members qualdump prints, writable.
+#[cfg(feature = "gate")]
+pub struct GateQuality<'a> {
+    pub hotstart_deferred_: &'a mut bool,
+    pub quality_: &'a mut QualitySolver,
+    pub landuse_solver_: &'a mut LanduseSolver,
+    pub surface_quality_: &'a mut SurfaceQualitySoA,
+}
+
 #[cfg(feature = "gate")]
 impl SwmmEngine {
+    pub fn gate_solvers(&mut self) -> GateSolvers<'_> {
+        GateSolvers {
+            router_: &mut self.router_,
+            controls_: &mut self.controls_,
+            inflow_: &mut self.inflow_,
+            rdii_: &mut self.rdii_,
+            exfil_: &mut self.exfil_,
+            inlet_: &mut self.inlet_,
+            hydstruct_: &mut self.hydstruct_,
+            iface_: &mut self.iface_,
+            next_event_: &mut self.next_event_,
+            between_events_: &mut self.between_events_,
+        }
+    }
+    pub fn gate_step_state(&self) -> GateStepState<'_> {
+        GateStepState {
+            last_step_steady_: self.last_step_steady_,
+            new_rule_time_ms_: self.new_rule_time_ms_,
+            checkpoint_enabled_: self.checkpoint_enabled_,
+            ard_init_attempted_: self.ard_init_attempted_,
+            rdii_iface_open_: self.rdii_iface_file_.is_open(),
+            rdii_iface_writing_: self.rdii_iface_file_.is_writing(),
+            wet_q_interp_: &self.wet_q_interp_,
+            lid_drain_q_units_: &self.lid_drain_q_units_,
+            gw_q_interp_: &self.gw_q_interp_,
+            gw_q_node_: &self.gw_q_node_,
+        }
+    }
+    pub fn gate_step_state_mut(&mut self) -> GateStepStateMut<'_> {
+        GateStepStateMut {
+            last_step_steady_: &mut self.last_step_steady_,
+            new_rule_time_ms_: &mut self.new_rule_time_ms_,
+            checkpoint_enabled_: &mut self.checkpoint_enabled_,
+            ard_init_attempted_: &mut self.ard_init_attempted_,
+            wet_q_interp_: &mut self.wet_q_interp_,
+            lid_drain_q_units_: &mut self.lid_drain_q_units_,
+            gw_q_interp_: &mut self.gw_q_interp_,
+            gw_q_node_: &mut self.gw_q_node_,
+        }
+    }
+    pub fn gate_quality(&mut self) -> GateQuality<'_> {
+        GateQuality {
+            hotstart_deferred_: &mut self.hotstart_deferred_,
+            quality_: &mut self.quality_,
+            landuse_solver_: &mut self.landuse_solver_,
+            surface_quality_: &mut self.surface_quality_,
+        }
+    }
     pub fn gate_hydrology(&mut self) -> GateHydrology<'_> {
         GateHydrology {
             runoff_: &mut self.runoff_,

@@ -11,10 +11,11 @@ Phase 1a (1D) is under way. Done, and identical to upstream on every gate deck:
 * reading the `.inp` (every section handler), cross-reference resolution, and `open()` in strict, lenient and metadata modes;
 * the initialize legs: `initHydraulics`, `initHydrology`, `initQuality`, `initGeometry`, `initMassBalance`;
 * the leaf numerics: cross-section geometry and its tables, transects, streets, force mains, the C library functions upstream depends on (`strtod`, `from_chars`, `sscanf`, `%.10g`, `std::sort` and the `unordered_map`/`map` orders);
-* the run lifecycle: `initialize()` as a whole and `start()` (identical on all 932 gate decks), and `step()` with its own bookkeeping (statistics, routing mass balance, final storage), gated helper by helper.
-* the runoff (hydrology) step, `stepRunoff`: rain gages, climate, the nonlinear reservoir, all infiltration methods, degree-day snow, groundwater, RDII, the LID units, buildup and washoff, the runoff mass balance (identical on every gate deck that reaches it, loaded from upstream's own state mid-run; the SWMM6-only UEB snow, heat and reaction-species hooks are still stubs).
+* the run lifecycle: `initialize()` as a whole and `start()` (identical on all 932 gate decks), and `step()` with its own bookkeeping (statistics, routing mass balance, final storage), gated helper by helper;
+* the runoff (hydrology) step, `stepRunoff`: rain gages, climate, the nonlinear reservoir, all infiltration methods, degree-day snow, groundwater, RDII, the LID units, buildup and washoff, the runoff mass balance (identical on every gate deck that reaches it, loaded from upstream's own state mid-run; the SWMM6-only UEB snow, heat and reaction-species hooks are still stubs);
+* the hydraulic routing step (`stepRouting`) for STEADY, KINWAVE and DYNWAVE routing: the dynamic-wave solver (EXTRAN and SLOT surcharge, virtual junctions), kinematic wave and steady flow, nodes, outfalls, dividers, storage and its exfiltration, pumps, orifices, weirs, outlets, culverts, force mains, roadways, street and channel inlets, node LID columns, control rules and the inflows. It is checked call by call against upstream's own `stepRouting` (`ctxgate.sh route`, PLAN.md).
 
-Not yet translated: the routing step and the quality routing, nor the `.out` and `.rpt` writers; `step()` calls them through stub files. **It does not run a simulation yet.** [PLAN.md](PLAN.md) has the phases and what comes next. 2D comes after 1D.
+Not yet translated: quality routing, the FV router, and the `.out` and `.rpt` writers; `step()` calls the missing pieces through stub files. **It does not run a simulation yet.** [PLAN.md](PLAN.md) has the phases and what comes next. 2D comes after 1D.
 
 ## How it is checked
 
@@ -41,7 +42,7 @@ Where upstream crashes (an exception escaping a `noexcept` function), the Rust f
 | `tools/` | generators for the state dumpers and loader, and a first-pass translator for structure-of-arrays headers |
 | `census/` | OpenSWMM 6 against EPA SWMM 5.2.4 on a corpus of SWMM5 models |
 | `TRANSLATING.md` | the translation rules |
-| `UPSTREAM_NOTES.md` | 81 upstream oddities found along the way, each quoting the code |
+| `UPSTREAM_NOTES.md` | 84 upstream oddities found along the way, each quoting the code |
 
 `cargo build --release` builds the library. The gates also need the reference build of OpenSWMM 6 and the deck corpora; `gate/build.sh` and `gate/ctxgate.sh` say where they expect them.
 
