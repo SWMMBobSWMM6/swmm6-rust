@@ -31,8 +31,7 @@
 //
 // NOT YET TRANSLATED (execute returns StepError::NotTranslated before changing anything):
 // DYNAMIC_SLOT (applyDPSGeometry, updateDPSState, spatialSmoothP), TPA (updateTpaLatch,
-// applyTpaGeometry), virtual junctions (vjPrepareIteration, vjAccumulateResiduals and the pair
-// terms), physical junction areas (NodeData::storage_area > 0: chamberEndArea,
+// applyTpaGeometry), physical junction areas (NodeData::storage_area > 0: chamberEndArea,
 // chamberPipeVolumeChange and the chamber branches), and node LID storage (lidnode ports).
 
 use crate::core::cmath::{cmax, cmin};
@@ -198,9 +197,6 @@ impl DWSolver {
         if self.surcharge_method == SurchargeMethod::Tpa {
             return Some("TPA surcharge method");
         }
-        if !self.vjunc_.is_empty() {
-            return Some("virtual junctions");
-        }
         if ctx.nodes.storage_area.iter().any(|&a| a > 0.0) {
             return Some("physical junction areas");
         }
@@ -357,6 +353,9 @@ impl DWSolver {
             }
         }
 
+        // (DYNAMIC_SLOT updateDPSState: refused at entry)
+        self.vj_accumulate_residuals(ctx);
+
         self.last_converged_ = converged;
         Ok(steps)
     }
@@ -410,7 +409,19 @@ impl DWSolver {
             let b = if self.xnode_.converged[n1 as usize] != 0 && self.xnode_.converged[n2 as usize] != 0 { 1 } else { 0 };
             self.bypassed_[uj] = b;
         }
-        // (virtual-junction pairing: refused in execute)
+        if !self.vjunc_.is_empty() {
+            for p in self.vjunc_.iter() {
+                if p.link_a < 0 || p.link_b < 0 {
+                    continue;
+                }
+                let ua = p.link_a as usize;
+                let ub = p.link_b as usize;
+                if self.bypassed_[ua] != self.bypassed_[ub] {
+                    self.bypassed_[ua] = 0;
+                    self.bypassed_[ub] = 0;
+                }
+            }
+        }
     }
 
     /// computeLinkGeometry: depths, widths, flow classes, surface areas, areas and hydraulic
@@ -809,12 +820,110 @@ impl DWSolver {
         ctx.link_subtypes.conduits.seep_loss_rate[ucr] = seep_loss;
     }
 
+    /// vjPrepareIteration: the virtual-junction pair cache for this Picard iteration.
+    fn vj_prepare_iteration(&mut self, ctx: &SimulationContext, dt: f64) {
+        let links = &ctx.links;
+        let full_momentum = ctx.options.virtual_junction_momentum == 1;
+        for pi in 0..self.vjunc_.len() {
+            let mut p = self.vjunc_[pi];
+            p.active = 0;
+            p.dirn = 0;
+            p.dq4j = 0.0;
+            let skip = p.through == 0 || p.up_link < 0 || p.dn_link < 0 || (p.node >= 0 && (p.node as usize) < ctx.nodes.is_inlet.len() && ctx.nodes.is_inlet[p.node as usize] != 0);
+            if !skip {
+                let uu = p.up_link as usize;
+                let ud = p.dn_link as usize;
+                let ucu = self.tile_uj_to_ci_[uu] as usize;
+                let ucd = self.tile_uj_to_ci_[ud] as usize;
+                let aj = self.area2_[uu];
+                let wj = self.width2_[uu];
+                if aj > FUDGE {
+                    let aj_full = links.xsect_a_full[uu];
+                    let q_u = links.flow[uu] / self.tile_barrels_d_[ucu];
+                    let q_d = links.flow[ud] / self.tile_barrels_d_[ucd];
+                    let mut vj = 0.5 * (q_u + q_d) / convey_area(aj, aj_full);
+                    if vj.abs() > MAX_VELOCITY {
+                        vj = if vj > 0.0 { MAX_VELOCITY } else { -MAX_VELOCITY };
+                    }
+                    let dh = if wj > FUDGE { aj / wj } else { 0.0 };
+                    let frj = if dh > 0.0 { vj.abs() / (constants::GRAVITY * dh).sqrt() } else { 0.0 };
+                    p.sigma_j = cmax(0.0, cmin(1.0, 2.0 * (1.0 - frj)));
+                    p.a_up_mid = convey_area(self.area_mid_[uu], aj_full);
+                    p.r_up_mid = self.hrad_mid_[uu];
+                    p.active = 1;
+                    if q_u >= 0.0 && q_d >= 0.0 && q_u + q_d > 0.0 {
+                        p.dirn = 1;
+                    } else if q_u <= 0.0 && q_d <= 0.0 && q_u + q_d < 0.0 {
+                        p.dirn = -1;
+                    }
+                    if full_momentum && p.lambda > 0.0 && p.dirn != 0 {
+                        let a_mu = cmax(self.area_mid_[uu], FUDGE);
+                        let a_md = cmax(self.area_mid_[ud], FUDGE);
+                        let vu = q_u / a_mu;
+                        let vd = q_d / a_md;
+                        p.dq4j = dt * p.sigma_j * (vd * vd * a_md - vu * vu * a_mu) / p.lambda;
+                    }
+                }
+            }
+            self.vjunc_[pi] = p;
+        }
+    }
+
+    /// vjAccumulateResiduals: the post-step momentum-residual diagnostic (ctx.vj_diag).
+    fn vj_accumulate_residuals(&mut self, ctx: &mut SimulationContext) {
+        if self.vjunc_.is_empty() {
+            return;
+        }
+        if ctx.vj_diag.node_idx.len() != self.vjunc_.len() {
+            let d = &mut ctx.vj_diag;
+            d.clear();
+            for p in self.vjunc_.iter() {
+                d.node_idx.push(p.node);
+                d.up_link.push(p.up_link);
+                d.dn_link.push(p.dn_link);
+                d.resid_max.push(0.0);
+                d.resid_sum.push(0.0);
+                d.resid_n.push(0);
+            }
+        }
+        for r in 0..self.vjunc_.len() {
+            let p = self.vjunc_[r];
+            if p.through == 0 || p.up_link < 0 || p.dn_link < 0 {
+                continue;
+            }
+            let uu = p.up_link as usize;
+            let ud = p.dn_link as usize;
+            let a_u = self.area2_[uu];
+            let a_d = self.area1_[ud];
+            if a_u <= FUDGE || a_d <= FUDGE {
+                continue;
+            }
+            let ucu = self.tile_uj_to_ci_[uu] as usize;
+            let ucd = self.tile_uj_to_ci_[ud] as usize;
+            let q_u = ctx.links.flow[uu] / self.tile_barrels_d_[ucu];
+            let q_d = ctx.links.flow[ud] / self.tile_barrels_d_[ucd];
+            let flux = q_u * q_u / a_u - q_d * q_d / a_d;
+            let hyd = constants::GRAVITY * 0.5 * (a_u + a_d) * (self.depth2_[uu] - self.depth1_[ud]);
+            let rr = flux + hyd;
+            let a_r = rr.abs();
+            let p = &mut self.vjunc_[r];
+            p.resid_max = cmax(p.resid_max, a_r);
+            p.resid_sum += a_r;
+            p.resid_n += 1;
+            ctx.vj_diag.resid_max[r] = p.resid_max;
+            ctx.vj_diag.resid_sum[r] = p.resid_sum;
+            ctx.vj_diag.resid_n[r] = p.resid_n;
+        }
+    }
+
     /// momentumKernels: the fused per-conduit Picard tail.
     fn momentum_kernels(&mut self, ctx: &mut SimulationContext, dt: f64, step: i32) {
         let static_slot_e = self.surcharge_method != SurchargeMethod::DynamicSlot;
         let do_losses = !self.losses_all_zero_;
 
-        // (virtual-junction pair cache: refused in execute)
+        if !self.vjunc_.is_empty() {
+            self.vj_prepare_iteration(ctx, dt);
+        }
         // The unsteady-friction path runs the same loop serially; this one is serial too.
         for ci in 0..self.n_conduits_ as usize {
             let uci = ci;
@@ -1111,8 +1220,30 @@ impl DWSolver {
         let a_wtd = a1_conv + (a_mid_conv - a1_conv) * rho;
         let r_wtd = r1_val + (r_mid - r1_val) * rho;
 
-        // (virtual-junction pair terms: refused in execute, so vj_dq4 = 0)
-        let vj_dq4 = 0.0;
+        // Virtual-junction pair coupling (mechanisms 3-4); SWMM_VJ_M3 / SWMM_VJ_M4 unset: on
+        let mut a_wtd = a_wtd;
+        let mut r_wtd = r_wtd;
+        let mut vj_dq4 = 0.0;
+        if !self.vjunc_.is_empty() {
+            let r1 = self.vj_pair_n1_[uj];
+            let r2 = self.vj_pair_n2_[uj];
+            if r1 >= 0 {
+                let p = self.vjunc_[r1 as usize];
+                if p.active != 0 {
+                    if p.dirn > 0 && uj as i32 == p.dn_link && !is_closed_full && !is_full && q_last > 0.0 {
+                        a_wtd = p.a_up_mid + (a_mid_conv - p.a_up_mid) * rho;
+                        r_wtd = p.r_up_mid + (r_mid - p.r_up_mid) * rho;
+                    }
+                    vj_dq4 += p.dq4j;
+                }
+            }
+            if r2 >= 0 {
+                let p = self.vjunc_[r2 as usize];
+                if p.active != 0 {
+                    vj_dq4 += p.dq4j;
+                }
+            }
+        }
 
         if !is_closed_full {
             if inert_damping == 0 {
@@ -1707,7 +1838,40 @@ impl DWSolver {
         }
         self.xnode_.is_surcharged[ui] = if is_surcharged { 1 } else { 0 };
 
-        // (virtual junctions: refused in execute)
+        // Virtual junction: zero-storage node on the natural half-link area
+        if t.is_virtual != 0 {
+            let sum = self.xnode_.sumdqdh[ui];
+            let denom_semi = surf_area + 0.5 * dt * sum;
+            let semi_implicit = self.node_continuity == NodeContinuity::SemiImplicit && denom_semi > FUDGE;
+            let mut y_vj;
+            if semi_implicit {
+                y_vj = y_old + d_v / denom_semi;
+                self.xnode_.old_surf_area[ui] = surf_area;
+                if step > 0 {
+                    y_vj = (1.0 - self.omega) * y_last + self.omega * y_vj;
+                }
+            } else if surf_area > FUDGE && !is_surcharged {
+                y_vj = y_old + d_v / surf_area;
+                self.xnode_.old_surf_area[ui] = surf_area;
+                if step > 0 {
+                    y_vj = (1.0 - self.omega) * y_last + self.omega * y_vj;
+                }
+            } else if sum > FUDGE {
+                let mut denomv = sum;
+                if y_crown > 0.0 && y_last < 1.25 * y_crown {
+                    let f = (y_last - y_crown) / y_crown;
+                    denomv += (self.xnode_.old_surf_area[ui] / dt - sum) * (-15.0 * f).exp(); // LIBM exp
+                }
+                y_vj = if denomv != 0.0 { y_last + d_q / denomv } else { y_last };
+                if is_surcharged && y_vj < y_crown {
+                    y_vj = y_crown - FUDGE;
+                }
+            } else {
+                y_vj = y_last;
+            }
+            self.commit_node_depth_state(ctx, node_idx, y_vj, d_v, dt);
+            return;
+        }
 
         let use_surcharge_dqdh = is_surcharged && self.surcharge_method == SurchargeMethod::Extran;
 
