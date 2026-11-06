@@ -205,7 +205,10 @@ fn stream(deck: &str, fresh: bool) {
             load_into(e, &before);
             ours.clear();
             dumpall(e, &mut ours);
-            if ours != before {
+            // The loader does not read the FV backend's state back (router.fv_solver_ is
+            // skipped), and the FV step is refused anyway: go straight to the step's refusal.
+            let fv = e.context().options.routing_model == swmm6_rust::core::options::RoutingModel::Fv;
+            if ours != before && !fv {
                 let (lab, k) = first_diff(&before, &ours).unwrap_or(("?".into(), -1));
                 finish(format!("loaddiff {} {} {}", call, lab, k));
             }
