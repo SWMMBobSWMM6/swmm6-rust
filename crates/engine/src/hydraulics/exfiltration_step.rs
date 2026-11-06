@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //
-// Derived from OpenSWMM Engine src/engine/hydraulics/Exfiltration.cpp and
-// src/engine/hydrology/LidNode.cpp (bottomMode, bottomCloggingFactor)
-// (HydroCouple/openswmm.engine, branch swmm6_rel, commit 88329d6), Copyright 2026 Caleb
-// Buahin, licensed under the Apache License, Version 2.0.
+// Derived from OpenSWMM Engine src/engine/hydraulics/Exfiltration.cpp (HydroCouple/
+// openswmm.engine, branch swmm6_rel, commit 88329d6), Copyright 2026 Caleb Buahin, licensed
+// under the Apache License, Version 2.0.
 // Modified: translated from C++ to Rust, 5 November 2026, by Claude (Anthropic) at the
 // request of Robert Dickinson. Not an OpenSWMM release.
 //
@@ -11,55 +10,15 @@
 // ExfilSolver::computeAll, the raw Green-Ampt bottom and bank seepage rate handed to
 // Router::initNodeFlows through storages.exfil_rate.
 
-use crate::core::cmath::{cmax, cmin};
+use crate::core::cmath::cmin;
 use crate::core::context::SimulationContext;
 use crate::core::unit_conversion as ucf;
-use crate::data::lid_node::{GreenAmptState, LidNodeBottom, LidNodeLayerKind};
+use crate::data::lid_node::{GreenAmptState, LidNodeBottom};
 use crate::hydraulics::exfiltration::ExfilSolver;
 use crate::hydraulics::node;
 use crate::hydrology::green_ampt_step::grnampt_get_infil;
 use crate::hydrology::infiltration::InfilModel;
-use crate::hydrology::lid_node::layers;
 use crate::hydrology::lid_node_step as lidnode;
-
-/// lidnode::bottomMode
-fn bottom_mode(c: &SimulationContext, node: i32) -> LidNodeBottom {
-    if node < 0 || node >= c.n_nodes() {
-        return LidNodeBottom::Current;
-    }
-    let r = c.node_subtypes.storage_row(node);
-    if r >= 0 && c.node_subtypes.storages.lid[r as usize].control >= 0 {
-        c.node_subtypes.storages.lid[r as usize].bottom
-    } else {
-        LidNodeBottom::Current
-    }
-}
-
-/// lidnode::bottomCloggingFactor
-fn bottom_clogging_factor(c: &SimulationContext, r: i32) -> f64 {
-    if r < 0 || c.node_subtypes.storages.lid[r as usize].control < 0 {
-        return 1.0;
-    }
-    let ur = r as usize;
-    let st = &c.node_subtypes.storages;
-    let stack = layers(c, st.lid[ur].control);
-    match stack.last() {
-        Some(b) if b.kind == LidNodeLayerKind::Bottom && b.params[1] > 0.0 => {
-            let mut pores = 0.0;
-            for cell in st.lid_state[ur].cells.iter() {
-                if cell.kind != LidNodeLayerKind::Surface {
-                    pores += cell.porosity * cell.geometric_volume;
-                }
-            }
-            if pores > 0.0 {
-                cmax(0.0, 1.0 - st.lid_state[ur].treated_volume / (b.params[1] * pores))
-            } else {
-                1.0
-            }
-        }
-        _ => 1.0,
-    }
-}
 
 /// The exfiltration rate of one Green-Ampt object (exfil_getLoss's ga_rate lambda).
 fn ga_rate(ga: &mut GreenAmptState, d: f64, dt: f64, infil_factor: f64, recovery_factor: f64) -> f64 {
@@ -78,7 +37,7 @@ impl ExfilSolver {
                 continue;
             }
             let uni = ni as usize;
-            if lidnode::richards_mode(ctx, ni) || bottom_mode(ctx, ni) != LidNodeBottom::Current {
+            if lidnode::richards_mode(ctx, ni) || lidnode::bottom_mode(ctx, ni) != LidNodeBottom::Current {
                 let sr = ctx.node_subtypes.storage_row(ni) as usize;
                 ctx.node_subtypes.storages.exfil_rate[sr] = 0.0;
                 continue;
@@ -96,7 +55,7 @@ impl ExfilSolver {
             let infil_factor = ctx.climate_state.infil_factor;
             let recovery_factor = ctx.climate_state.recovery_factor;
 
-            let clog = bottom_clogging_factor(ctx, ctx.node_subtypes.storage_row(ni));
+            let clog = lidnode::bottom_clogging_factor(ctx, ctx.node_subtypes.storage_row(ni));
             total_loss += ga_rate(&mut self.soa_.btm_ga[k], depth, dt, infil_factor, recovery_factor) * self.soa_.btm_area[k] * clog;
 
             if depth > self.soa_.bank_min_depth[k] {

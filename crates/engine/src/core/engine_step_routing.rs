@@ -24,10 +24,9 @@
 // the EULERIAN_ARD and LAGRANGIAN engines, inlet quality transfer), species surface washoff
 // delivery (msxsurf::deliver for an active surface), [FILES] USE RDII
 // (RdiiInterfaceFile::applyFlows), routing interface inflow files (InterfaceManager
-// ::readInflows with a file open), engine checkpointing, the FV router, and what the
-// solvers report as not translated (KINWAVE / STEADY, DYNAMIC_SLOT, TPA, virtual junctions,
-// physical junction areas, node LID storage, inlet quality transfer, control
-// expressions).
+// ::readInflows with a file open), engine checkpointing, the FV router, node LID Richards
+// columns, and what the solvers report as not translated (DYNAMIC_SLOT, TPA, physical
+// junction areas, control-rule expression premises, checkpoint sessions).
 
 use crate::core::context::SimulationContext;
 use crate::core::datetime;
@@ -76,7 +75,7 @@ impl SwmmEngine {
             return Some("FV routing");
         }
         if lidnode::unsupported(ctx) {
-            return Some("node LID columns");
+            return Some("Richards node LID columns");
         }
         if !ctx.options.ignore_quality && ctx.reactions.surface.active() {
             return Some("species surface washoff delivery");
@@ -202,9 +201,30 @@ impl SwmmEngine {
                     let a = ctx.links.node1[uj];
                     let b = ctx.links.node2[uj];
                     if a >= 0 && b >= 0 && (lidnode::active(ctx, a) || lidnode::active(ctx, b)) {
-                        return Err(StepError::NotTranslated("node LID ports"));
+                        // Each ordinary structure sees the head at its own layer port.
+                        let (ua, ub) = (a as usize, b as usize);
+                        let da = ctx.nodes.depth[ua];
+                        let db = ctx.nodes.depth[ub];
+                        let ha = ctx.nodes.head[ua];
+                        let hb = ctx.nodes.head[ub];
+                        let va = ctx.nodes.old_volume[ua];
+                        let vb = ctx.nodes.old_volume[ub];
+                        ctx.nodes.depth[ua] = lidnode::port_depth(ctx, a, lidnode::port_offset(ctx, j, a));
+                        ctx.nodes.depth[ub] = lidnode::port_depth(ctx, b, lidnode::port_offset(ctx, j, b));
+                        ctx.nodes.head[ua] = ctx.nodes.invert_elev[ua] + ctx.nodes.depth[ua];
+                        ctx.nodes.head[ub] = ctx.nodes.invert_elev[ub] + ctx.nodes.depth[ub];
+                        ctx.nodes.old_volume[ua] += lidnode::held_volume(ctx, a);
+                        ctx.nodes.old_volume[ub] += lidnode::held_volume(ctx, b);
+                        hydstruct.compute_non_conduit_flow_one(ctx, dt, Some(&mut dw.new_surf_area[..]), j);
+                        ctx.nodes.depth[ua] = da;
+                        ctx.nodes.depth[ub] = db;
+                        ctx.nodes.head[ua] = ha;
+                        ctx.nodes.head[ub] = hb;
+                        ctx.nodes.old_volume[ua] = va;
+                        ctx.nodes.old_volume[ub] = vb;
+                    } else {
+                        hydstruct.compute_non_conduit_flow_one(ctx, dt, Some(&mut dw.new_surf_area[..]), j);
                     }
-                    hydstruct.compute_non_conduit_flow_one(ctx, dt, Some(&mut dw.new_surf_area[..]), j);
 
                     let mut q_new = ctx.links.flow[uj];
                     if step > 0 && ctx.links.type_[uj] != LinkType::Pump {

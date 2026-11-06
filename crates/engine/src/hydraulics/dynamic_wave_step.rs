@@ -32,7 +32,7 @@
 // NOT YET TRANSLATED (execute returns StepError::NotTranslated before changing anything):
 // DYNAMIC_SLOT (applyDPSGeometry, updateDPSState, spatialSmoothP), TPA (updateTpaLatch,
 // applyTpaGeometry), physical junction areas (NodeData::storage_area > 0: chamberEndArea,
-// chamberPipeVolumeChange and the chamber branches), and node LID storage (lidnode ports).
+// chamberPipeVolumeChange and the chamber branches).
 
 use crate::core::cmath::{cmax, cmin};
 use crate::core::constants::{self, EXTRAN_CROWN_CUTOFF, FUDGE, GRAVITY, MAX_VELOCITY, MIN_TIMESTEP, SLOT_CROWN_CUTOFF};
@@ -1823,8 +1823,48 @@ impl DWSolver {
 
         let d_q = ctx.nodes.inflow[ui] - ctx.nodes.outflow[ui];
         let d_v = 0.5 * (ctx.nodes.old_net_inflow[ui] + d_q) * dt;
-        // (storage_area > 0 chamber branch and the LID-node volume branch: refused upstream of
-        // here, in execute and step_routing)
+        // (storage_area > 0 chamber branch: refused in execute)
+        if lidnode::active(ctx, node_idx) {
+            // Node LID: solve continuity in volume directly.
+            let mut volume = ctx.nodes.old_volume[ui] + d_q * dt;
+            // Each incident end owns half the change of conduit storage (all of it beside an
+            // outfall).
+            for k in self.csr_row_[ui]..self.csr_row_[ui + 1] {
+                let link = self.csr_link_[k as usize] as usize;
+                let other = if ctx.links.node1[link] == node_idx { ctx.links.node2[link] } else { ctx.links.node1[link] };
+                let share = if ctx.nodes.type_[other as usize] == NodeType::Outfall { 1.0 } else { 0.5 };
+                volume -= share * (ctx.links.volume[link] - ctx.links.old_volume[link]);
+            }
+            if volume < 0.0 && !lidnode::richards_mode(ctx, node_idx) {
+                let r = ctx.node_subtypes.storage_row(node_idx) as usize;
+                let state = &mut ctx.node_subtypes.storages.lid_state[r];
+                let mut k = 0;
+                while k < state.cells.len() && volume < 0.0 {
+                    let cell = &state.cells[k];
+                    let take = cmin(-volume, cmax(0.0, (cell.theta - cell.wilting_point) * cell.geometric_volume + state.port_delta[k]));
+                    state.port_delta[k] -= take;
+                    volume += take;
+                    k += 1;
+                }
+            }
+            volume = cmax(0.0, volume);
+            ctx.nodes.overflow[ui] = 0.0;
+            let pond = ctx.options.allow_ponding && ctx.nodes.ponded_area[ui] > 0.0;
+            let capacity = ctx.nodes.full_volume[ui];
+            if !pond && volume > capacity {
+                ctx.nodes.overflow[ui] = (volume - capacity) / dt;
+                volume = capacity;
+            }
+            let mut depth = crate::hydraulics::node_step::get_depth(&ctx.nodes, node_idx, cmin(volume, capacity), Some(&ctx.tables), self.unit_sys_, Some(&ctx.node_subtypes));
+            if pond && volume > capacity {
+                depth = ctx.nodes.full_depth[ui] + (volume - capacity) / ctx.nodes.ponded_area[ui];
+            }
+            ctx.nodes.volume[ui] = volume;
+            ctx.nodes.depth[ui] = depth;
+            ctx.nodes.head[ui] = ctx.nodes.invert_elev[ui] + depth;
+            self.xnode_.dYdT[ui] = (depth - ctx.nodes.old_depth[ui]).abs() / dt;
+            return;
+        }
 
         let mut is_surcharged = false;
         if self.surcharge_method == SurchargeMethod::Extran || self.surcharge_method == SurchargeMethod::DynamicSlot {
@@ -2176,7 +2216,7 @@ impl DWSolver {
     }
 }
 
-/// node::getPondedArea for a storage node (no LID cells: refused upstream).
+/// node::getPondedArea for a storage node.
 fn lidnode_free_ponded_area(ctx: &SimulationContext, idx: i32, depth: f64, unit_sys: i32) -> f64 {
     crate::hydraulics::node_step::get_ponded_area(&ctx.nodes, idx, depth, Some(&ctx.tables), unit_sys, Some(&ctx.node_subtypes))
 }
