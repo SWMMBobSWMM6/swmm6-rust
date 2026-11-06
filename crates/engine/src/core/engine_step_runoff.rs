@@ -7,10 +7,14 @@
 // request of Robert Dickinson. Not an OpenSWMM release.
 //
 // The runoff (hydrology) step: SWMMEngine::stepRunoff and what it calls on the engine:
-// computeRunoffTimestep (setNextEvapDate is in engine_init_hydrology.rs), assembleRunon, assembleGWCoupling,
-// stepGroundwater, accumulateRunoffMassBalance, stepSurfaceQuality, bookWashoffLoads,
-// saveRunoffIfaceStep and subcatchSnowDepth. The solvers it drives are in hydrology/
-// (runoff.rs, infiltration.rs, infil_bank.rs, gage.rs, climate.rs, snow.rs).
+// computeRunoffTimestep (setNextEvapDate is in engine_init_hydrology.rs), assembleRunon,
+// assembleGWCoupling, stepGroundwater, accumulateRunoffMassBalance, stepSurfaceQuality,
+// bookWashoffLoads, saveRunoffIfaceStep and subcatchSnowDepth, and the LID blocks A6a/A6b
+// and the volume-domain runoff fold. The solvers it drives: hydrology/runoff.rs (the
+// nonlinear reservoir), infiltration.rs and infil_bank.rs, gage.rs, climate.rs, snow.rs
+// (degree-day snow), groundwater.rs, rdii.rs, lid_kernel.rs (the LID process kernel),
+// math/ode_solver.rs, quality/surface_species_kernel.rs (buildup and washoff) and
+// transport/water_age_watershed.rs.
 //
 // The step's signatures are the agreed ones (PLAN.md, "The step's signatures"):
 //   SwmmEngine::step_runoff(&mut self, dt_routing: f64) -> Result<(), Terminated>
@@ -27,11 +31,13 @@
 //   * The local `total_sec_clamp` at the top of stepRunoff is computed and never used
 //     upstream; it is left out.
 //   * Code a deck reaches whose solver is not translated yet returns Err(stub(...)) at the
-//     point upstream would first act (see `stub_if`): UEB snow
-//     (ueb::advanceSubcatchments), a LID unit with a report file (saveLidReport),
-//     custom [GWF] expressions (mathexpr::evaluate_fast), the
-//     water-age and heat transport hooks, the reactions surface species, and the runoff
-//     interface file (USE RUNOFF readResults, SAVE RUNOFF saveResults).
+//     point upstream would first act (see `stub_if`). NOT YET TRANSLATED: UEB snow
+//     (ueb::advanceSubcatchments), the heat transport hooks (routeSubcatchmentTemperature,
+//     addRunonTemperature(At), setLidInflowTemperature, routeLidLayerTemperature and the
+//     LID drain temperature), the water-age LID hooks (setLidInflowAge, routeLidLayerAge
+//     and the LID drain age), the reactions surface and LID species (msxsurf::step,
+//     bookPostLid, addLidDrain, addLidDrainRunon, msxlid::routeUnits / publishUnits), and
+//     the runoff interface file (USE RUNOFF readResults, SAVE RUNOFF saveResults).
 
 use crate::core::cmath::{cclamp, cmax, cmin};
 use crate::core::context::FileMode;

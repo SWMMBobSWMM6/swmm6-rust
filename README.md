@@ -12,8 +12,9 @@ Phase 1a (1D) is under way. Done, and identical to upstream on every gate deck:
 * the initialize legs: `initHydraulics`, `initHydrology`, `initQuality`, `initGeometry`, `initMassBalance`;
 * the leaf numerics: cross-section geometry and its tables, transects, streets, force mains, the C library functions upstream depends on (`strtod`, `from_chars`, `sscanf`, `%.10g`, `std::sort` and the `unordered_map`/`map` orders);
 * the run lifecycle: `initialize()` as a whole and `start()` (identical on all 932 gate decks), and `step()` with its own bookkeeping (statistics, routing mass balance, final storage), gated helper by helper.
+* the runoff (hydrology) step, `stepRunoff`: rain gages, climate, the nonlinear reservoir, all infiltration methods, degree-day snow, groundwater, RDII, the LID units, buildup and washoff, the runoff mass balance (identical on every gate deck that reaches it, loaded from upstream's own state mid-run; the SWMM6-only UEB snow, heat and reaction-species hooks are still stubs).
 
-Not yet translated: the solvers the step calls (runoff, routing, quality), nor the `.out` and `.rpt` writers; `step()` calls them through stub files. **It does not run a simulation yet.** [PLAN.md](PLAN.md) has the phases and what comes next. 2D comes after 1D.
+Not yet translated: the routing step and the quality routing, nor the `.out` and `.rpt` writers; `step()` calls them through stub files. **It does not run a simulation yet.** [PLAN.md](PLAN.md) has the phases and what comes next. 2D comes after 1D.
 
 ## How it is checked
 
