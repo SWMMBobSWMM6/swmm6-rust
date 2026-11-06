@@ -15,12 +15,16 @@
 //     method that reads or writes it.
 //   * The pointer out-parameters of getOutflow (lidEvap, lidInfil, lidDrain) and of
 //     getSurfaceOverflowRate (surfaceDepth) are &mut.
-//   * LIDSolver::execute's per-unit report file (saveLidReport, a [LID_USAGE] report path)
-//     writes a text file beside the deck; NOT YET TRANSLATED: execute returns
-//     Err("LIDSolver::saveLidReport") before evaluating a unit that has one.
+//   * saveLidReport writes through std::ofstream; here through std::fs::File, unbuffered
+//     (the file's final content is the same). printf's %8.3f / %8.4f are fmt_f (Rust's
+//     exact decimal formatting, rounding ties to even as glibc does; NaN printed as glibc
+//     prints it). The report file's content is not part of any gate.
 
 use crate::core::cmath::{cmax, cmin};
 use crate::core::context::SimulationContext;
+use crate::core::datetime;
+use crate::hydrology::lid::LidRptFile;
+use std::io::Write;
 use crate::hydrology::infiltration::{self as infil, InfilModel};
 use crate::hydrology::lid::{has_native_bottom, LIDGroupSoA, LIDSolver, LIDType};
 
@@ -1035,9 +1039,6 @@ impl LIDSolver {
                 let native = if sc >= 0 && usc < self.native_infil_.len() { self.native_infil_[usc] } else { 0.0 };
                 let max_native = if sc >= 0 && usc < self.max_native_infil_.len() { self.max_native_infil_[usc] } else { L_BIG };
                 let infil_factor = if sc >= 0 && usc < self.infil_factor_.len() { self.infil_factor_[usc] } else { 1.0 };
-                if !g.rpt_path[uu].is_empty() {
-                    return Err("LIDSolver::saveLidReport");
-                }
                 let inflow = g.inflow[uu];
                 run_unit_legacy(g, uu, inflow, evap, native, max_native, dt, self.old_runoff_sec_, infil_factor, self.recovery_factor_);
                 if g.subcatch_rain[uu] > MIN_RUNOFF {
@@ -1045,8 +1046,123 @@ impl LIDSolver {
                 } else {
                     g.dry_time[uu] += dt;
                 }
+                if !self.groups_[gi].rpt_path[uu].is_empty() {
+                    self.save_lid_report(ctx, gi as i32, uu, dt);
+                }
             }
         }
         Ok(())
     }
+
+    /// saveLidReport: one row of the unit's [LID_USAGE] report file (legacy createLidRptFile,
+    /// initLidRptFile and the writing half of lidproc_saveResults).
+    pub fn save_lid_report(&mut self, ctx: &SimulationContext, gi: i32, u: usize, dt: f64) {
+        let key = (gi, u as i32);
+        let g = &self.groups_[gi as usize];
+        if !self.rpt_files_.contains_key(&key) {
+            let mut st = Box::new(LidRptFile::default());
+            use std::os::unix::ffi::OsStrExt;
+            let path = std::path::Path::new(std::ffi::OsStr::from_bytes(&g.rpt_path[u]));
+            st.f = std::fs::File::create(path).ok();
+            st.failed = st.f.is_none();
+            if !st.failed {
+                const HEAD1: [&str; 14] = ["\n                    \t", "  Elapsed\t", "    Total\t", "    Total\t", "  Surface\t", " Pavement\t", "     Soil\t", "  Storage\t", "  Surface\t", "    Drain\t", "  Surface\t", " Pavement\t", "     Soil\t", "  Storage"];
+                const HEAD2: [&str; 14] = ["\n                    \t", "     Time\t", "   Inflow\t", "     Evap\t", "    Infil\t", "     Perc\t", "     Perc\t", "    Exfil\t", "   Runoff\t", "  OutFlow\t", "    Level\t", "    Level\t", " Moisture\t", "    Level"];
+                const UNITS1: [&str; 14] = ["\nDate        Time    \t", "    Hours\t", "    in/hr\t", "    in/hr\t", "    in/hr\t", "    in/hr\t", "    in/hr\t", "    in/hr\t", "    in/hr\t", "    in/hr\t", "   inches\t", "   inches\t", "  Content\t", "   inches"];
+                const UNITS2: [&str; 14] = ["\nDate        Time    \t", "    Hours\t", "    mm/hr\t", "    mm/hr\t", "    mm/hr\t", "    mm/hr\t", "    mm/hr\t", "    mm/hr\t", "    mm/hr\t", "    mm/hr\t", "       mm\t", "       mm\t", "  Content\t", "       mm"];
+                let is_us = g.ucf_raindepth == 12.0;
+                let title: &[u8] = if ctx.title_notes.is_empty() { b"" } else { &ctx.title_notes[0] };
+                let ci = g.control_idx[u];
+                let si = g.subcatch_idx[u];
+                let mut o: Vec<u8> = Vec::new();
+                o.extend_from_slice(b"SWMM5 LID Report File\n");
+                o.extend_from_slice(b"\nProject:  ");
+                o.extend_from_slice(title);
+                o.extend_from_slice(b"\nLID Unit: ");
+                if ci >= 0 {
+                    o.extend_from_slice(ctx.lid_names.name_of(ci));
+                }
+                o.extend_from_slice(b" in Subcatchment ");
+                if si >= 0 {
+                    o.extend_from_slice(ctx.subcatch_names.name_of(si));
+                }
+                o.extend_from_slice(b"\n");
+                for c in HEAD1.iter().chain(HEAD2.iter()) {
+                    o.extend_from_slice(c.as_bytes());
+                }
+                for c in if is_us { UNITS1.iter() } else { UNITS2.iter() } {
+                    o.extend_from_slice(c.as_bytes());
+                }
+                o.extend_from_slice(b"\n----------- --------");
+                for _ in 1..14 {
+                    o.extend_from_slice(b"\t ---------");
+                }
+                if let Some(f) = st.f.as_mut() {
+                    let _ = f.write_all(&o);
+                }
+            }
+            self.rpt_files_.insert(key, st);
+        }
+        let g = &self.groups_[gi as usize];
+        let r = self.rpt_files_.get_mut(&key).unwrap();
+        if r.failed {
+            return;
+        }
+        let total_evap = if dt > 0.0 { g.evap_loss[u] / dt } else { 0.0 };
+        let stor_exfil = if dt > 0.0 { g.infil_loss[u] / dt } else { 0.0 };
+        let (ucf_q, ucf_d) = (g.ucf_rainfall, g.ucf_raindepth);
+        let rv: [f64; 12] = [
+            g.in_surf[u] * ucf_q,
+            total_evap * ucf_q,
+            g.rpt_surf_infil[u] * ucf_q,
+            g.rpt_pave_perc[u] * ucf_q,
+            g.rpt_soil_perc[u] * ucf_q,
+            stor_exfil * ucf_q,
+            g.surface_runoff[u] * ucf_q,
+            g.drain_flow[u] * ucf_q,
+            g.surf_depth[u] * ucf_d,
+            g.pave_depth[u] * ucf_d,
+            if g.soil_thick[u] > 0.0 { g.soil_moist[u] } else { 0.0 },
+            g.stor_depth[u] * ucf_d,
+        ];
+        let is_dry = g.in_surf[u] < L_MINFLOW && g.surface_runoff[u] < L_MINFLOW && g.drain_flow[u] < L_MINFLOW && stor_exfil < L_MINFLOW && total_evap < L_MINFLOW;
+
+        if !is_dry && r.was_dry > 1 {
+            if let Some(f) = r.f.as_mut() {
+                let _ = f.write_all(&r.held);
+            }
+        }
+
+        let new_sec = self.old_runoff_sec_ + dt;
+        let when = ctx.options.start_date + new_sec / 86400.0;
+        let (yy, mo, dd) = datetime::decode_date(when);
+        let (hh, mi, ss) = datetime::decode_time(when);
+        let ts = format!("{:02}/{:02}/{:04} {:02}:{:02}:{:02}", mo, dd, yy, hh, mi, ss);
+        let mut row = format!("\n{:>20}\t {}\t {}\t {}\t {}\t {}\t {}\t {}\t{}\t {}\t {}\t {}\t {}\t {}", ts, fmt_f(new_sec / 3600.0, 3), fmt_f(rv[0], 3), fmt_f(rv[1], 4), fmt_f(rv[2], 3), fmt_f(rv[3], 3), fmt_f(rv[4], 3), fmt_f(rv[5], 3), fmt_f(rv[6], 3), fmt_f(rv[7], 3), fmt_f(rv[8], 3), fmt_f(rv[9], 3), fmt_f(rv[10], 3), fmt_f(rv[11], 3));
+        row.truncate(511); // char row[512]
+        r.held = row.into_bytes();
+
+        if is_dry {
+            if r.was_dry == 0 {
+                if let Some(f) = r.f.as_mut() {
+                    let _ = f.write_all(&r.held);
+                }
+            }
+            r.was_dry += 1;
+        } else {
+            if let Some(f) = r.f.as_mut() {
+                let _ = f.write_all(&r.held);
+            }
+            r.was_dry = 0;
+        }
+    }
+}
+
+/// printf("%8.<prec>f", v) as glibc prints it.
+fn fmt_f(v: f64, prec: usize) -> String {
+    if v.is_nan() {
+        let s = if v.is_sign_negative() { "-nan" } else { "nan" };
+        return format!("{:>8}", s);
+    }
+    format!("{:>8.*}", prec, v)
 }

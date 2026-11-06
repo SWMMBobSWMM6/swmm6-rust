@@ -14,9 +14,10 @@
 // Differences of form:
 //   * The solver member is public so the gate dumper can read it; upstream's is private.
 //   * GWSolver::execute with its file-static helpers (GWContext, getFluxes, getDxDt) was
-//     translated on 5 November 2026 for the runoff step. Custom [GWF] LATERAL / DEEP
-//     expressions need mathexpr::evaluate_fast, NOT YET TRANSLATED: execute returns
-//     Err("mathexpr::evaluate_fast") where upstream would first evaluate one. The OpenMP
+//     translated on 5 November 2026 for the runoff step, with mathexpr::evaluate_fast
+//     (math/MathExpr.cpp), which only the custom [GWF] LATERAL / DEEP expressions use; it
+//     is here as a private function. Its fixed 32-entry stack is an array (an overflow,
+//     undefined upstream, panics). The OpenMP
 //     split (>= 512 subcatchments) writes disjoint rows; the serial loop gives the same
 //     result.
 
@@ -24,7 +25,7 @@ use crate::core::cmath::{cmax, cmin};
 use crate::core::context::SimulationContext;
 use crate::core::datetime;
 use crate::core::unit_conversion as ucf;
-use crate::math::math_expr::Expression;
+use crate::math::math_expr::{Expression, TokenType};
 
 pub use crate::hydrology::groundwater_parse::{gwf_validate, GW_VAR_NAMES};
 
@@ -220,11 +221,105 @@ struct GWContext {
     upper_perc: f64,
     deep_loss: f64,
     gw_flow: f64,
+    lateral_expr: Option<usize>,
+    deep_expr: Option<usize>,
 }
 
-/// getFluxes (legacy getFluxes / getEvapRates / getUpperPerc / getGWFlow). The custom
-/// expressions are not evaluated here (execute stops before an aquifer that has one).
-fn get_fluxes(c: &mut GWContext, theta: f64, lower_depth: f64) {
+/// mathexpr::evaluate_fast: a postfix expression over a dense variable array.
+fn evaluate_fast(expr: &Expression, vars: &[f64]) -> f64 {
+    if !expr.valid || expr.postfix.is_empty() {
+        return 0.0;
+    }
+    const MAX_STACK: usize = 32;
+    let mut stk = [0.0f64; MAX_STACK];
+    let mut sp: usize = 0;
+    for tok in &expr.postfix {
+        match tok.type_ {
+            TokenType::Number => {
+                stk[sp] = tok.value;
+                sp += 1;
+            }
+            TokenType::Variable => {
+                stk[sp] = if tok.var_idx >= 0 { vars[tok.var_idx as usize] } else { 0.0 };
+                sp += 1;
+            }
+            TokenType::Neg => stk[sp - 1] = -stk[sp - 1],
+            TokenType::Add => {
+                sp -= 1;
+                let b = stk[sp];
+                stk[sp - 1] += b;
+            }
+            TokenType::Sub => {
+                sp -= 1;
+                let b = stk[sp];
+                stk[sp - 1] -= b;
+            }
+            TokenType::Mul => {
+                sp -= 1;
+                let b = stk[sp];
+                stk[sp - 1] *= b;
+            }
+            TokenType::Div => {
+                sp -= 1;
+                let b = stk[sp];
+                stk[sp - 1] = if b != 0.0 { stk[sp - 1] / b } else { 0.0 };
+            }
+            TokenType::Pow => {
+                sp -= 1;
+                let b = stk[sp];
+                stk[sp - 1] = stk[sp - 1].powf(b); // LIBM
+            }
+            TokenType::FuncAbs => stk[sp - 1] = stk[sp - 1].abs(),
+            TokenType::FuncSqrt => stk[sp - 1] = if stk[sp - 1] >= 0.0 { stk[sp - 1].sqrt() } else { 0.0 },
+            TokenType::FuncExp => stk[sp - 1] = stk[sp - 1].exp(), // LIBM
+            TokenType::FuncLog => stk[sp - 1] = if stk[sp - 1] > 0.0 { stk[sp - 1].ln() } else { 0.0 }, // LIBM
+            TokenType::FuncSin => stk[sp - 1] = stk[sp - 1].sin(), // LIBM
+            TokenType::FuncCos => stk[sp - 1] = stk[sp - 1].cos(), // LIBM
+            TokenType::FuncTan => stk[sp - 1] = stk[sp - 1].tan(), // LIBM
+            TokenType::FuncAsin => stk[sp - 1] = stk[sp - 1].asin(), // LIBM
+            TokenType::FuncAcos => stk[sp - 1] = stk[sp - 1].acos(), // LIBM
+            TokenType::FuncAtan => stk[sp - 1] = stk[sp - 1].atan(), // LIBM
+            TokenType::FuncSgn => stk[sp - 1] = if stk[sp - 1] > 0.0 { 1.0 } else if stk[sp - 1] < 0.0 { -1.0 } else { 0.0 },
+            TokenType::FuncStep => stk[sp - 1] = if stk[sp - 1] >= 0.0 { 1.0 } else { 0.0 },
+            TokenType::FuncMin => {
+                sp -= 1;
+                let b = stk[sp];
+                stk[sp - 1] = cmin(stk[sp - 1], b);
+            }
+            TokenType::FuncMax => {
+                sp -= 1;
+                let b = stk[sp];
+                stk[sp - 1] = cmax(stk[sp - 1], b);
+            }
+            _ => {}
+        }
+    }
+    if sp > 0 {
+        stk[0]
+    } else {
+        0.0
+    }
+}
+
+/// The variable array of a custom expression, in GW_VAR_NAMES order.
+fn gwf_vars(c: &GWContext, theta: f64, lower_depth: f64) -> [f64; GWV_MAX as usize] {
+    let mut vars = [0.0f64; GWV_MAX as usize];
+    vars[GWV_HGW as usize] = lower_depth * c.ucf_length;
+    vars[GWV_HSW as usize] = c.sw_head * c.ucf_length;
+    vars[GWV_HCB as usize] = c.h_star * c.ucf_length;
+    vars[GWV_HGS as usize] = c.total_depth * c.ucf_length;
+    vars[GWV_KS as usize] = c.k_sat * c.ucf_rainfall;
+    vars[GWV_K as usize] = if c.upper_perc > 0.0 { c.upper_perc * c.ucf_rainfall } else { 0.0 };
+    vars[GWV_THETA as usize] = theta;
+    vars[GWV_PHI as usize] = c.porosity;
+    vars[GWV_FI as usize] = c.infil * c.ucf_rainfall;
+    vars[GWV_FU as usize] = c.upper_perc * c.ucf_rainfall;
+    vars[GWV_A as usize] = c.area * c.ucf_landarea;
+    vars
+}
+
+/// getFluxes (legacy getFluxes / getEvapRates / getUpperPerc / getGWFlow).
+fn get_fluxes(c: &mut GWContext, soa: &GWSoA, theta: f64, lower_depth: f64) {
     let mut lower_depth = cmax(lower_depth, 0.0);
     lower_depth = cmin(lower_depth, c.total_depth);
     let upper_depth = c.total_depth - lower_depth;
@@ -254,7 +349,12 @@ fn get_fluxes(c: &mut GWContext, theta: f64, lower_depth: f64) {
     }
     c.upper_perc = cmin(c.upper_perc, c.max_upper_perc);
 
-    c.deep_loss = if c.total_depth > 0.0 { c.lower_loss_coeff * lower_depth / c.total_depth } else { 0.0 };
+    if let Some(k) = c.deep_expr {
+        let vars = gwf_vars(c, theta, lower_depth);
+        c.deep_loss = evaluate_fast(&soa.deep_expr[k], &vars) / c.ucf_rainfall;
+    } else {
+        c.deep_loss = if c.total_depth > 0.0 { c.lower_loss_coeff * lower_depth / c.total_depth } else { 0.0 };
+    }
     c.deep_loss = cmin(c.deep_loss, lower_depth / c.dt);
 
     c.gw_flow = 0.0;
@@ -286,6 +386,10 @@ fn get_fluxes(c: &mut GWContext, theta: f64, lower_depth: f64) {
             c.gw_flow = 0.0;
         }
     }
+    if let Some(k) = c.lateral_expr {
+        let vars = gwf_vars(c, theta, lower_depth);
+        c.gw_flow += evaluate_fast(&soa.lateral_expr[k], &vars) / c.ucf_gwflow;
+    }
     if c.gw_flow >= 0.0 {
         c.gw_flow = cmin(c.gw_flow, c.max_gw_flow_pos);
     } else {
@@ -294,10 +398,10 @@ fn get_fluxes(c: &mut GWContext, theta: f64, lower_depth: f64) {
 }
 
 /// getDxDt: the two-variable derivative (moisture fraction, saturated depth).
-fn get_dxdt(c: &mut GWContext, x: &[f64; 2], dxdt: &mut [f64; 2]) {
+fn get_dxdt(c: &mut GWContext, soa: &GWSoA, x: &[f64; 2], dxdt: &mut [f64; 2]) {
     let theta_val = x[0];
     let lower_d = x[1];
-    get_fluxes(c, theta_val, lower_d);
+    get_fluxes(c, soa, theta_val, lower_d);
     let upper_d = c.total_depth - lower_d;
     dxdt[0] = if upper_d > 0.0 { (c.infil - c.upper_evap - c.upper_perc) / upper_d } else { 0.0 };
     let denom = c.porosity - theta_val;
@@ -381,9 +485,8 @@ impl GWSolver {
         c.ucf_gwflow = ucf::UCF[ucf::GWFLOW as usize][unit_sys];
         c.ucf_rainfall = ucf::UCF[ucf::RAINFALL as usize][unit_sys];
         c.ucf_landarea = ucf::UCF[ucf::LANDAREA as usize][unit_sys];
-        if soa.lateral_expr[ui].valid || soa.deep_expr[ui].valid {
-            return Err("mathexpr::evaluate_fast ([GWF] expression)");
-        }
+        c.lateral_expr = if soa.lateral_expr[ui].valid { Some(ui) } else { None };
+        c.deep_expr = if soa.deep_expr[ui].valid { Some(ui) } else { None };
 
         let theta_0 = soa.theta[ui];
         let lower_d_0 = soa.lower_depth[ui];
@@ -412,7 +515,10 @@ impl GWSolver {
 
         let mut x = [theta_0, lower_d_0];
         // Legacy ignores the ODE return code.
-        let _ = crate::math::ode_solver::integrate(&mut x, 0.0, dt, crate::core::constants::ode::GWTOL, dt, |_t, y: &[f64; 2], dydx: &mut [f64; 2]| get_dxdt(&mut c, y, dydx));
+        {
+            let soa_r: &GWSoA = soa;
+            let _ = crate::math::ode_solver::integrate(&mut x, 0.0, dt, crate::core::constants::ode::GWTOL, dt, |_t, y: &[f64; 2], dydx: &mut [f64; 2]| get_dxdt(&mut c, soa_r, y, dydx));
+        }
 
         x[0] = cmax(x[0], c.wilt_point);
         if x[0] >= c.porosity {
@@ -435,7 +541,7 @@ impl GWSolver {
             soa.max_infil_vol[ui] = 0.0;
         }
 
-        get_fluxes(&mut c, x[0], x[1]);
+        get_fluxes(&mut c, soa, x[0], x[1]);
         soa.old_flow[ui] = soa.gw_flow[ui];
         soa.gw_flow[ui] = c.gw_flow;
         soa.upper_evap[ui] = c.upper_evap;

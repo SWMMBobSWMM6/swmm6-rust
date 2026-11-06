@@ -11,3 +11,4 @@ pub mod reaction_legacy_binding;
 pub mod reactions_component;
 pub mod water_age_component;
 pub mod water_age_lid;
+pub mod water_age_watershed;

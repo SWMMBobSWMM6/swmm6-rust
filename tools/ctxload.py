@@ -343,7 +343,9 @@ def hydro_walk():
         L.append('    for u in h.rdii_.uh_params.iter_mut() { for m in 0..12 { for k in 0..3 { u.r[m][k] = r.pf("rdii_.uh_params[].r"); u.tPeak[m][k] = r.pf("rdii_.uh_params[].tPeak"); u.tBase[m][k] = r.pf("rdii_.uh_params[].tBase"); u.iaMax[m][k] = r.pf("rdii_.uh_params[].iaMax"); u.iaRecov[m][k] = r.pf("rdii_.uh_params[].iaRecov"); u.iaInit[m][k] = r.pf("rdii_.uh_params[].iaInit"); } } }')
         # the name map is initHydraulics' (identical on both sides): checked, not loaded
         L.append('    { let mut t: Vec<(Bytes, i32)> = Vec::new(); while r.peek("rdii_.uh_name_to_idx_.key") { let k = r.ps("rdii_.uh_name_to_idx_.key"); let v = r.pi("rdii_.uh_name_to_idx_.val") as i32; t.push((k, v)); } let mut m = h.rdii_.uh_name_to_idx_.clone(); m.sort(); if m != t { r.fail("rdii_.uh_name_to_idx_ differs"); } }')
-        L.append('    { let n = r.pi("lid_.rpt_files_.size"); if n != h.lid_.rpt_files_.len() as i64 { r.fail("lid_.rpt_files_ size differs (report files are not loaded)"); } }')
+        # the report files themselves are not reopened: a loaded unit's file is a placeholder
+        # that counts as failed, so the translation writes nothing more to it
+        L.append('    { let n = r.pi("lid_.rpt_files_.size"); h.lid_.rpt_files_.clear(); for _ in 0..n { let a = r.pi("lid_.rpt_files_.key.first") as i32; let b = r.pi("lid_.rpt_files_.key.second") as i32; let mut f = Box::new(swmm6_rust::hydrology::lid::LidRptFile::default()); f.failed = true; h.lid_.rpt_files_.insert((a, b), f); } }')
         r0, l0 = len(R), len(L)
         D.emit('e.gage_states_', 'e.gage_states()', 'gage_states_', D.kind('std::vector<gage::GageState>'), C, R)
         load('(*h.gage_states_)', 'gage_states_', D.kind('std::vector<gage::GageState>'), L)
@@ -880,8 +882,9 @@ def main():
     if HR != want_h:
         i = next(i for i in range(len(HR)) if HR[i] != want_h[i])
         raise SystemExit(f'ctxload: hydrodump changed (line {i}):\n  hydrodump: {want_h[i]}\n  ctxload: {HR[i]}\nupdate tools/ctxload.py')
-    # the solvers, then the three hand-written lines, then gage_states_
-    ig = i0 + len(HR) + 3
+    # the solvers, then the four hand-written lines (uh_params, uh_name_to_idx_, the
+    # rpt_files_ size and keys), then gage_states_
+    ig = i0 + len(HR) + 4
     if href[ig:ig + len(HG)] != HG:
         raise SystemExit('ctxload: hydrodump changed (gage_states_ or the hand-written lines before it); update tools/ctxload.py')
     hout = [HPRELUDE, '/// Fill the hydrology solvers of a started engine from the dump at `r`, as',

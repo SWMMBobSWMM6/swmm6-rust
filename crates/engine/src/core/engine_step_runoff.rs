@@ -337,7 +337,7 @@ impl SwmmEngine {
         }
 
         // A3: subcatchment surface age; H5a: its temperature
-        stub_if(self.ctx_.options.water_age && dt_runoff > 0.0 && self.ctx_.n_subcatches() > 0, "transport::routeSubcatchmentAge")?;
+        crate::transport::water_age_watershed::route_subcatchment_age(&mut self.ctx_, &self.runoff_.soa_, dt_runoff);
         stub_if(self.ctx_.options.heat_transport && dt_runoff > 0.0 && self.ctx_.n_subcatches() > 0, "transport::routeSubcatchmentTemperature")?;
 
         // HasRunoff / HasSnow for the NEXT step's timestep (legacy runoff.c:266-271)
@@ -1037,7 +1037,13 @@ impl SwmmEngine {
                 let vol = self.ctx_.subcatches.outfall_runon_vol[ui];
                 if vol > 0.0 {
                     add_runon(self, i, vol / dt_prev, land2ft2);
-                    stub_if(self.ctx_.options.water_age && ui < self.ctx_.water_age_state.subcatch_outfall_age_vol.len() && ui < self.ctx_.water_age_state.subcatch_runon_age_vol_in.len(), "SWMMEngine::assembleRunon (outfall run-on age)")?;
+                    {
+                        let ws = &mut self.ctx_.water_age_state;
+                        if self.ctx_.options.water_age && ui < ws.subcatch_outfall_age_vol.len() && ui < ws.subcatch_runon_age_vol_in.len() {
+                            ws.subcatch_runon_age_vol_in[ui] += ws.subcatch_outfall_age_vol[ui] / dt_prev;
+                            ws.subcatch_outfall_age_vol[ui] = 0.0;
+                        }
+                    }
                     stub_if(self.ctx_.options.heat_transport && ui < self.ctx_.heat_state.subcatch_outfall_temp_vol.len(), "transport::addRunonTemperatureAt")?;
                     self.ctx_.mass_balance.runoff_runon += vol;
                     self.ctx_.subcatches.outfall_runon_vol[ui] = 0.0;
@@ -1069,7 +1075,7 @@ impl SwmmEngine {
                     }
                 }
                 msx_add_runon(&mut self.ctx_, i, out_sc, q);
-                stub_if(self.ctx_.options.water_age, "transport::addRunonAge")?;
+                crate::transport::water_age_watershed::add_runon_age(&mut self.ctx_, i, out_sc, q);
                 stub_if(self.ctx_.options.heat_transport, "transport::addRunonTemperature")?;
             }
         }
@@ -1095,7 +1101,13 @@ impl SwmmEngine {
             if q > 0.0 {
                 add_runon(self, i, q, land2ft2);
                 self.ctx_.subcatches.lid_drain_runon_cfs[ui] = 0.0;
-                stub_if(self.ctx_.options.water_age && ui < self.ctx_.water_age_state.subcatch_lid_drain_age_cfs.len() && ui < self.ctx_.water_age_state.subcatch_runon_age_vol_in.len(), "SWMMEngine::assembleRunon (LID drain run-on age)")?;
+                {
+                    let ws = &mut self.ctx_.water_age_state;
+                    if self.ctx_.options.water_age && ui < ws.subcatch_lid_drain_age_cfs.len() && ui < ws.subcatch_runon_age_vol_in.len() {
+                        ws.subcatch_runon_age_vol_in[ui] += ws.subcatch_lid_drain_age_cfs[ui];
+                        ws.subcatch_lid_drain_age_cfs[ui] = 0.0;
+                    }
+                }
                 stub_if(self.ctx_.options.heat_transport && ui < self.ctx_.heat_state.subcatch_lid_drain_temp_cfs.len(), "transport::addRunonTemperatureAt")?;
             }
         }

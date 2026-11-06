@@ -381,7 +381,7 @@ pub fn load_hydro(r: &mut Rd, e: &mut SwmmEngine) {
     set_vf(&mut (*h.rdii_).grid_flows_, r.vf("rdii_.grid_flows_"));
     for u in h.rdii_.uh_params.iter_mut() { for m in 0..12 { for k in 0..3 { u.r[m][k] = r.pf("rdii_.uh_params[].r"); u.tPeak[m][k] = r.pf("rdii_.uh_params[].tPeak"); u.tBase[m][k] = r.pf("rdii_.uh_params[].tBase"); u.iaMax[m][k] = r.pf("rdii_.uh_params[].iaMax"); u.iaRecov[m][k] = r.pf("rdii_.uh_params[].iaRecov"); u.iaInit[m][k] = r.pf("rdii_.uh_params[].iaInit"); } } }
     { let mut t: Vec<(Bytes, i32)> = Vec::new(); while r.peek("rdii_.uh_name_to_idx_.key") { let k = r.ps("rdii_.uh_name_to_idx_.key"); let v = r.pi("rdii_.uh_name_to_idx_.val") as i32; t.push((k, v)); } let mut m = h.rdii_.uh_name_to_idx_.clone(); m.sort(); if m != t { r.fail("rdii_.uh_name_to_idx_ differs"); } }
-    { let n = r.pi("lid_.rpt_files_.size"); if n != h.lid_.rpt_files_.len() as i64 { r.fail("lid_.rpt_files_ size differs (report files are not loaded)"); } }
+    { let n = r.pi("lid_.rpt_files_.size"); h.lid_.rpt_files_.clear(); for _ in 0..n { let a = r.pi("lid_.rpt_files_.key.first") as i32; let b = r.pi("lid_.rpt_files_.key.second") as i32; let mut f = Box::new(swmm6_rust::hydrology::lid::LidRptFile::default()); f.failed = true; h.lid_.rpt_files_.insert((a, b), f); } }
     { let n = r.count("gage_states_.n"); SeqLen::seq_len(&mut (*h.gage_states_), n); for e113 in ((*h.gage_states_)).iter_mut() {
     (*e113).rainfall = FromF64::from_f64(r.pf("gage_states_[].rainfall"));
     (*e113).snowfall = FromF64::from_f64(r.pf("gage_states_[].snowfall"));
