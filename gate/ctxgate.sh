@@ -98,9 +98,11 @@
 #       "start"), noresult, panic. Files a deck SAVEs to are backed up and restored.
 #
 # DECKLIST=file runs the decks listed in it (one path per line) instead of the default set.
+# CTXGATE_EXAMPLES=dir runs the Rust harnesses from dir (default target/release/examples), so a
+# gate can run while the next build goes to another CARGO_TARGET_DIR.
 # CTXGATE_KEEP=file keeps the list of differing decks; CTXGATE_SHOW=n shows the first n.
 H=$(cd "$(dirname "$0")/.." && pwd); W=$(mktemp -d)
-E="$H/target/release/examples"
+E="${CTXGATE_EXAMPLES:-$H/target/release/examples}"   # CTXGATE_EXAMPLES=dir: the Rust harnesses built elsewhere (CARGO_TARGET_DIR)
 if [ -n "$DECKLIST" ]; then sort "$DECKLIST" > "$W/decks.txt"      # DECKLIST=file: one deck path per line
 else { find /root/work/corpus -name '*.inp'; find /root/work/swmm6src/upstream/tests -name '*.inp'; find "$H/gate/decks" -name '*.inp'; } | sort > "$W/decks.txt"; fi
 
