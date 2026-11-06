@@ -253,6 +253,20 @@ inline void rtdump(const openswmm::SWMMEngine& e) {
   { std::vector<double> t; for (auto x : s->node_vfull_) t.push_back((double)x); vf("router.fv_solver_.node_vfull_", t); }
   { std::vector<double> t; for (auto x : s->face_a_rim_) t.push_back((double)x); vf("router.fv_solver_.face_a_rim_", t); }
   { std::vector<double> t; for (auto x : s->face_lat_spill_) t.push_back((double)x); vf("router.fv_solver_.face_lat_spill_", t); }
+  { std::vector<double> t; for (auto x : s->cell_qlat_) t.push_back((double)x); vf("router.fv_solver_.cell_qlat_", t); }
+  { std::vector<double> t; for (auto x : s->node_qstruct_) t.push_back((double)x); vf("router.fv_solver_.node_qstruct_", t); }
+  { std::vector<double> t; for (auto x : s->save_dummy_) t.push_back((double)x); vf("router.fv_solver_.save_dummy_", t); }
+  { std::vector<double> t; for (auto x : s->save_cell_a_) t.push_back((double)x); vf("router.fv_solver_.save_cell_a_", t); }
+  { std::vector<double> t; for (auto x : s->save_cell_q_) t.push_back((double)x); vf("router.fv_solver_.save_cell_q_", t); }
+  { std::vector<double> t; for (auto x : s->save_cell_phi_) t.push_back((double)x); vf("router.fv_solver_.save_cell_phi_", t); }
+  { std::vector<double> t; for (auto x : s->save_node_vol_) t.push_back((double)x); vf("router.fv_solver_.save_node_vol_", t); }
+  { std::vector<double> t; for (auto x : s->save_node_head_) t.push_back((double)x); vf("router.fv_solver_.save_node_head_", t); }
+  { std::vector<double> t; for (auto x : s->save_exch_) t.push_back((double)x); vf("router.fv_solver_.save_exch_", t); }
+  { std::vector<double> t; for (auto x : s->save_in_) t.push_back((double)x); vf("router.fv_solver_.save_in_", t); }
+  { std::vector<double> t; for (auto x : s->save_out_) t.push_back((double)x); vf("router.fv_solver_.save_out_", t); }
+  { std::vector<double> t; for (auto x : s->save_flood_) t.push_back((double)x); vf("router.fv_solver_.save_flood_", t); }
+  { std::vector<double> t; for (auto x : s->save_qint_) t.push_back((double)x); vf("router.fv_solver_.save_qint_", t); }
+  { std::vector<double> t; for (auto x : s->save_carry_) t.push_back((double)x); vf("router.fv_solver_.save_carry_", t); }
   { std::vector<long long> t; for (auto x : s->cell_ho2_) t.push_back((long long)x); vi("router.fv_solver_.cell_ho2_", t); }
   { std::vector<long long> t; for (auto x : s->tpa_scratch_) t.push_back((long long)x); vi("router.fv_solver_.tpa_scratch_", t); }
   { std::vector<long long> t; for (auto x : s->inlet_control_) t.push_back((long long)x); vi("router.fv_solver_.inlet_control_", t); }
@@ -266,6 +280,13 @@ inline void rtdump(const openswmm::SWMMEngine& e) {
   { std::vector<long long> t; for (auto x : s->node_pass_) t.push_back((long long)x); vi("router.fv_solver_.node_pass_", t); }
   { std::vector<long long> t; for (auto x : s->node_pub_static_) t.push_back((long long)x); vi("router.fv_solver_.node_pub_static_", t); }
   { std::vector<long long> t; for (auto x : s->node_pub_) t.push_back((long long)x); vi("router.fv_solver_.node_pub_", t); }
+  { std::vector<long long> t; for (auto x : s->node_lat_div_) t.push_back((long long)x); vi("router.fv_solver_.node_lat_div_", t); }
+  { std::vector<long long> t; for (auto x : s->save_tpa_) t.push_back((long long)x); vi("router.fv_solver_.save_tpa_", t); }
+  { std::vector<long long> t; for (auto x : s->halo_prev_) t.push_back((long long)x); vi("router.fv_solver_.halo_prev_", t); }
+  { std::vector<long long> t; for (auto x : s->live_stamp_) t.push_back((long long)x); vi("router.fv_solver_.live_stamp_", t); }
+  { std::vector<long long> t; for (auto x : s->node_solve_list_) t.push_back((long long)x); vi("router.fv_solver_.node_solve_list_", t); }
+  { std::vector<long long> t; for (auto x : s->node_heavy_) t.push_back((long long)x); vi("router.fv_solver_.node_heavy_", t); }
+  { std::vector<long long> t; for (auto x : s->node_light_) t.push_back((long long)x); vi("router.fv_solver_.node_light_", t); }
   pi("router.fv_solver_.cells_by_tier_.n", (long long)(s->cells_by_tier_).size());
   for (const auto& e99 : s->cells_by_tier_) {
   { std::vector<long long> t; for (auto x : e99) t.push_back((long long)x); vi("router.fv_solver_.cells_by_tier_[]", t); }
@@ -277,6 +298,18 @@ inline void rtdump(const openswmm::SWMMEngine& e) {
   pi("router.fv_solver_.nodes_by_tier_.n", (long long)(s->nodes_by_tier_).size());
   for (const auto& e101 : s->nodes_by_tier_) {
   { std::vector<long long> t; for (auto x : e101) t.push_back((long long)x); vi("router.fv_solver_.nodes_by_tier_[]", t); }
+  }
+  pi("router.fv_solver_.due_f_upto_.n", (long long)(s->due_f_upto_).size());
+  for (const auto& e102 : s->due_f_upto_) {
+  { std::vector<long long> t; for (auto x : e102) t.push_back((long long)x); vi("router.fv_solver_.due_f_upto_[]", t); }
+  }
+  pi("router.fv_solver_.due_c_upto_.n", (long long)(s->due_c_upto_).size());
+  for (const auto& e103 : s->due_c_upto_) {
+  { std::vector<long long> t; for (auto x : e103) t.push_back((long long)x); vi("router.fv_solver_.due_c_upto_[]", t); }
+  }
+  pi("router.fv_solver_.due_n_upto_.n", (long long)(s->due_n_upto_).size());
+  for (const auto& e104 : s->due_n_upto_) {
+  { std::vector<long long> t; for (auto x : e104) t.push_back((long long)x); vi("router.fv_solver_.due_n_upto_[]", t); }
   }
   pi("router.fv_solver_.hllc_", (long long)(s->hllc_));
   pi("router.fv_solver_.tpa_", (long long)(s->tpa_));
@@ -300,6 +333,16 @@ inline void rtdump(const openswmm::SWMMEngine& e) {
   pi("router.fv_solver_.n_macro_rejected_", (long long)(s->n_macro_rejected_));
   pi("router.fv_solver_.state_clean_", (long long)(s->state_clean_));
   pi("router.fv_solver_.acc_dirty_", (long long)(s->acc_dirty_));
+  pi("router.fv_solver_.live_gen_", (long long)(s->live_gen_));
+  pi("router.fv_solver_.all_faces_live_", (long long)(s->all_faces_live_));
+  pi("router.fv_solver_.div_link_", (long long)(s->div_link_));
+  pi("router.fv_solver_.last_nsteps_", (long long)(s->last_nsteps_));
+  pi("router.fv_solver_.dt_argmin_pressurized_", (long long)(s->dt_argmin_pressurized_));
+  pi("router.fv_solver_.dt_argmin_band_", (long long)(s->dt_argmin_band_));
+  pi("router.fv_solver_.dt_argmin_free_", (long long)(s->dt_argmin_free_));
+  pi("router.fv_solver_.dt_argmin_node_", (long long)(s->dt_argmin_node_));
+  pi("router.fv_solver_.press_step_", (long long)(s->press_step_));
+  pi("router.fv_solver_.pressure_candidate_", (long long)(s->pressure_candidate_));
   pf("router.fv_solver_.dt_cache_", (double)(s->dt_cache_));
   pf("router.fv_solver_.dt_census_", (double)(s->dt_census_));
   pf("router.fv_solver_.lts_dt0_", (double)(s->lts_dt0_));
@@ -308,9 +351,12 @@ inline void rtdump(const openswmm::SWMMEngine& e) {
   pf("router.fv_solver_.active_sum_", (double)(s->active_sum_));
   pf("router.fv_solver_.active_min_", (double)(s->active_min_));
   pf("router.fv_solver_.active_max_", (double)(s->active_max_));
+  pf("router.fv_solver_.div_value_", (double)(s->div_value_));
+  pf("router.fv_solver_.last_h_", (double)(s->last_h_));
+  pf("router.fv_solver_.suggested_h_", (double)(s->suggested_h_));
   pi("router.fv_solver_.tier_occupancy_.n", (long long)(s->tier_occupancy_).size());
-  for (const auto& e102 : s->tier_occupancy_) {
-  pi("router.fv_solver_.tier_occupancy_[]", (long long)(e102));
+  for (const auto& e105 : s->tier_occupancy_) {
+  pi("router.fv_solver_.tier_occupancy_[]", (long long)(e105));
   }
   pi("router.fv_solver_.f_state_l_.n", (long long)s->f_state_l_.size()); for (const auto& el : s->f_state_l_) {
   pf("router.fv_solver_.f_state_l_[].a", (double)(el.a));
@@ -365,6 +411,7 @@ inline void rtdump(const openswmm::SWMMEngine& e) {
   { std::vector<double> t; for (auto x : s->rk_water_.face_lateral_left) t.push_back((double)x); vf("router.fv_solver_.rk_water_.face_lateral_left", t); }
   { std::vector<double> t; for (auto x : s->rk_water_.face_lateral_right) t.push_back((double)x); vf("router.fv_solver_.rk_water_.face_lateral_right", t); }
   { std::vector<double> t; for (auto x : s->rk_water_.face_spill) t.push_back((double)x); vf("router.fv_solver_.rk_water_.face_spill", t); }
+  ps("router.fv_solver_.div_what_", s->div_what_ ? std::string(s->div_what_) : std::string());
   } else pi("router.fv_solver_", 0);
   ps("router.fv_backend_", e.router_.fv_backend_);
   vs("router.fv_warnings_", e.router_.fv_warnings_);
@@ -735,8 +782,8 @@ inline void rtdump(const openswmm::SWMMEngine& e) {
   { std::vector<double> t; for (auto x : e.rdii_.groups_.gage_elapsed) t.push_back((double)x); vf("rdii.groups_.gage_elapsed", t); }
   { std::vector<double> t; for (auto x : e.rdii_.groups_.rate_recorded_until) t.push_back((double)x); vf("rdii.groups_.rate_recorded_until", t); }
   pi("rdii.groups_.pending_rates.n", (long long)(e.rdii_.groups_.pending_rates).size());
-  for (const auto& e103 : e.rdii_.groups_.pending_rates) {
-  { std::vector<double> t; for (auto x : e103) t.push_back((double)x); vf("rdii.groups_.pending_rates[]", t); }
+  for (const auto& e106 : e.rdii_.groups_.pending_rates) {
+  { std::vector<double> t; for (auto x : e106) t.push_back((double)x); vf("rdii.groups_.pending_rates[]", t); }
   }
   pi("rdii.uh_name_to_idx_.n", (long long)(e.rdii_.uh_name_to_idx_).size()); for (const auto& kv : (e.rdii_.uh_name_to_idx_)) { ps("rdii.uh_name_to_idx_.key", kv.first); pi("rdii.uh_name_to_idx_.val", kv.second); }
   { std::vector<double> t; for (auto x : e.rdii_.node_rdii_flow_) t.push_back((double)x); vf("rdii.node_rdii_flow_", t); }
@@ -751,30 +798,30 @@ inline void rtdump(const openswmm::SWMMEngine& e) {
   { std::vector<double> t; for (auto x : e.exfil_.soa_.bank_max_depth) t.push_back((double)x); vf("exfil.soa_.bank_max_depth", t); }
   { std::vector<double> t; for (auto x : e.exfil_.soa_.bank_max_area) t.push_back((double)x); vf("exfil.soa_.bank_max_area", t); }
   pi("exfil.soa_.btm_ga.n", (long long)(e.exfil_.soa_.btm_ga).size());
-  for (const auto& e104 : e.exfil_.soa_.btm_ga) {
-  pf("exfil.soa_.btm_ga[].S", (double)(e104.S));
-  pf("exfil.soa_.btm_ga[].Ks", (double)(e104.Ks));
-  pf("exfil.soa_.btm_ga[].IMDmax", (double)(e104.IMDmax));
-  pf("exfil.soa_.btm_ga[].IMD", (double)(e104.IMD));
-  pf("exfil.soa_.btm_ga[].F", (double)(e104.F));
-  pf("exfil.soa_.btm_ga[].Fu", (double)(e104.Fu));
-  pf("exfil.soa_.btm_ga[].Fumax", (double)(e104.Fumax));
-  pf("exfil.soa_.btm_ga[].Lu", (double)(e104.Lu));
-  pf("exfil.soa_.btm_ga[].T", (double)(e104.T));
-  pi("exfil.soa_.btm_ga[].saturated", (long long)(e104.saturated));
+  for (const auto& e107 : e.exfil_.soa_.btm_ga) {
+  pf("exfil.soa_.btm_ga[].S", (double)(e107.S));
+  pf("exfil.soa_.btm_ga[].Ks", (double)(e107.Ks));
+  pf("exfil.soa_.btm_ga[].IMDmax", (double)(e107.IMDmax));
+  pf("exfil.soa_.btm_ga[].IMD", (double)(e107.IMD));
+  pf("exfil.soa_.btm_ga[].F", (double)(e107.F));
+  pf("exfil.soa_.btm_ga[].Fu", (double)(e107.Fu));
+  pf("exfil.soa_.btm_ga[].Fumax", (double)(e107.Fumax));
+  pf("exfil.soa_.btm_ga[].Lu", (double)(e107.Lu));
+  pf("exfil.soa_.btm_ga[].T", (double)(e107.T));
+  pi("exfil.soa_.btm_ga[].saturated", (long long)(e107.saturated));
   }
   pi("exfil.soa_.bank_ga.n", (long long)(e.exfil_.soa_.bank_ga).size());
-  for (const auto& e105 : e.exfil_.soa_.bank_ga) {
-  pf("exfil.soa_.bank_ga[].S", (double)(e105.S));
-  pf("exfil.soa_.bank_ga[].Ks", (double)(e105.Ks));
-  pf("exfil.soa_.bank_ga[].IMDmax", (double)(e105.IMDmax));
-  pf("exfil.soa_.bank_ga[].IMD", (double)(e105.IMD));
-  pf("exfil.soa_.bank_ga[].F", (double)(e105.F));
-  pf("exfil.soa_.bank_ga[].Fu", (double)(e105.Fu));
-  pf("exfil.soa_.bank_ga[].Fumax", (double)(e105.Fumax));
-  pf("exfil.soa_.bank_ga[].Lu", (double)(e105.Lu));
-  pf("exfil.soa_.bank_ga[].T", (double)(e105.T));
-  pi("exfil.soa_.bank_ga[].saturated", (long long)(e105.saturated));
+  for (const auto& e108 : e.exfil_.soa_.bank_ga) {
+  pf("exfil.soa_.bank_ga[].S", (double)(e108.S));
+  pf("exfil.soa_.bank_ga[].Ks", (double)(e108.Ks));
+  pf("exfil.soa_.bank_ga[].IMDmax", (double)(e108.IMDmax));
+  pf("exfil.soa_.bank_ga[].IMD", (double)(e108.IMD));
+  pf("exfil.soa_.bank_ga[].F", (double)(e108.F));
+  pf("exfil.soa_.bank_ga[].Fu", (double)(e108.Fu));
+  pf("exfil.soa_.bank_ga[].Fumax", (double)(e108.Fumax));
+  pf("exfil.soa_.bank_ga[].Lu", (double)(e108.Lu));
+  pf("exfil.soa_.bank_ga[].T", (double)(e108.T));
+  pi("exfil.soa_.bank_ga[].saturated", (long long)(e108.saturated));
   }
   pi("inlet.soa_.count", (long long)(e.inlet_.soa_.count));
   { std::vector<long long> t; for (auto x : e.inlet_.soa_.link_idx) t.push_back((long long)x); vi("inlet.soa_.link_idx", t); }

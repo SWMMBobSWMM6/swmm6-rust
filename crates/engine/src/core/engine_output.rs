@@ -1018,11 +1018,32 @@ impl SwmmEngine {
             self.ctx_.routing_stats.build_histogram();
         }
 
-        // The FV solver's cumulative counters, published for the report when it ran
-        // (fv->run_stats().nsteps > 0): the FV run statistics are not translated (the FV step
-        // itself is refused in stepRouting), so an engine with an FV backend stops here.
-        if self.router_.fv_solver_.is_some() {
-            return Err(stub("SWMMEngine::end (the FV solver's run statistics, ExplicitFvSolver::run_stats)"));
+        // The FV solver's cumulative counters, published for the report when it ran.
+        if let Some(fv) = self.router_.fv_solver_.as_ref() {
+            if fv.run_stats().nsteps > 0 {
+                let s = fv.run_stats();
+                let rs = &mut self.ctx_.routing_stats;
+                rs.fv_nsteps = s.nsteps;
+                rs.fv_nflux = s.nflux;
+                rs.fv_avg_h = s.avg_h;
+                rs.fv_last_h = s.last_h;
+                rs.fv_min_h = s.min_h;
+                rs.fv_active_min = s.active_frac_min;
+                rs.fv_active_mean = s.active_frac_mean;
+                rs.fv_active_max = s.active_frac_max;
+                rs.fv_n_tiers = s.n_tiers;
+                let mut kk = 0;
+                while kk < s.n_tiers && kk < 8 {
+                    rs.fv_tier_cells[kk as usize] = s.tier_cells[kk as usize];
+                    kk += 1;
+                }
+                rs.fv_dt_argmin_pressurized = s.dt_argmin_pressurized;
+                rs.fv_dt_argmin_band = s.dt_argmin_band;
+                rs.fv_dt_argmin_free = s.dt_argmin_free;
+                rs.fv_dt_argmin_node = s.dt_argmin_node;
+                rs.fv_macro_cycles = s.n_macro_cycles;
+                rs.fv_macro_rejected = s.n_macro_rejected;
+            }
         }
 
         self.ctx_.finalize_max_stats();

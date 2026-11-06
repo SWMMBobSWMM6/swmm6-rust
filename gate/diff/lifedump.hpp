@@ -30,9 +30,9 @@ inline void lifedump(openswmm::SWMMEngine& e) {
   { std::vector<double> t; for (auto x : e.wet_q_interp_) t.push_back((double)x); vf("engine.wet_q_interp_", t); }
   { std::vector<double> t; for (auto x : e.lid_drain_q_interp_) t.push_back((double)x); vf("engine.lid_drain_q_interp_", t); }
   pi("engine.lid_drain_q_units_.n", (long long)(e.lid_drain_q_units_).size());
-  for (const auto& e123 : e.lid_drain_q_units_) {
-  pi("engine.lid_drain_q_units_[].first", (long long)(e123.first));
-  pf("engine.lid_drain_q_units_[].second", (double)(e123.second));
+  for (const auto& e126 : e.lid_drain_q_units_) {
+  pi("engine.lid_drain_q_units_[].first", (long long)(e126.first));
+  pf("engine.lid_drain_q_units_[].second", (double)(e126.second));
   }
   { std::vector<double> t; for (auto x : e.lid_vlidin_vol_) t.push_back((double)x); vf("engine.lid_vlidin_vol_", t); }
   { std::vector<double> t; for (auto x : e.lid_qsurf_cfs_) t.push_back((double)x); vf("engine.lid_qsurf_cfs_", t); }
@@ -42,8 +42,8 @@ inline void lifedump(openswmm::SWMMEngine& e) {
   pi("engine.do_routing_", (long long)(e.do_routing_));
   pi("engine.last_step_steady_", (long long)(e.last_step_steady_));
   pi("engine.routing_prev_rates_.n", (long long)(e.routing_prev_rates_).size());
-  for (const auto& e124 : e.routing_prev_rates_) {
-  pf("engine.routing_prev_rates_[]", (double)(e124));
+  for (const auto& e127 : e.routing_prev_rates_) {
+  pf("engine.routing_prev_rates_[]", (double)(e127));
   }
   { auto& h = e.hotstart_species_; vs("engine.hotstart_species_.species", h.species); pi("engine.hotstart_species_.n_subcatch", h.n_subcatch); pi("engine.hotstart_species_.n_landuses", h.n_landuses); vf("engine.hotstart_species_.washoff", h.washoff); vf("engine.hotstart_species_.ponded", h.ponded); vf("engine.hotstart_species_.buildup", h.buildup); }
   { std::vector<double> t; for (auto x : e.avg_.node_depth) t.push_back((double)x); vf("engine.avg_.node_depth", t); }

@@ -35,9 +35,9 @@ pub fn lifedump(e: &mut SwmmEngine) -> Vec<u8> {
     vf(o, "engine.wet_q_interp_", &(e.wet_q_interp_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "engine.lid_drain_q_interp_", &(e.lid_drain_q_interp_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     pi(o, "engine.lid_drain_q_units_.n", (e.lid_drain_q_units_).len() as i64);
-    for e123 in (e.lid_drain_q_units_).iter() {
-    pi(o, "engine.lid_drain_q_units_[].first", ((*e123).0) as i64);
-    pf(o, "engine.lid_drain_q_units_[].second", ((*e123).1) as f64);
+    for e126 in (e.lid_drain_q_units_).iter() {
+    pi(o, "engine.lid_drain_q_units_[].first", ((*e126).0) as i64);
+    pf(o, "engine.lid_drain_q_units_[].second", ((*e126).1) as f64);
     }
     vf(o, "engine.lid_vlidin_vol_", &(e.lid_vlidin_vol_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "engine.lid_qsurf_cfs_", &(e.lid_qsurf_cfs_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
@@ -47,8 +47,8 @@ pub fn lifedump(e: &mut SwmmEngine) -> Vec<u8> {
     pi(o, "engine.do_routing_", (e.do_routing_) as i64);
     pi(o, "engine.last_step_steady_", (e.last_step_steady_) as i64);
     pi(o, "engine.routing_prev_rates_.n", (e.routing_prev_rates_).len() as i64);
-    for e124 in (e.routing_prev_rates_).iter() {
-    pf(o, "engine.routing_prev_rates_[]", ((*e124)) as f64);
+    for e127 in (e.routing_prev_rates_).iter() {
+    pf(o, "engine.routing_prev_rates_[]", ((*e127)) as f64);
     }
     { let h = &e.hotstart_species_; vs(o, "engine.hotstart_species_.species", &h.species); pi(o, "engine.hotstart_species_.n_subcatch", h.n_subcatch as i64); pi(o, "engine.hotstart_species_.n_landuses", h.n_landuses as i64); vf(o, "engine.hotstart_species_.washoff", &h.washoff); vf(o, "engine.hotstart_species_.ponded", &h.ponded); vf(o, "engine.hotstart_species_.buildup", &h.buildup); }
     vf(o, "engine.avg_.node_depth", &(e.avg_.node_depth).iter().map(|x| *x as f64).collect::<Vec<f64>>());

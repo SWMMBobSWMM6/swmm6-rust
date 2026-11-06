@@ -20,6 +20,7 @@ pub mod node_step;
 pub mod outfall;
 pub mod roadway;
 pub mod routing;
+pub mod routing_fv;
 pub mod routing_step;
 pub mod street;
 pub mod timestep_controller;

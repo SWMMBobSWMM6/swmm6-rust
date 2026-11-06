@@ -14,9 +14,12 @@
 //   * `structures_` (upstream a pointer to the engine's StructureSolver, set at init) is passed
 //     to step() as an argument, and handed on to the non-conduit callback the same way.
 //
-// NOT YET TRANSLATED (step returns StepError::NotTranslated): the FV router (stepFv,
-// acceptedQualityWater, the FV link-step sink), checkpoint sessions (checkCheckpointStep),
-// Mesh Richards routing.
+// The FV router's step (stepFv, publishFv, acceptedQualityWater, fvStepSink) is in
+// routing_fv.rs; the FV branches of getAdaptiveStep and accumulateLinkStepStats are here.
+//
+// NOT YET TRANSLATED (step returns StepError::NotTranslated): checkpoint sessions
+// (checkCheckpointStep), Mesh Richards routing, and the FV solver options
+// Router::fv_not_translated names.
 
 use crate::core::cmath::{cmax, cmin};
 use crate::core::constants;
@@ -48,7 +51,9 @@ impl Router {
             return Err(StepError::NotTranslated("checkpoint sessions"));
         }
         if self.model_ == RouteModel::Fv {
-            return Err(StepError::NotTranslated("FV routing"));
+            if let Some(w) = self.fv_not_translated(ctx) {
+                return Err(StepError::NotTranslated(w));
+            }
         }
 
         // 2. Init node flows from laterals and losses
@@ -70,7 +75,7 @@ impl Router {
                 let Router { dw_solver_, groups_, .. } = self;
                 dw_solver_.execute(groups_, ctx, dt, structures, non_conduit_fn)?
             }
-            RouteModel::Fv => unreachable!(),
+            RouteModel::Fv => self.step_fv(ctx, dt, structures, non_conduit_fn)?,
             RouteModel::Steady => self.execute_steady_flow(ctx, dt, structures)?,
         };
 
@@ -90,20 +95,55 @@ impl Router {
         if self.model_ == RouteModel::Dynwave {
             return self.dw_solver_.get_routing_step(ctx, fixed_step, courant);
         }
-        // (FV: suggested_step of the FV backend, not translated; the FV router refuses to step)
+        if self.model_ == RouteModel::Fv {
+            if let Some(s) = self.fv_solver_.as_ref() {
+                let sug = s.suggested_step();
+                if courant > 0.0 && sug > 0.0 {
+                    let cap = cmax(fixed_step * courant, sug);
+                    return cmin(fixed_step, cap);
+                }
+            }
+        }
         fixed_step
     }
 
-    /// accumulateLinkStepStats ([REPORT] LINK_STEPS). The FV branch (folding the FV solver's
-    /// pending samples) is not translated: an FV run never gets here, as step_routing refuses
-    /// the FV router before.
+    /// accumulateLinkStepStats ([REPORT] LINK_STEPS).
     pub fn accumulate_link_step_stats(&mut self, ctx: &mut SimulationContext, dt: f64, in_window: bool) {
         if !self.lstep_enabled_ {
             return;
         }
-        if self.model_ == RouteModel::Dynwave && in_window {
-            let (rs, vs) = (ctx.options.routing_step, ctx.options.variable_step);
-            self.dw_solver_.accumulate_link_step_stats(ctx, dt, rs, vs);
+        if self.model_ == RouteModel::Dynwave {
+            if in_window {
+                let (rs, vs) = (ctx.options.routing_step, ctx.options.variable_step);
+                self.dw_solver_.accumulate_link_step_stats(ctx, dt, rs, vs);
+            }
+            return;
+        }
+        // FV: fold the pending samples of this advance() (or drop them), then reset.
+        let l = &mut ctx.links;
+        let nb = crate::data::link::LinkData::N_LSTEP_BINS as usize;
+        for u in 0..self.lstep_ptime_.len() {
+            if self.lstep_ptime_[u] <= 0.0 {
+                continue;
+            }
+            if in_window {
+                if l.stat_lstep_time[u] <= 0.0 || self.lstep_pmin_[u] < l.stat_lstep_min[u] {
+                    l.stat_lstep_min[u] = self.lstep_pmin_[u];
+                }
+                l.stat_lstep_max[u] = cmax(l.stat_lstep_max[u], self.lstep_pmax_[u]);
+                l.stat_lstep_dt_time[u] += self.lstep_pdt_time_[u];
+                l.stat_lstep_time[u] += self.lstep_ptime_[u];
+                for b in 0..nb {
+                    l.stat_lstep_bin_time[u * nb + b] += self.lstep_pbin_[u * nb + b];
+                }
+            }
+            self.lstep_pmin_[u] = 0.0;
+            self.lstep_pmax_[u] = 0.0;
+            self.lstep_pdt_time_[u] = 0.0;
+            self.lstep_ptime_[u] = 0.0;
+            for b in 0..nb {
+                self.lstep_pbin_[u * nb + b] = 0.0;
+            }
         }
     }
 

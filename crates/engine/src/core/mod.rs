@@ -2,6 +2,7 @@
 pub mod charconv;
 pub mod cmath;
 pub mod constants;
+pub mod ext80;
 pub mod context;
 pub mod cprintf;
 pub mod cstdio;

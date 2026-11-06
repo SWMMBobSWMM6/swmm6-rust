@@ -262,6 +262,20 @@ pub fn rtdump(e: &SwmmEngine) -> Vec<u8> {
     vf(o, "router.fv_solver_.node_vfull_", &(s.node_vfull_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "router.fv_solver_.face_a_rim_", &(s.face_a_rim_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "router.fv_solver_.face_lat_spill_", &(s.face_lat_spill_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "router.fv_solver_.cell_qlat_", &(s.cell_qlat_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "router.fv_solver_.node_qstruct_", &(s.node_qstruct_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "router.fv_solver_.save_dummy_", &(s.save_dummy_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "router.fv_solver_.save_cell_a_", &(s.save_cell_a_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "router.fv_solver_.save_cell_q_", &(s.save_cell_q_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "router.fv_solver_.save_cell_phi_", &(s.save_cell_phi_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "router.fv_solver_.save_node_vol_", &(s.save_node_vol_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "router.fv_solver_.save_node_head_", &(s.save_node_head_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "router.fv_solver_.save_exch_", &(s.save_exch_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "router.fv_solver_.save_in_", &(s.save_in_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "router.fv_solver_.save_out_", &(s.save_out_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "router.fv_solver_.save_flood_", &(s.save_flood_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "router.fv_solver_.save_qint_", &(s.save_qint_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "router.fv_solver_.save_carry_", &(s.save_carry_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vi(o, "router.fv_solver_.cell_ho2_", &(s.cell_ho2_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     vi(o, "router.fv_solver_.tpa_scratch_", &(s.tpa_scratch_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     vi(o, "router.fv_solver_.inlet_control_", &(s.inlet_control_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
@@ -275,6 +289,13 @@ pub fn rtdump(e: &SwmmEngine) -> Vec<u8> {
     vi(o, "router.fv_solver_.node_pass_", &(s.node_pass_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     vi(o, "router.fv_solver_.node_pub_static_", &(s.node_pub_static_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     vi(o, "router.fv_solver_.node_pub_", &(s.node_pub_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "router.fv_solver_.node_lat_div_", &(s.node_lat_div_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "router.fv_solver_.save_tpa_", &(s.save_tpa_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "router.fv_solver_.halo_prev_", &(s.halo_prev_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "router.fv_solver_.live_stamp_", &(s.live_stamp_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "router.fv_solver_.node_solve_list_", &(s.node_solve_list_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "router.fv_solver_.node_heavy_", &(s.node_heavy_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "router.fv_solver_.node_light_", &(s.node_light_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     pi(o, "router.fv_solver_.cells_by_tier_.n", (s.cells_by_tier_).len() as i64);
     for e99 in (s.cells_by_tier_).iter() {
     vi(o, "router.fv_solver_.cells_by_tier_[]", &((*e99)).iter().map(|x| *x as i64).collect::<Vec<i64>>());
@@ -286,6 +307,18 @@ pub fn rtdump(e: &SwmmEngine) -> Vec<u8> {
     pi(o, "router.fv_solver_.nodes_by_tier_.n", (s.nodes_by_tier_).len() as i64);
     for e101 in (s.nodes_by_tier_).iter() {
     vi(o, "router.fv_solver_.nodes_by_tier_[]", &((*e101)).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    }
+    pi(o, "router.fv_solver_.due_f_upto_.n", (s.due_f_upto_).len() as i64);
+    for e102 in (s.due_f_upto_).iter() {
+    vi(o, "router.fv_solver_.due_f_upto_[]", &((*e102)).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    }
+    pi(o, "router.fv_solver_.due_c_upto_.n", (s.due_c_upto_).len() as i64);
+    for e103 in (s.due_c_upto_).iter() {
+    vi(o, "router.fv_solver_.due_c_upto_[]", &((*e103)).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    }
+    pi(o, "router.fv_solver_.due_n_upto_.n", (s.due_n_upto_).len() as i64);
+    for e104 in (s.due_n_upto_).iter() {
+    vi(o, "router.fv_solver_.due_n_upto_[]", &((*e104)).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     }
     pi(o, "router.fv_solver_.hllc_", (s.hllc_) as i64);
     pi(o, "router.fv_solver_.tpa_", (s.tpa_) as i64);
@@ -309,6 +342,16 @@ pub fn rtdump(e: &SwmmEngine) -> Vec<u8> {
     pi(o, "router.fv_solver_.n_macro_rejected_", (s.n_macro_rejected_) as i64);
     pi(o, "router.fv_solver_.state_clean_", (s.state_clean_) as i64);
     pi(o, "router.fv_solver_.acc_dirty_", (s.acc_dirty_) as i64);
+    pi(o, "router.fv_solver_.live_gen_", (s.live_gen_) as i64);
+    pi(o, "router.fv_solver_.all_faces_live_", (s.all_faces_live_) as i64);
+    pi(o, "router.fv_solver_.div_link_", (s.div_link_) as i64);
+    pi(o, "router.fv_solver_.last_nsteps_", (s.last_nsteps_) as i64);
+    pi(o, "router.fv_solver_.dt_argmin_pressurized_", (s.dt_argmin_pressurized_) as i64);
+    pi(o, "router.fv_solver_.dt_argmin_band_", (s.dt_argmin_band_) as i64);
+    pi(o, "router.fv_solver_.dt_argmin_free_", (s.dt_argmin_free_) as i64);
+    pi(o, "router.fv_solver_.dt_argmin_node_", (s.dt_argmin_node_) as i64);
+    pi(o, "router.fv_solver_.press_step_", (s.press_step_) as i64);
+    pi(o, "router.fv_solver_.pressure_candidate_", (s.pressure_candidate_) as i64);
     pf(o, "router.fv_solver_.dt_cache_", (s.dt_cache_) as f64);
     pf(o, "router.fv_solver_.dt_census_", (s.dt_census_) as f64);
     pf(o, "router.fv_solver_.lts_dt0_", (s.lts_dt0_) as f64);
@@ -317,9 +360,12 @@ pub fn rtdump(e: &SwmmEngine) -> Vec<u8> {
     pf(o, "router.fv_solver_.active_sum_", (s.active_sum_) as f64);
     pf(o, "router.fv_solver_.active_min_", (s.active_min_) as f64);
     pf(o, "router.fv_solver_.active_max_", (s.active_max_) as f64);
+    pf(o, "router.fv_solver_.div_value_", (s.div_value_) as f64);
+    pf(o, "router.fv_solver_.last_h_", (s.last_h_) as f64);
+    pf(o, "router.fv_solver_.suggested_h_", (s.suggested_h_) as f64);
     pi(o, "router.fv_solver_.tier_occupancy_.n", (s.tier_occupancy_).len() as i64);
-    for e102 in (s.tier_occupancy_).iter() {
-    pi(o, "router.fv_solver_.tier_occupancy_[]", ((*e102)) as i64);
+    for e105 in (s.tier_occupancy_).iter() {
+    pi(o, "router.fv_solver_.tier_occupancy_[]", ((*e105)) as i64);
     }
     pi(o, "router.fv_solver_.f_state_l_.n", s.f_state_l_.len() as i64); for el in s.f_state_l_.iter() {
     pf(o, "router.fv_solver_.f_state_l_[].a", ((*el).a) as f64);
@@ -374,6 +420,7 @@ pub fn rtdump(e: &SwmmEngine) -> Vec<u8> {
     vf(o, "router.fv_solver_.rk_water_.face_lateral_left", &(s.rk_water_.face_lateral_left).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "router.fv_solver_.rk_water_.face_lateral_right", &(s.rk_water_.face_lateral_right).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "router.fv_solver_.rk_water_.face_spill", &(s.rk_water_.face_spill).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    ps(o, "router.fv_solver_.div_what_", &s.div_what_.unwrap_or("").as_bytes().to_vec());
     } }
     ps(o, "router.fv_backend_", &e.router().fv_backend_);
     vs(o, "router.fv_warnings_", &e.router().fv_warnings_);
@@ -744,8 +791,8 @@ pub fn rtdump(e: &SwmmEngine) -> Vec<u8> {
     vf(o, "rdii.groups_.gage_elapsed", &(e.rdii_solver().groups_.gage_elapsed).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "rdii.groups_.rate_recorded_until", &(e.rdii_solver().groups_.rate_recorded_until).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     pi(o, "rdii.groups_.pending_rates.n", (e.rdii_solver().groups_.pending_rates).len() as i64);
-    for e103 in (e.rdii_solver().groups_.pending_rates).iter() {
-    vf(o, "rdii.groups_.pending_rates[]", &((*e103)).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    for e106 in (e.rdii_solver().groups_.pending_rates).iter() {
+    vf(o, "rdii.groups_.pending_rates[]", &((*e106)).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     }
     { let v = swmm6_rust::core::std_unordered_map::ci_map_iteration_order(e.rdii_solver().uh_name_index()); pi(o, "rdii.uh_name_to_idx_.n", v.len() as i64); for (k, i) in &v { ps(o, "rdii.uh_name_to_idx_.key", k); pi(o, "rdii.uh_name_to_idx_.val", *i as i64); } }
     vf(o, "rdii.node_rdii_flow_", &(e.rdii_solver().node_rdii_flow_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
@@ -760,30 +807,30 @@ pub fn rtdump(e: &SwmmEngine) -> Vec<u8> {
     vf(o, "exfil.soa_.bank_max_depth", &(e.exfil_solver().soa_.bank_max_depth).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "exfil.soa_.bank_max_area", &(e.exfil_solver().soa_.bank_max_area).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     pi(o, "exfil.soa_.btm_ga.n", (e.exfil_solver().soa_.btm_ga).len() as i64);
-    for e104 in (e.exfil_solver().soa_.btm_ga).iter() {
-    pf(o, "exfil.soa_.btm_ga[].S", ((*e104).S) as f64);
-    pf(o, "exfil.soa_.btm_ga[].Ks", ((*e104).Ks) as f64);
-    pf(o, "exfil.soa_.btm_ga[].IMDmax", ((*e104).IMDmax) as f64);
-    pf(o, "exfil.soa_.btm_ga[].IMD", ((*e104).IMD) as f64);
-    pf(o, "exfil.soa_.btm_ga[].F", ((*e104).F) as f64);
-    pf(o, "exfil.soa_.btm_ga[].Fu", ((*e104).Fu) as f64);
-    pf(o, "exfil.soa_.btm_ga[].Fumax", ((*e104).Fumax) as f64);
-    pf(o, "exfil.soa_.btm_ga[].Lu", ((*e104).Lu) as f64);
-    pf(o, "exfil.soa_.btm_ga[].T", ((*e104).T) as f64);
-    pi(o, "exfil.soa_.btm_ga[].saturated", ((*e104).saturated) as i64);
+    for e107 in (e.exfil_solver().soa_.btm_ga).iter() {
+    pf(o, "exfil.soa_.btm_ga[].S", ((*e107).S) as f64);
+    pf(o, "exfil.soa_.btm_ga[].Ks", ((*e107).Ks) as f64);
+    pf(o, "exfil.soa_.btm_ga[].IMDmax", ((*e107).IMDmax) as f64);
+    pf(o, "exfil.soa_.btm_ga[].IMD", ((*e107).IMD) as f64);
+    pf(o, "exfil.soa_.btm_ga[].F", ((*e107).F) as f64);
+    pf(o, "exfil.soa_.btm_ga[].Fu", ((*e107).Fu) as f64);
+    pf(o, "exfil.soa_.btm_ga[].Fumax", ((*e107).Fumax) as f64);
+    pf(o, "exfil.soa_.btm_ga[].Lu", ((*e107).Lu) as f64);
+    pf(o, "exfil.soa_.btm_ga[].T", ((*e107).T) as f64);
+    pi(o, "exfil.soa_.btm_ga[].saturated", ((*e107).saturated) as i64);
     }
     pi(o, "exfil.soa_.bank_ga.n", (e.exfil_solver().soa_.bank_ga).len() as i64);
-    for e105 in (e.exfil_solver().soa_.bank_ga).iter() {
-    pf(o, "exfil.soa_.bank_ga[].S", ((*e105).S) as f64);
-    pf(o, "exfil.soa_.bank_ga[].Ks", ((*e105).Ks) as f64);
-    pf(o, "exfil.soa_.bank_ga[].IMDmax", ((*e105).IMDmax) as f64);
-    pf(o, "exfil.soa_.bank_ga[].IMD", ((*e105).IMD) as f64);
-    pf(o, "exfil.soa_.bank_ga[].F", ((*e105).F) as f64);
-    pf(o, "exfil.soa_.bank_ga[].Fu", ((*e105).Fu) as f64);
-    pf(o, "exfil.soa_.bank_ga[].Fumax", ((*e105).Fumax) as f64);
-    pf(o, "exfil.soa_.bank_ga[].Lu", ((*e105).Lu) as f64);
-    pf(o, "exfil.soa_.bank_ga[].T", ((*e105).T) as f64);
-    pi(o, "exfil.soa_.bank_ga[].saturated", ((*e105).saturated) as i64);
+    for e108 in (e.exfil_solver().soa_.bank_ga).iter() {
+    pf(o, "exfil.soa_.bank_ga[].S", ((*e108).S) as f64);
+    pf(o, "exfil.soa_.bank_ga[].Ks", ((*e108).Ks) as f64);
+    pf(o, "exfil.soa_.bank_ga[].IMDmax", ((*e108).IMDmax) as f64);
+    pf(o, "exfil.soa_.bank_ga[].IMD", ((*e108).IMD) as f64);
+    pf(o, "exfil.soa_.bank_ga[].F", ((*e108).F) as f64);
+    pf(o, "exfil.soa_.bank_ga[].Fu", ((*e108).Fu) as f64);
+    pf(o, "exfil.soa_.bank_ga[].Fumax", ((*e108).Fumax) as f64);
+    pf(o, "exfil.soa_.bank_ga[].Lu", ((*e108).Lu) as f64);
+    pf(o, "exfil.soa_.bank_ga[].T", ((*e108).T) as f64);
+    pi(o, "exfil.soa_.bank_ga[].saturated", ((*e108).saturated) as i64);
     }
     pi(o, "inlet.soa_.count", (e.inlet_solver().soa_.count) as i64);
     vi(o, "inlet.soa_.link_idx", &(e.inlet_solver().soa_.link_idx).iter().map(|x| *x as i64).collect::<Vec<i64>>());

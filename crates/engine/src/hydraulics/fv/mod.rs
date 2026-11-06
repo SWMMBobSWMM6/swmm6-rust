@@ -25,9 +25,13 @@
 //   * FvClosure's inline C arrays are fixed-size Rust arrays (boxed in FvGeometry so the
 //     geometry vector stays cheap to move).
 
+pub mod explicit_flux;
+pub mod explicit_nodes;
 pub mod explicit_solver;
+pub mod explicit_step;
 pub mod kernels;
 pub mod mesh_builder;
+pub mod native_gmres;
 
 pub use explicit_solver::ExplicitFvSolver;
 
