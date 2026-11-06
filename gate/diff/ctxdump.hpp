@@ -1759,6 +1759,12 @@ inline void dump(const openswmm::SimulationContext& c) {
   pf("heat_config.cloud.sw_atten_k", (double)(c.heat_config.cloud.sw_atten_k));
   pf("heat_config.cloud.sw_atten_n", (double)(c.heat_config.cloud.sw_atten_n));
   pf("heat_config.cloud.lw_cloud_k", (double)(c.heat_config.cloud.lw_cloud_k));
+  for (int q = 0; q < (int)(sizeof(c.heat_config.global_temp)/sizeof(c.heat_config.global_temp[0])); ++q) {
+  pf("heat_config.global_temp[]", (double)(c.heat_config.global_temp[q]));
+  }
+  for (int q = 0; q < (int)(sizeof(c.heat_config.configured_source)/sizeof(c.heat_config.configured_source[0])); ++q) {
+  pi("heat_config.configured_source[]", (long long)(c.heat_config.configured_source[q]));
+  }
   { std::vector<long long> t; for (auto x : c.heat_config.node_over_source) t.push_back((long long)x); vi("heat_config.node_over_source", t); }
   { std::vector<long long> t; for (auto x : c.heat_config.node_over_node) t.push_back((long long)x); vi("heat_config.node_over_node", t); }
   { std::vector<double> t; for (auto x : c.heat_config.node_over_temp) t.push_back((double)x); vf("heat_config.node_over_temp", t); }
@@ -1797,6 +1803,9 @@ inline void dump(const openswmm::SimulationContext& c) {
   pi("ard_config.sets_limiter", (long long)(c.ard_config.sets_limiter));
   ps("ard_config.detailed_output_path", c.ard_config.detailed_output_path);
   pi("water_age_config.configured", (long long)(c.water_age_config.configured));
+  for (int q = 0; q < (int)(sizeof(c.water_age_config.global_age)/sizeof(c.water_age_config.global_age[0])); ++q) {
+  pf("water_age_config.global_age[]", (double)(c.water_age_config.global_age[q]));
+  }
   { std::vector<long long> t; for (auto x : c.water_age_config.node_over_source) t.push_back((long long)x); vi("water_age_config.node_over_source", t); }
   { std::vector<long long> t; for (auto x : c.water_age_config.node_over_node) t.push_back((long long)x); vi("water_age_config.node_over_node", t); }
   { std::vector<double> t; for (auto x : c.water_age_config.node_over_age) t.push_back((double)x); vf("water_age_config.node_over_age", t); }

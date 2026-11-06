@@ -15,9 +15,8 @@
 //   * Upstream's process-wide static HeatScratch (old-state snapshots, the temperature-volume
 //     accumulator) is written in full before it is read on every call; here it is a local.
 //
-// NOT YET TRANSLATED: the heat flux modules (heat::applyHeatFluxes past its guard: surface
-// and radiative exchange, the bed, solar forcing). With any of them on, applyHeatFluxes
-// returns StepError::NotTranslated; SWMMEngine::stepRouting refuses such a deck first.
+// The heat flux modules themselves (heat::applyHeatFluxes) are in heat_fluxes.rs and
+// heat_bed.rs (6 November 2026).
 
 use crate::core::cmath::{cclamp, cmax, cmin};
 use crate::core::context::SimulationContext;
@@ -27,29 +26,14 @@ use crate::data::heat::HeatSource;
 use crate::data::initial_quality::InitialQualityData;
 use crate::quality::quality_routing::{conduit_mixing_inflow, link_is_dry, link_takes_upstream_value, node_is_reactor, LEGACY_ZERO};
 
-/// heat::bedExchangeEnabled
+/// heat::bedExchangeEnabled (heat_bed.rs)
 pub fn bed_exchange_enabled(ctx: &SimulationContext) -> bool {
-    ctx.options.heat_transport && ctx.heat_config.sediment_exchange
+    crate::transport::heat_bed::bed_exchange_enabled(ctx)
 }
 
-/// Whether heat::applyHeatFluxes would act past its guard (not translated yet).
-pub fn heat_fluxes_active(ctx: &SimulationContext) -> bool {
-    ctx.options.heat_transport && (ctx.heat_config.surface_exchange || ctx.heat_config.radiative_exchange || bed_exchange_enabled(ctx))
-}
-
-/// heat::applyHeatFluxes: its guard; the flux modules themselves are not translated.
+/// heat::applyHeatFluxes (heat_fluxes.rs)
 fn apply_heat_fluxes(ctx: &mut SimulationContext, dt: f64) -> Result<(), StepError> {
-    if !ctx.options.heat_transport {
-        return Ok(());
-    }
-    let bed_on = bed_exchange_enabled(ctx);
-    if !ctx.heat_config.surface_exchange && !ctx.heat_config.radiative_exchange && !bed_on {
-        return Ok(());
-    }
-    if !(dt > 0.0) {
-        return Ok(());
-    }
-    Err(StepError::NotTranslated("heat fluxes"))
+    crate::transport::heat_fluxes::apply_heat_fluxes(ctx, dt)
 }
 
 /// transport::applyInitialTempOverrides: [INITIAL_QUALITY] __TEMPERATURE__ rows (degC).

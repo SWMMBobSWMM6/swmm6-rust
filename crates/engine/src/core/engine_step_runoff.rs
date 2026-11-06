@@ -47,6 +47,7 @@ use crate::core::engine_init_hydraulics::Terminated;
 use crate::core::engine_step::{stub, THROWN_PREFIX};
 use crate::core::unit_conversion as ucf;
 use crate::data::forcing::ForcingMode;
+use crate::data::lid_layer_species::LidSpecies;
 use crate::data::pollutant::MassUnits;
 use crate::data::table::table_lookup_cursor;
 use crate::data::water_age::WaterAgeSource;
@@ -344,7 +345,7 @@ impl SwmmEngine {
 
         // A3: subcatchment surface age; H5a: its temperature
         crate::transport::water_age_watershed::route_subcatchment_age(&mut self.ctx_, &self.runoff_.soa_, dt_runoff);
-        stub_if(self.ctx_.options.heat_transport && dt_runoff > 0.0 && self.ctx_.n_subcatches() > 0, "transport::routeSubcatchmentTemperature")?;
+        crate::transport::heat_watershed::route_subcatchment_temperature(&mut self.ctx_, &self.runoff_.soa_, dt_runoff).map_err(Terminated::from)?;
 
         // HasRunoff / HasSnow for the NEXT step's timestep (legacy runoff.c:266-271)
         self.has_runoff_ = false;
@@ -392,8 +393,8 @@ impl SwmmEngine {
             let r = &self.ctx_.reactions;
             stub_if(!(r.lid_controls.is_empty() || r.lid.group_offsets.is_empty() || !(dt_runoff > 0.0)), "msxlid::routeUnits")?;
         }
-        stub_if(self.ctx_.options.water_age && self.ctx_.lid_layer_state.active() && dt_runoff > 0.0, "transport::routeLidLayerAge")?;
-        stub_if(self.ctx_.options.heat_transport && self.ctx_.lid_layer_state.active() && dt_runoff > 0.0, "transport::routeLidLayerTemperature")?;
+        crate::transport::water_age_lid::route_lid_layer_age(&mut self.ctx_, &self.lid_, dt_runoff);
+        crate::transport::heat_lid::route_lid_layer_temperature(&mut self.ctx_, &self.lid_, dt_runoff).map_err(Terminated::from)?;
 
         // A6b. Route LID outputs back (no unit was evaluated above, or the step stopped)
         self.lid_outputs(dt_runoff)?;
@@ -797,9 +798,10 @@ impl SwmmEngine {
             }
             g.inflow[uu] += self.ctx_.subcatches.runon_rate[usc];
             g.subcatch_rain[uu] = rain;
-            let st = &self.ctx_.lid_layer_state;
-            stub_if(self.ctx_.options.water_age && st.active(), "transport::setLidInflowAge")?;
-            stub_if(self.ctx_.options.heat_transport && st.active(), "transport::setLidInflowTemperature")?;
+            let q_runon_unit = self.ctx_.subcatches.runon_rate[usc] * lid_area;
+            let (fi, fp) = (g.from_imperv[uu], g.from_perv[uu]);
+            crate::transport::water_age_lid::set_lid_inflow_age(&mut self.ctx_, t, u, sc, rain, q_imperv * fi, q_perv * fp, q_runon_unit, lid_area);
+            crate::transport::heat_lid::set_lid_inflow_temperature(&mut self.ctx_, t, u, sc, rain, q_imperv * fi, q_perv * fp, q_runon_unit, lid_area);
         }
         Ok(())
     }
@@ -897,8 +899,23 @@ impl SwmmEngine {
                     self.ctx_.subcatches.lid_drain_runon_cfs[utsc] += q_dr;
                     let lst = &self.ctx_.lid_layer_state;
                     let ut = t as usize;
-                    stub_if(self.ctx_.options.water_age && lst.active() && utsc < self.ctx_.water_age_state.subcatch_lid_drain_age_cfs.len() && ut + 1 < lst.group_offset.len(), "SWMMEngine::stepRunoff A6b (LID drain run-on age)")?;
-                    stub_if(self.ctx_.options.heat_transport && lst.active() && ut + 1 < lst.group_offset.len(), "SWMMEngine::stepRunoff A6b (LID drain run-on temperature)")?;
+                    // A4: its age, so assembleRunon hands the rate and the q*age together
+                    if self.ctx_.options.water_age && lst.active() && utsc < self.ctx_.water_age_state.subcatch_lid_drain_age_cfs.len() && ut + 1 < lst.group_offset.len() {
+                        let fl = lst.group_offset[ut] + u;
+                        if fl >= 0 && fl < lst.n_units {
+                            let v = lst.drain_value[fl as usize * lst.n_species as usize + LidSpecies::Age as usize];
+                            self.ctx_.water_age_state.subcatch_lid_drain_age_cfs[utsc] += q_dr * v;
+                        }
+                    }
+                    // H5b: the same seam for temperature
+                    let lst = &self.ctx_.lid_layer_state;
+                    if self.ctx_.options.heat_transport && lst.active() && ut + 1 < lst.group_offset.len() {
+                        let fl = lst.group_offset[ut] + u;
+                        if fl >= 0 && fl < lst.n_units && utsc < self.ctx_.heat_state.subcatch_lid_drain_temp_cfs.len() {
+                            let v = lst.drain_value[fl as usize * lst.n_species as usize + LidSpecies::Temperature as usize];
+                            self.ctx_.heat_state.subcatch_lid_drain_temp_cfs[utsc] += q_dr * v;
+                        }
+                    }
                 }
             }
 
@@ -971,8 +988,32 @@ impl SwmmEngine {
                     if udn < self.ctx_.nodes.lid_drain_qual_vol.len() {
                         self.ctx_.nodes.lid_drain_qual_vol[udn] += drain_cfs;
                     }
-                    stub_if(self.ctx_.options.water_age && self.ctx_.lid_layer_state.active(), "SWMMEngine::stepRunoff A6b (LID drain age at the node)")?;
-                    stub_if(self.ctx_.options.heat_transport && self.ctx_.lid_layer_state.active(), "SWMMEngine::stepRunoff A6b (LID drain temperature at the node)")?;
+                    // A4: the drain's age as the usual q*age rate (storage layer)
+                    if self.ctx_.options.water_age {
+                        let lst = &self.ctx_.lid_layer_state;
+                        let uts = t as usize;
+                        if lst.active() && uts + 1 < lst.group_offset.len() {
+                            let flat = lst.group_offset[uts] + u;
+                            let ai = flat as usize * lst.n_species as usize + LidSpecies::Age as usize;
+                            if flat >= 0 && flat < lst.n_units && udn < self.ctx_.water_age_state.node_lid_drain_age_vol_in.len() {
+                                let v = lst.drain_value[ai];
+                                self.ctx_.water_age_state.node_lid_drain_age_vol_in[udn] += drain_cfs * v;
+                            }
+                        }
+                    }
+                    // H5b: and its temperature, as q*T
+                    if self.ctx_.options.heat_transport {
+                        let lst = &self.ctx_.lid_layer_state;
+                        let uts = t as usize;
+                        if lst.active() && uts + 1 < lst.group_offset.len() {
+                            let flat = lst.group_offset[uts] + u;
+                            let ti = flat as usize * lst.n_species as usize + LidSpecies::Temperature as usize;
+                            if flat >= 0 && flat < lst.n_units && udn < self.ctx_.heat_state.node_lid_drain_temp_vol_in.len() {
+                                let v = lst.drain_value[ti];
+                                self.ctx_.heat_state.node_lid_drain_temp_vol_in[udn] += drain_cfs * v;
+                            }
+                        }
+                    }
                     for p in 0..np_use as usize {
                         let rmvl_idx = uu * np_lid as usize + p;
                         let rmvl = if rmvl_idx < g.drain_rmvl.len() { g.drain_rmvl[rmvl_idx] } else { 0.0 };
@@ -1050,7 +1091,11 @@ impl SwmmEngine {
                             ws.subcatch_outfall_age_vol[ui] = 0.0;
                         }
                     }
-                    stub_if(self.ctx_.options.heat_transport && ui < self.ctx_.heat_state.subcatch_outfall_temp_vol.len(), "transport::addRunonTemperatureAt")?;
+                    if self.ctx_.options.heat_transport && ui < self.ctx_.heat_state.subcatch_outfall_temp_vol.len() {
+                        let tv = self.ctx_.heat_state.subcatch_outfall_temp_vol[ui];
+                        crate::transport::heat_watershed::add_runon_temperature_at(&mut self.ctx_, i, vol / dt_prev, tv / vol);
+                        self.ctx_.heat_state.subcatch_outfall_temp_vol[ui] = 0.0;
+                    }
                     self.ctx_.mass_balance.runoff_runon += vol;
                     self.ctx_.subcatches.outfall_runon_vol[ui] = 0.0;
                 }
@@ -1082,7 +1127,8 @@ impl SwmmEngine {
                 }
                 msx_add_runon(&mut self.ctx_, i, out_sc, q);
                 crate::transport::water_age_watershed::add_runon_age(&mut self.ctx_, i, out_sc, q);
-                stub_if(self.ctx_.options.heat_transport, "transport::addRunonTemperature")?;
+                let q_sc = self.ctx_.subcatches.runoff[ui];
+                crate::transport::heat_watershed::add_runon_temperature(&mut self.ctx_, i, out_sc, q_sc);
             }
         }
 
@@ -1114,7 +1160,11 @@ impl SwmmEngine {
                         ws.subcatch_lid_drain_age_cfs[ui] = 0.0;
                     }
                 }
-                stub_if(self.ctx_.options.heat_transport && ui < self.ctx_.heat_state.subcatch_lid_drain_temp_cfs.len(), "transport::addRunonTemperatureAt")?;
+                if self.ctx_.options.heat_transport && ui < self.ctx_.heat_state.subcatch_lid_drain_temp_cfs.len() {
+                    let tq = self.ctx_.heat_state.subcatch_lid_drain_temp_cfs[ui];
+                    crate::transport::heat_watershed::add_runon_temperature_at(&mut self.ctx_, i, q, tq / q);
+                    self.ctx_.heat_state.subcatch_lid_drain_temp_cfs[ui] = 0.0;
+                }
             }
         }
         Ok(())

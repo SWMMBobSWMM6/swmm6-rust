@@ -80,9 +80,6 @@ impl SwmmEngine {
             if let Some(w) = crate::transport::reaction_legacy_step::reactions_not_translated(ctx) {
                 return Some(w);
             }
-            if crate::transport::heat_legacy::heat_fluxes_active(ctx) {
-                return Some("heat fluxes");
-            }
         }
         None
     }

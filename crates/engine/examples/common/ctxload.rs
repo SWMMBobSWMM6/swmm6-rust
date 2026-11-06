@@ -3288,6 +3288,12 @@ pub fn load(r: &mut Rd, c: &mut SimulationContext) {
     c.heat_config.cloud.sw_atten_k = FromF64::from_f64(r.pf("heat_config.cloud.sw_atten_k"));
     c.heat_config.cloud.sw_atten_n = FromF64::from_f64(r.pf("heat_config.cloud.sw_atten_n"));
     c.heat_config.cloud.lw_cloud_k = FromF64::from_f64(r.pf("heat_config.cloud.lw_cloud_k"));
+    for q in 0..(c.heat_config.global_temp).len() {
+    c.heat_config.global_temp[q] = FromF64::from_f64(r.pf("heat_config.global_temp[]"));
+    }
+    for q in 0..(c.heat_config.configured_source).len() {
+    c.heat_config.configured_source[q] = FromI64::from_i64(r.pi("heat_config.configured_source[]"));
+    }
     set_vi(&mut c.heat_config.node_over_source, r.vi("heat_config.node_over_source"));
     set_vi(&mut c.heat_config.node_over_node, r.vi("heat_config.node_over_node"));
     set_vf(&mut c.heat_config.node_over_temp, r.vf("heat_config.node_over_temp"));
@@ -3324,6 +3330,9 @@ pub fn load(r: &mut Rd, c: &mut SimulationContext) {
     c.ard_config.sets_limiter = FromI64::from_i64(r.pi("ard_config.sets_limiter"));
     c.ard_config.detailed_output_path = r.ps("ard_config.detailed_output_path");
     c.water_age_config.configured = FromI64::from_i64(r.pi("water_age_config.configured"));
+    for q in 0..(c.water_age_config.global_age).len() {
+    c.water_age_config.global_age[q] = FromF64::from_f64(r.pf("water_age_config.global_age[]"));
+    }
     set_vi(&mut c.water_age_config.node_over_source, r.vi("water_age_config.node_over_source"));
     set_vi(&mut c.water_age_config.node_over_node, r.vi("water_age_config.node_over_node"));
     set_vf(&mut c.water_age_config.node_over_age, r.vf("water_age_config.node_over_age"));

@@ -94,7 +94,9 @@ def fields(header, struct):
             continue
         if s.startswith('mutable '):
             s = s[len('mutable '):]
-        if '(' in s.split('=')[0]:
+        # a '(' outside [...] marks a function; one inside an array bound
+        # (`double global_temp[static_cast<int>(HeatSource::COUNT_)]`) does not
+        if '(' in re.sub(r'\[[^\]]*\]', '[]', s.split('=')[0]):
             continue
         m = re.fullmatch(r'((?:const\s+)?(?:unsigned\s+)?[\w:]+(?:<.+?>+)?(?:\s+long)?)\s+([A-Za-z_].*)', s)
         if not m:

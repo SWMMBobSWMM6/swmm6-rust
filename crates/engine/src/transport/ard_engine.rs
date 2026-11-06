@@ -23,10 +23,9 @@
 //     checkpointState and restoreCheckpointState serve the C API's state accessors and engine
 //     checkpoints, which are not on the 1D run path; they are not translated.
 //
-// NOT YET TRANSLATED (StepError::NotTranslated where met; SWMMEngine::stepRouting refuses such
-// a deck before the step): the per-cell heat fluxes (applyHeatFluxes past its guard) and the
-// per-cell bed solute exchange (applyBedSoluteExchange past its guard), which need the heat
-// flux modules.
+// The reaction stage and the booster sources can still meet code not translated yet (the
+// ROS2/BDF2 solvers, EQUIL species, booster rows), which they report as
+// StepError::NotTranslated.
 
 use crate::core::cmath::{cclamp, cmax, cmin, cvt_i32};
 use crate::core::context::SimulationContext;
@@ -47,7 +46,13 @@ use crate::hydraulics::fv::{NetworkMeshData, NetworkStateData, K_NODE_VIRTUAL};
 use crate::hydraulics::node::store_volume;
 use crate::quality::quality_routing::{book_negative_cell_source_clamp, book_negative_source_clamp, update_untreated_storage_hrt};
 use crate::transport::fv_species_kernels::{dispersion_solve, reconstruct_scalars, DispersionView, SpeciesKernelView};
-use crate::transport::heat_legacy::{apply_initial_temp_overrides, bed_exchange_enabled};
+use crate::data::heat_override::HeatElement;
+use crate::hydraulics::fv::kernels::{depth_of_area, hyd_rad_of_depth, width_of_depth};
+use crate::hydraulics::node::get_surf_area;
+use crate::transport::heat_bed::{bed_coupling_from_contact, bed_exchange_enabled, bed_exchange_q, exchange_pair, ground_temp_for, ground_temperature, relax_pair};
+use crate::transport::heat_fluxes::{net_flux_out, relax_t, update_solar_forcing, K_PROBE_C};
+use crate::transport::heat_legacy::apply_initial_temp_overrides;
+use crate::transport::heat_overrides::sediment_for;
 use crate::transport::initial_quality_seeds::{initial_age_seconds_for, initial_temp_for};
 use crate::transport::reaction_ard_binding::{ard_reactions_active, react_ard_stage, ArdArrays};
 use crate::transport::reaction_legacy_binding::ensure_msx_state;
@@ -1176,7 +1181,7 @@ impl ArdEngine {
         self.mesh_.conduit_link[cr as usize]
     }
 
-    /// applyBedSoluteExchange: its guard (the bed exchange itself is not translated yet).
+    /// applyBedSoluteExchange: per-cell bed solute exchange (pollutant and reactions rows).
     fn apply_bed_solute_exchange(&mut self, ctx: &mut SimulationContext, dt: f64) -> Result<(), StepError> {
         if !bed_exchange_enabled(ctx) || !(dt > 0.0) {
             return Ok(());
@@ -1191,10 +1196,78 @@ impl ArdEngine {
         if n_exch <= 0 {
             return Ok(());
         }
-        Err(StepError::NotTranslated("ARD bed solute exchange"))
+        let ncells = self.mesh_.n_cells();
+        {
+            let bed = &mut ctx.bed_state;
+            if bed.cell_temp.len() != ncells as usize || bed.cell_n_species != n_exch {
+                let sd = &ctx.heat_config.sediment;
+                let t_keep = if bed.cell_temp.len() == ncells as usize && !bed.cell_temp.is_empty() {
+                    bed.cell_temp[0]
+                } else if sd.has_initial_temp {
+                    sd.initial_temp
+                } else {
+                    sd.ground_temp
+                };
+                let mut keep_temp: Vec<f64> = Vec::new();
+                if bed.cell_temp.len() == ncells as usize {
+                    keep_temp = bed.cell_temp.clone();
+                }
+                bed.resize_cells(ncells, n_exch, t_keep);
+                if !keep_temp.is_empty() {
+                    bed.cell_temp = keep_temp;
+                }
+            }
+        }
+        const K_SQ_FT_TO_SQ_M: f64 = 0.09290304;
+        const K_CU_FT_TO_CU_M: f64 = 0.028316846592;
+        let unc = ncells as usize;
+        let une = n_exch as usize;
+        for c in 0..unc {
+            let mesh_link = self.cell_link(c);
+            if mesh_link >= 0 && (mesh_link as usize) < ctx.heat_state.mesh_contact_link.len() && ctx.heat_state.mesh_contact_link[mesh_link as usize] != 0 {
+                continue;
+            }
+            let gi = self.mesh_.cell_geom[c] as usize;
+            if gi >= self.mesh_.geom.len() {
+                continue;
+            }
+            let g = &self.mesh_.geom[gi];
+            let area_x = self.state_.cell_a[c];
+            if !(area_x > 0.0) {
+                continue;
+            }
+            let vol_ft3 = area_x * self.mesh_.cell_dx[c];
+            if !(vol_ft3 > 0.0) {
+                continue;
+            }
+            let h = depth_of_area(g, area_x);
+            if !(h > 0.0) {
+                continue;
+            }
+            let rh = hyd_rad_of_depth(g, h);
+            if !(rh > 0.0) {
+                continue;
+            }
+            let bed_m2 = (area_x / rh) * self.mesh_.cell_dx[c] * K_SQ_FT_TO_SQ_M;
+            let sd_c = sediment_for(ctx, &HeatElement::link(self.cell_link(c))).clone();
+            let vol_w = vol_ft3 * K_CU_FT_TO_CU_M;
+            let vol_b = bed_m2 * sd_c.bed_thickness;
+            let q_exch = bed_exchange_q(&sd_c, bed_m2);
+            if !(q_exch > 0.0) || !(vol_b > 0.0) {
+                continue;
+            }
+            for sp in 0..une {
+                let cw = self.state_.cell_phi[sp * unc + c];
+                let cb = ctx.bed_state.cell_conc[sp * unc + c];
+                let st = exchange_pair(cw, cb, vol_w, vol_b, q_exch, dt);
+                self.state_.cell_phi[sp * unc + c] += st.dc_w;
+                ctx.bed_state.cell_conc[sp * unc + c] += st.dc_b;
+            }
+        }
+        Ok(())
     }
 
-    /// applyHeatFluxes: its guard (the per-cell flux modules are not translated yet).
+    /// applyHeatFluxes: per-cell surface exchange and bed pair, and the storage-node stores.
     fn apply_heat_fluxes(&mut self, ctx: &mut SimulationContext, dt: f64) -> Result<(), StepError> {
         if self.temp_row_ < 0 || !(dt > 0.0) {
             return Ok(());
@@ -1204,7 +1277,91 @@ impl ArdEngine {
         if !any {
             return Ok(());
         }
-        Err(StepError::NotTranslated("ARD heat fluxes"))
+        let mut t_gr = 0.0;
+        if bed_on {
+            let ncells = self.mesh_.n_cells();
+            let bed = &mut ctx.bed_state;
+            if bed.cell_temp.len() != ncells as usize || !bed.cells_seeded {
+                let sd = &ctx.heat_config.sediment;
+                let n = bed.cell_n_species;
+                bed.resize_cells(ncells, n, if sd.has_initial_temp { sd.initial_temp } else { sd.ground_temp });
+            }
+            t_gr = ground_temperature(ctx)?;
+        }
+        update_solar_forcing(ctx, dt)?;
+        const K_SQ_FT_TO_SQ_M: f64 = 0.09290304;
+        const K_CU_FT_TO_CU_M: f64 = 0.028316846592;
+        let rho = ctx.options.water_density;
+        let cp = ctx.options.water_specific_heat;
+        let tr = self.temp_row_ as usize;
+        let unc = self.mesh_.n_cells() as usize;
+        for c in 0..unc {
+            let mesh_link = self.cell_link(c);
+            if mesh_link >= 0 && (mesh_link as usize) < ctx.heat_state.mesh_contact_link.len() && ctx.heat_state.mesh_contact_link[mesh_link as usize] != 0 {
+                continue;
+            }
+            let gi = self.mesh_.cell_geom[c] as usize;
+            if gi >= self.mesh_.geom.len() {
+                continue;
+            }
+            let g = &self.mesh_.geom[gi];
+            let area_x = self.state_.cell_a[c];
+            if !(area_x > 0.0) {
+                continue;
+            }
+            let vol_ft3 = area_x * self.mesh_.cell_dx[c];
+            if !(vol_ft3 > 0.0) {
+                continue;
+            }
+            let h = depth_of_area(g, area_x);
+            if !(h > 0.0) {
+                continue;
+            }
+            let mut surf_m2 = 0.0;
+            if g.is_open != 0 {
+                let width = width_of_depth(g, h);
+                if width > 0.0 {
+                    surf_m2 = width * self.mesh_.cell_dx[c] * K_SQ_FT_TO_SQ_M;
+                }
+            }
+            let t_w = self.state_.cell_phi[tr * unc + c];
+            let ce = HeatElement::link(self.cell_link(c));
+            if bed_on && c < ctx.bed_state.cell_temp.len() {
+                let rh = hyd_rad_of_depth(g, h);
+                let bed_m2 = if rh > 0.0 { (area_x / rh) * self.mesh_.cell_dx[c] * K_SQ_FT_TO_SQ_M } else { 0.0 };
+                let sd_c = sediment_for(ctx, &ce);
+                let bc = bed_coupling_from_contact(ctx, sd_c, bed_m2, vol_ft3, ground_temp_for(ctx, sd_c, t_gr));
+                if bc.viable() {
+                    let ps = relax_pair(&bc, t_w, ctx.bed_state.cell_temp[c], net_flux_out(ctx, &ce, t_w), net_flux_out(ctx, &ce, t_w + K_PROBE_C), K_PROBE_C, surf_m2, dt);
+                    self.state_.cell_phi[tr * unc + c] += ps.dt_w;
+                    ctx.bed_state.cell_temp[c] += ps.dt_b;
+                    continue;
+                }
+            }
+            if !(surf_m2 > 0.0) {
+                continue;
+            }
+            self.state_.cell_phi[tr * unc + c] += relax_t(net_flux_out(ctx, &ce, t_w), net_flux_out(ctx, &ce, t_w + K_PROBE_C), K_PROBE_C, surf_m2, vol_ft3 * K_CU_FT_TO_CU_M, dt, rho, cp);
+        }
+        let unit_sys = get_unit_system(ctx.options.flow_units as i32);
+        let uns = self.state_.n_species as usize;
+        let nn = cmin(ctx.n_nodes(), self.node_vol_.len() as i32);
+        for nd in 0..nn {
+            let und = nd as usize;
+            let vol_ft3 = self.node_vol_[und];
+            if !(vol_ft3 > 0.0) {
+                continue;
+            }
+            let area_ft2 = get_surf_area(&ctx.nodes, nd, ctx.nodes.depth[und], Some(&ctx.tables), unit_sys, Some(&ctx.node_subtypes));
+            if !(area_ft2 > 0.0) {
+                continue;
+            }
+            let t_w = self.node_mass_[und * uns + tr] / vol_ft3;
+            let ne = HeatElement::node(nd);
+            let d_t = relax_t(net_flux_out(ctx, &ne, t_w), net_flux_out(ctx, &ne, t_w + K_PROBE_C), K_PROBE_C, area_ft2 * K_SQ_FT_TO_SQ_M, vol_ft3 * K_CU_FT_TO_CU_M, dt, rho, cp);
+            self.node_mass_[und * uns + tr] += d_t * vol_ft3;
+        }
+        Ok(())
     }
 
     /// publish: the conduit means into links.conc and the stores into nodes.conc.

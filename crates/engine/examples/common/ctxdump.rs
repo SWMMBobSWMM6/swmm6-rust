@@ -1748,6 +1748,12 @@ pub fn dump(c: &SimulationContext) -> Vec<u8> {
     pf(o, "heat_config.cloud.sw_atten_k", (c.heat_config.cloud.sw_atten_k) as f64);
     pf(o, "heat_config.cloud.sw_atten_n", (c.heat_config.cloud.sw_atten_n) as f64);
     pf(o, "heat_config.cloud.lw_cloud_k", (c.heat_config.cloud.lw_cloud_k) as f64);
+    for q in 0..(c.heat_config.global_temp).len() {
+    pf(o, "heat_config.global_temp[]", (c.heat_config.global_temp[q]) as f64);
+    }
+    for q in 0..(c.heat_config.configured_source).len() {
+    pi(o, "heat_config.configured_source[]", (c.heat_config.configured_source[q]) as i64);
+    }
     vi(o, "heat_config.node_over_source", &(c.heat_config.node_over_source).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     vi(o, "heat_config.node_over_node", &(c.heat_config.node_over_node).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     vf(o, "heat_config.node_over_temp", &(c.heat_config.node_over_temp).iter().map(|x| *x as f64).collect::<Vec<f64>>());
@@ -1786,6 +1792,9 @@ pub fn dump(c: &SimulationContext) -> Vec<u8> {
     pi(o, "ard_config.sets_limiter", (c.ard_config.sets_limiter) as i64);
     ps(o, "ard_config.detailed_output_path", &c.ard_config.detailed_output_path);
     pi(o, "water_age_config.configured", (c.water_age_config.configured) as i64);
+    for q in 0..(c.water_age_config.global_age).len() {
+    pf(o, "water_age_config.global_age[]", (c.water_age_config.global_age[q]) as f64);
+    }
     vi(o, "water_age_config.node_over_source", &(c.water_age_config.node_over_source).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     vi(o, "water_age_config.node_over_node", &(c.water_age_config.node_over_node).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     vf(o, "water_age_config.node_over_age", &(c.water_age_config.node_over_age).iter().map(|x| *x as f64).collect::<Vec<f64>>());

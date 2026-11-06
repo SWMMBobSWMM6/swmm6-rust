@@ -748,7 +748,15 @@ impl QualitySolver {
         crate::transport::heat_legacy::route_legacy_heat(ctx, dt)?;
         // H6b: the bed's solute exchange
         if crate::transport::heat_legacy::bed_exchange_enabled(ctx) {
-            return Err(nt("bed solute exchange (heat::applyBedSoluteExchange)"));
+            let np = ctx.links.conc_n_pollutants;
+            let nm = ctx.reactions.n_species();
+            let nt = (if np > 0 { np } else { 0 }) + (if nm > 0 { nm } else { 0 });
+            if np > 0 && !ctx.links.conc.is_empty() {
+                crate::transport::heat_bed::apply_bed_solute_exchange(ctx, false, np, 0, nt, dt)?;
+            }
+            if nm > 0 && !ctx.reactions.msx_link_conc.is_empty() {
+                crate::transport::heat_bed::apply_bed_solute_exchange(ctx, true, nm, if np > 0 { np } else { 0 }, nt, dt)?;
+            }
         }
         Ok(())
     }

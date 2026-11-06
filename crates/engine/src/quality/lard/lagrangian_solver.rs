@@ -24,9 +24,8 @@
 //     checkpoint serializers serve the C API's state accessors and engine checkpoints, which
 //     are not on the 1D run path; they are not translated.
 //
-// NOT YET TRANSLATED (StepError::NotTranslated where met; SWMMEngine::stepRouting refuses such
-// a deck first): applyFluxesAndBed past its guard (the surface, radiative and bed heat fluxes
-// and the bed solute exchange), which needs the heat flux modules.
+// The reaction stage and the booster sources can still meet code not translated yet, which
+// they report as StepError::NotTranslated.
 
 use crate::core::cmath::{cmax, cvt_i32};
 use crate::core::context::SimulationContext;
@@ -40,7 +39,13 @@ use crate::hydraulics::node::{store_volume, store_volume_at};
 use crate::quality::lard::rwpt_dispersion::{rwpt_hyd_radius, RwptDispersion, K_RWPT_PARTICLES_PER_LINK};
 use crate::quality::lard::segment_store::SegmentStore;
 use crate::quality::quality_routing::{apply_node_treatment, book_negative_source_clamp, node_is_reactor, update_untreated_storage_hrt, ZERO_VOLUME};
-use crate::transport::heat_legacy::{apply_initial_temp_overrides, bed_exchange_enabled};
+use crate::core::unit_conversion::get_unit_system;
+use crate::data::heat_override::HeatElement;
+use crate::hydraulics::node::get_surf_area;
+use crate::transport::heat_bed::{bed_coupling_from_contact, bed_exchange_enabled, bed_exchange_q, exchange_pair, ground_temp_for, ground_temperature, link_bed_area_m2, link_free_surface_ft2, relax_pair, seed_bed_temperature};
+use crate::transport::heat_fluxes::{net_flux_out, relax_t, update_solar_forcing, K_PROBE_C};
+use crate::transport::heat_legacy::apply_initial_temp_overrides;
+use crate::transport::heat_overrides::sediment_for;
 use crate::transport::reaction_legacy_binding::{ensure_msx_state, legacy_reactions_active};
 use crate::transport::reaction_legacy_step::{clamp_rate_species, integrator_step, note_negative_clamp, reaction_area_volume, reaction_booster_mass, Ws};
 use crate::transport::transport_policy::network_1d_enables;
@@ -540,7 +545,8 @@ impl LagrangianSolver {
         ctx.nodes.conc_old.clone_from(&ctx.nodes.conc);
     }
 
-    /// applyFluxesAndBed: its guard (the heat flux modules are not translated yet).
+    /// applyFluxesAndBed: the surface and radiative heat fluxes and the bed pair, once per
+    /// routing step, on the segment field (uniform increments against the link mean).
     fn apply_fluxes_and_bed(&mut self, ctx: &mut SimulationContext, dt: f64) -> Result<(), StepError> {
         let lay = row_layout(ctx);
         let heat_on = lay.temp_row >= 0;
@@ -549,7 +555,114 @@ impl LagrangianSolver {
         if (!flux_on && !bed_on) || !(dt > 0.0) {
             return Ok(());
         }
-        Err(StepError::NotTranslated("LARD heat fluxes and bed"))
+        if flux_on {
+            update_solar_forcing(ctx, dt)?;
+        }
+        if bed_on {
+            seed_bed_temperature(ctx)?;
+        }
+        let t_gr = if bed_on { ground_temperature(ctx)? } else { 0.0 };
+        let rho = ctx.options.water_density;
+        let cp = ctx.options.water_specific_heat;
+        const K_SQ_FT: f64 = 0.09290304;
+        const K_CU_FT: f64 = 0.028316846592;
+        let nl = ctx.n_links();
+        let nn = ctx.n_nodes();
+        // Nodes: storage surfaces only
+        if flux_on {
+            let unit_sys = get_unit_system(ctx.options.flow_units as i32);
+            for n in 0..nn {
+                let un = n as usize;
+                if un >= ctx.heat_state.node_temp.len() {
+                    break;
+                }
+                let vol = store_volume(&ctx.nodes, n);
+                if !(vol > 0.0) {
+                    continue;
+                }
+                let a = get_surf_area(&ctx.nodes, n, ctx.nodes.depth[un], Some(&ctx.tables), unit_sys, Some(&ctx.node_subtypes));
+                if !(a > 0.0) {
+                    continue;
+                }
+                let t = ctx.heat_state.node_temp[un];
+                let ne = HeatElement::node(n);
+                let d = relax_t(net_flux_out(ctx, &ne, t), net_flux_out(ctx, &ne, t + K_PROBE_C), K_PROBE_C, a * K_SQ_FT, vol * K_CU_FT, dt, rho, cp);
+                ctx.heat_state.node_temp[un] += d;
+            }
+        }
+        // Links: segment field, uniform increments. Bed rows: pollutants then MSX.
+        let n_bed = lay.np + (if lay.msx_first >= 0 { lay.ns - lay.msx_first } else { 0 });
+        if bed_on && n_bed > 0 && (ctx.bed_state.n_species != n_bed || ctx.bed_state.link_conc.len() != nl as usize * n_bed as usize) {
+            ctx.bed_state.link_conc.clear();
+            ctx.bed_state.link_conc.resize(nl as usize * n_bed as usize, 0.0);
+            ctx.bed_state.n_species = n_bed;
+        }
+        for l in 0..nl {
+            let ul = l as usize;
+            if ul < ctx.heat_state.mesh_contact_link.len() && ctx.heat_state.mesh_contact_link[ul] != 0 {
+                continue;
+            }
+            if ctx.links.type_[ul] != LinkType::Conduit {
+                continue;
+            }
+            let cnt = self.store_.count(l);
+            if cnt <= 0 {
+                continue;
+            }
+            let vol_ft3 = self.store_.total_volume(l);
+            if !(vol_ft3 > 0.0) {
+                continue;
+            }
+            self.store_.mean_conc(l, &mut self.scratch_);
+            let le = HeatElement::link(l);
+            if heat_on {
+                let t_mean = self.scratch_[lay.temp_row as usize];
+                let surf_m2 = if flux_on { link_free_surface_ft2(ctx, l) * K_SQ_FT } else { 0.0 };
+                let mut d_tw = 0.0;
+                let mut bed_stepped = false;
+                if bed_on && ul < ctx.bed_state.link_temp.len() {
+                    let sd = sediment_for(ctx, &le);
+                    let g = bed_coupling_from_contact(ctx, sd, link_bed_area_m2(ctx, l), vol_ft3, ground_temp_for(ctx, sd, t_gr));
+                    if g.viable() {
+                        let ps = relax_pair(&g, t_mean, ctx.bed_state.link_temp[ul], if flux_on { net_flux_out(ctx, &le, t_mean) } else { 0.0 }, if flux_on { net_flux_out(ctx, &le, t_mean + K_PROBE_C) } else { 0.0 }, if flux_on { K_PROBE_C } else { 0.0 }, surf_m2, dt);
+                        d_tw = ps.dt_w;
+                        ctx.bed_state.link_temp[ul] += ps.dt_b;
+                        bed_stepped = true;
+                    }
+                }
+                if !bed_stepped && flux_on && surf_m2 > 0.0 {
+                    d_tw = relax_t(net_flux_out(ctx, &le, t_mean), net_flux_out(ctx, &le, t_mean + K_PROBE_C), K_PROBE_C, surf_m2, vol_ft3 * K_CU_FT, dt, rho, cp);
+                }
+                if d_tw != 0.0 {
+                    for i in 0..cnt {
+                        let v = self.store_.seg_conc(l, i, lay.temp_row) + d_tw;
+                        self.store_.set_seg_conc(l, i, lay.temp_row, v);
+                    }
+                }
+            }
+            if bed_on && n_bed > 0 {
+                let sd = sediment_for(ctx, &le).clone();
+                let bed_m2 = link_bed_area_m2(ctx, l);
+                let vol_b = bed_m2 * sd.bed_thickness;
+                let q_exch = bed_exchange_q(&sd, bed_m2);
+                if q_exch > 0.0 && vol_b > 0.0 {
+                    for b in 0..n_bed {
+                        let row = if b < lay.np { b } else { lay.msx_first + (b - lay.np) };
+                        let c_mean = self.scratch_[row as usize];
+                        let bi = ul * n_bed as usize + b as usize;
+                        let st = exchange_pair(c_mean, ctx.bed_state.link_conc[bi], vol_ft3 * K_CU_FT, vol_b, q_exch, dt);
+                        if st.dc_w != 0.0 {
+                            for i in 0..cnt {
+                                let v = self.store_.seg_conc(l, i, row) + st.dc_w;
+                                self.store_.set_seg_conc(l, i, row, v);
+                            }
+                        }
+                        ctx.bed_state.link_conc[bi] += st.dc_b;
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     /// init: size the store and ledgers, seed age and temperature, one segment per wet conduit.

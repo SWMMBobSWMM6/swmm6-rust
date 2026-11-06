@@ -84,6 +84,20 @@ pub fn arriving_precip_age(ctx: &SimulationContext, ui: usize, subarea: i32) -> 
     (1.0 - f) * a_rain + f * a_pack
 }
 
+/// kMeltwaterTempC (WatershedCommon.hpp)
+pub const K_MELTWATER_TEMP_C: f64 = 0.0;
+
+/// arrivingPrecipTemperature: the configured rainfall temperature blended with meltwater (0
+/// degC) by the arriving melt fraction.
+pub fn arriving_precip_temperature(ctx: &SimulationContext, ui: usize, subarea: i32) -> f64 {
+    let t_rain = ctx.heat_config.global_temp[crate::data::heat::HeatSource::Rainfall as usize];
+    let f = arriving_melt_fraction(ctx, ui, subarea);
+    if f <= 0.0 {
+        return t_rain;
+    }
+    (1.0 - f) * t_rain + f * K_MELTWATER_TEMP_C
+}
+
 /// addRunonAge: add the donor's runoff-age rate (q * age) to the receiver's run-on.
 pub fn add_runon_age(ctx: &mut SimulationContext, donor_sc: i32, receiver_sc: i32, q: f64) {
     if !ctx.options.water_age {
