@@ -288,7 +288,7 @@ pub struct SwmmEngine {
     /// Previous routing step's system flow RATES (cfs) for the eleven routing continuity terms
     pub routing_prev_rates_: [f64; 11],
     /// lazy EULERIAN_ARD init after Router::init (read and set by stepRouting)
-    pub(crate) ard_init_attempted_: bool,
+    pub ard_init_attempted_: bool,
 }
 
 impl Default for SwmmEngine {

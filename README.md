@@ -11,9 +11,10 @@ Phase 1a (1D) is under way. Done, and identical to upstream on every gate deck:
 * reading the `.inp` (every section handler), cross-reference resolution, and `open()` in strict, lenient and metadata modes;
 * the initialize legs: `initHydraulics`, `initHydrology`, `initQuality`, `initGeometry`, `initMassBalance`;
 * the leaf numerics: cross-section geometry and its tables, transects, streets, force mains, the C library functions upstream depends on (`strtod`, `from_chars`, `sscanf`, `%.10g`, `std::sort` and the `unordered_map`/`map` orders);
-* the run lifecycle: `initialize()` as a whole and `start()` (identical on all 932 gate decks), and `step()` with its own bookkeeping (statistics, routing mass balance, final storage), gated helper by helper.
+* the run lifecycle: `initialize()` as a whole and `start()` (identical on all 932 gate decks), and `step()` with its own bookkeeping (statistics, routing mass balance, final storage), gated helper by helper;
+* the hydraulic routing step (`stepRouting`) for STEADY, KINWAVE and DYNWAVE routing: the dynamic-wave solver (EXTRAN and SLOT surcharge, virtual junctions), kinematic wave and steady flow, nodes, outfalls, dividers, storage and its exfiltration, pumps, orifices, weirs, outlets, culverts, force mains, roadways, street and channel inlets, node LID columns, control rules and the inflows. It is checked call by call against upstream's own `stepRouting` (`ctxgate.sh route`, PLAN.md).
 
-Not yet translated: the solvers the step calls (runoff, routing, quality), nor the `.out` and `.rpt` writers; `step()` calls them through stub files. **It does not run a simulation yet.** [PLAN.md](PLAN.md) has the phases and what comes next. 2D comes after 1D.
+Not yet translated: runoff, quality routing, the FV router, and the `.out` and `.rpt` writers; `step()` calls the missing pieces through stub files. **It does not run a simulation yet.** [PLAN.md](PLAN.md) has the phases and what comes next. 2D comes after 1D.
 
 ## How it is checked
 
