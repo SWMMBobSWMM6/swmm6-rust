@@ -165,8 +165,18 @@ impl Router {
                 let sru = sr as usize;
                 let evap_frac = if sr >= 0 { ctx.node_subtypes.storages.evap_frac[sru] } else { 0.0 };
                 let seep_rate = if sr >= 0 { ctx.node_subtypes.storages.seep_rate[sru] } else { 0.0 };
-                let stor_evap_rate = evap_rate * evap_frac;
-                // (LID cells at a storage node: refused by stepRouting)
+                let mut stor_evap_rate = evap_rate * evap_frac;
+                if sr >= 0 && !ctx.node_subtypes.storages.lid_state[sru].cells.is_empty() {
+                    let state = &ctx.node_subtypes.storages.lid_state[sru];
+                    let potential = evap_rate * evap_frac * state.cells[0].area;
+                    // The column has already evaporated retained moisture. Only the unspent
+                    // demand is allowed to draw mobile water.
+                    let area = node::get_surf_area(&ctx.nodes, i, ctx.nodes.depth[ui], Some(&ctx.tables), unit_sys, Some(&ctx.node_subtypes));
+                    stor_evap_rate = if area > 0.0 { cmax(0.0, potential - state.evap_volume / dt) / area } else { 0.0 };
+                    if state.richards {
+                        stor_evap_rate = 0.0; // one ET budget inside the ODE
+                    }
+                }
 
                 let mut exfil_cfs = if sr >= 0 { ctx.node_subtypes.storages.exfil_rate[sru] } else { 0.0 };
 

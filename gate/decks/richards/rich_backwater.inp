@@ -1,0 +1,35 @@
+[TITLE]
+richards gate: backwater from a fixed outfall stage into a Richards LID node's porous cells (exchangeRichardsPorts, a held Richards destination), constant evaporation, a pollutant
+[OPTIONS]
+FLOW_UNITS CFS
+FLOW_ROUTING DYNWAVE
+START_DATE 01/01/2004
+END_DATE 01/01/2004
+END_TIME 00:10:00
+ROUTING_STEP 1
+VARIABLE_STEP 0
+REPORT_STEP 00:01:00
+[EVAPORATION]
+CONSTANT 2.5
+[STORAGE]
+S -10 2 0.2 FUNCTIONAL 0 0 100 0 1
+[OUTFALLS]
+O -10 FIXED -8.0 NO
+[CONDUITS]
+D S O 10 .013 .75 0 0 0
+[XSECTIONS]
+D CIRCULAR .1 0 0 0 1
+[POLLUTANTS]
+TSS MG/L 0 0 25 0 NO * 0 10
+[LID_CONTROLS]
+Stack NODE
+Stack SURFACE 6 .1
+Stack MEDIA 12 .45 .2 .08 2 10 3
+Stack AGGREGATE 6 .4 100
+Stack BOTTOM .5 0
+[LID_NODES]
+S Stack 10
+[LID_RICHARDS]
+Stack OPTIONS 4 1e-7 1e-5 30
+Stack 2 .03 2 1.6 .5 .0001
+Stack 3 .03 2 1.6 .5 .0001

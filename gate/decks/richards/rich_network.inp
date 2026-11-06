@@ -1,0 +1,63 @@
+[TITLE]
+richards gate: two Richards stacks with different cell counts (two column groups) in series, a classic LID node on either side, a port in the surface cell, held ports into and out of each kind of stack, a clogging bottom, inflow and evaporation, a 5 s routing step
+[OPTIONS]
+FLOW_UNITS CFS
+FLOW_ROUTING DYNWAVE
+START_DATE 01/01/2004
+END_DATE 01/01/2004
+END_TIME 00:20:00
+ROUTING_STEP 5
+VARIABLE_STEP 0
+REPORT_STEP 00:01:00
+[EVAPORATION]
+CONSTANT 1.0
+[STORAGE]
+K 1 2 0.1 FUNCTIONAL 0 0 100 0 0
+S 0 2 1.9 FUNCTIONAL 0 0 100 0 1
+T -1 3 0 FUNCTIONAL 0 0 100 0 .5
+[OUTFALLS]
+O -2 FREE NO
+[CONDUITS]
+A K S 20 .013 .3 1.7 0 0
+B S T 20 .013 1.75 .9 0 0
+C S T 20 .013 .6 .4 0 0
+E T O 20 .013 .25 0 0 0
+G S K 20 .013 1.0 .5 0 0
+L K S 20 .013 1.6 .2 0 0
+[XSECTIONS]
+A CIRCULAR .15 0 0 0 1
+B CIRCULAR .1 0 0 0 1
+C CIRCULAR .1 0 0 0 1
+E CIRCULAR .1 0 0 0 1
+G CIRCULAR .1 0 0 0 1
+L CIRCULAR .1 0 0 0 1
+[DWF]
+K FLOW .2
+S FLOW .03
+[LID_CONTROLS]
+Stack NODE
+Stack SURFACE 6 .1
+Stack MEDIA 12 .45 .2 .08 2 10 3
+Stack AGGREGATE 6 .4 100
+Stack BOTTOM .5 200
+Deep NODE
+Deep SURFACE 6 .1
+Deep MEDIA 18 .5 .25 .1 1 8 2
+Deep AGGREGATE 12 .35 200
+Deep BOTTOM .2 0
+Classic NODE
+Classic SURFACE 6 .1
+Classic MEDIA 12 .45 .2 .08 2 10 3
+Classic AGGREGATE 6 .4 100
+Classic BOTTOM .5 0
+[LID_NODES]
+K Classic 10
+S Stack 10
+T Deep 5
+[LID_RICHARDS]
+Stack OPTIONS 4 1e-7 1e-5 30
+Stack 2 .03 2 1.6 .5 .0001
+Stack 3 .03 2 1.6 .5 .0001
+Deep OPTIONS 3 1e-8 1e-6 60
+Deep 2 .05 1.5 1.4 .5 .0002
+Deep 3 .02 4 2.2 .5 .0001
