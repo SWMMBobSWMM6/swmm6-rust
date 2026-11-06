@@ -32,8 +32,8 @@
 #                again) -> cmp
 #         cross: gate/diff/ctxopen (upstream) dump -> examples/ctxload -> cmp with upstream's text
 #       "init" dumps after initialize too (the translation's SwmmEngine::initialize on the
-#       rust side). A deck upstream aborts on (no dump) is counted apart; on the rust side such
-#       a deck's (empty) dump fails to load and counts as differing.
+#       rust side). A deck where a harness aborts (no dump: the U1/U57 decks, on both sides)
+#       is counted apart.
 #
 #   gate/ctxgate.sh init | start
 #       the run lifecycle (gate/diff/ctxstep, examples/ctxstep): open, SWMMEngine::initialize
@@ -68,12 +68,13 @@ else { find /root/work/corpus -name '*.inp'; find /root/work/swmm6src/upstream/t
 
 if [ "${1:-}" = loadrt ]; then
   M=${2:-open}; C_BIN="$H/gate/diff/ctxopen"; R_BIN="$E/ctxopen"; L_BIN="$E/ctxload"
-  rs=0; rd=0; xs=0; xd=0; xn=0; : > "$W/differ.txt"
+  rs=0; rd=0; rn=0; xs=0; xd=0; xn=0; : > "$W/differ.txt"
   while IFS= read -r d; do
     cd "$(dirname "$d")" || continue
-    if true; then
-      timeout 120 "$R_BIN" "$d" "$M" > "$W/a.txt" 2>/dev/null
+    if ( timeout 120 "$R_BIN" "$d" "$M" > "$W/a.txt"; rc=$?; exit $rc ) 2>/dev/null; then
       if timeout 120 "$L_BIN" "$W/a.txt" > "$W/b.txt" 2> "$W/err.txt" && cmp -s "$W/a.txt" "$W/b.txt"; then rs=$((rs+1)); else rd=$((rd+1)); echo "rust  $d $(head -c 200 "$W/err.txt")" >> "$W/differ.txt"; fi
+    else
+      rn=$((rn+1)); echo "nodump rust $d" >> "$W/differ.txt"
     fi
     if ( timeout 120 "$C_BIN" "$d" "$M" > "$W/c.txt"; rc=$?; exit $rc ) 2>/dev/null; then
       if timeout 120 "$L_BIN" "$W/c.txt" > "$W/e.txt" 2> "$W/err.txt" && cmp -s "$W/c.txt" "$W/e.txt"; then xs=$((xs+1)); else xd=$((xd+1)); echo "cross $d $(head -c 200 "$W/err.txt")" >> "$W/differ.txt"; fi
@@ -81,7 +82,7 @@ if [ "${1:-}" = loadrt ]; then
       xn=$((xn+1)); echo "nodump $d" >> "$W/differ.txt"
     fi
   done < "$W/decks.txt"
-  echo "ctxgate loadrt $M rust: $rs identical, $rd differ"
+  echo "ctxgate loadrt $M rust: $rs identical, $rd differ, $rn without a translation dump"
   echo "ctxgate loadrt $M cross: $xs identical, $xd differ, $xn without an upstream dump"
   head -${CTXGATE_SHOW:-5} "$W/differ.txt"
   [ -n "$CTXGATE_KEEP" ] && cp "$W/differ.txt" "$CTXGATE_KEEP"; rm -rf "$W"

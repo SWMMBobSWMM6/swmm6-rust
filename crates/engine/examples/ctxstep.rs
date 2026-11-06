@@ -138,6 +138,15 @@ fn read_side(path: &str) -> (String, i32, swmm6_rust::core::engine_step::GateSte
     let un = vec("lid_units_node", &mut next);
     let uq = vec("lid_units_q", &mut next);
     s.lid_drain_q_units_ = un.iter().zip(uq.iter()).map(|(&n, &q)| (n as i32, q)).collect();
+    let ng = int("lid_groups", &mut next);
+    for _ in 0..ng {
+        let count = int("lidg_count", &mut next) as i32;
+        let sd = vec("lidg_surf_depth", &mut next);
+        let sm = vec("lidg_soil_moist", &mut next);
+        let st = vec("lidg_stor_depth", &mut next);
+        let pd = vec("lidg_pave_depth", &mut next);
+        s.lid_groups.push((count, [sd, sm, st, pd]));
+    }
     assert_eq!(next(), "end");
     (first, k, s)
 }
@@ -165,7 +174,7 @@ fn load_and_run(e: &mut SwmmEngine, name: &str, side: &str, out: &mut Vec<u8>) -
     if let Err(t) = r {
         finish(Err(t), &format!("helper {}", name), out);
     }
-    let skipped = lines.ends_with(b"skipped (LID units)\n") || lines.ends_with(b"skipped (FV)\n") || lines.ends_with(b"skipped (inlets)\n");
+    let skipped = lines.ends_with(b"skipped (FV)\n") || lines.ends_with(b"skipped (inlets)\n");
     out.extend_from_slice(&lines);
     (first, skipped)
 }

@@ -200,13 +200,6 @@ static int run_helper(openswmm::SWMMEngine* eng, const std::string& n, double dt
     } else if (n == "massbal") {
         eng->updateRoutingMassBalance(dt);
     } else if (n == "finalstore") {
-        bool lid_units = false;
-        for (int t = 0; t < eng->lid_.numGroups(); ++t)
-            lid_units = lid_units || eng->lid_.group(t).count > 0;
-        if (lid_units) {
-            std::printf("finalstore skipped (LID units)\n");
-            return 1;
-        }
         eng->computeFinalStorage();
     } else if (n == "finalqual") {
         eng->computeFinalQualityMassBalance();
@@ -295,6 +288,17 @@ static int helper_mode(SWMM_Engine h, openswmm::SWMMEngine* eng, int k_steps, co
         }
         wvec(f, "lid_units_node", un);
         wvec(f, "lid_units_q", uq);
+        // the LID units' moisture state (lid_.storedVolume reads it; the groups' other
+        // members are initHydrology's, the same on both sides)
+        std::fprintf(f, "lid_groups %d\n", eng->lid_.numGroups());
+        for (int t = 0; t < eng->lid_.numGroups(); ++t) {
+            const auto& g = eng->lid_.group(t);
+            std::fprintf(f, "lidg_count %d\n", g.count);
+            wvec(f, "lidg_surf_depth", g.surf_depth);
+            wvec(f, "lidg_soil_moist", g.soil_moist);
+            wvec(f, "lidg_stor_depth", g.stor_depth);
+            wvec(f, "lidg_pave_depth", g.pave_depth);
+        }
         std::fprintf(f, "end\n");
         std::fclose(f);
     }

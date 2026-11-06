@@ -79,7 +79,7 @@ pub fn stub(what: &'static str) -> Terminated {
 pub const THROWN_PREFIX: &str = "throw ";
 
 /// CffiErrorCode CFFI_ERR_NUMERICAL (core/ErrorCodes.hpp)
-pub const CFFI_ERR_NUMERICAL: i32 = 13;
+pub const CFFI_ERR_NUMERICAL: i32 = 14;
 
 /// reassertNodeStateOverrides: republish node temperature and age overrides.
 fn reassert_node_state_overrides(ctx: &mut SimulationContext) {
@@ -1431,6 +1431,8 @@ pub struct GateStepSide {
     pub gw_q_interp_: Vec<f64>,
     pub gw_q_node_: Vec<i32>,
     pub lid_drain_q_units_: Vec<(i32, f64)>,
+    /// per LID group: count, surf_depth, soil_moist, stor_depth, pave_depth
+    pub lid_groups: Vec<(i32, [Vec<f64>; 4])>,
 }
 
 #[cfg(feature = "gate")]
@@ -1460,6 +1462,15 @@ impl SwmmEngine {
         self.gw_q_interp_ = s.gw_q_interp_;
         self.gw_q_node_ = s.gw_q_node_;
         self.lid_drain_q_units_ = s.lid_drain_q_units_;
+        for (t, (count, [sd, sm, st, pd])) in s.lid_groups.into_iter().enumerate() {
+            if let Some(g) = self.lid_.groups_.get_mut(t) {
+                g.count = count;
+                g.surf_depth = sd;
+                g.soil_moist = sm;
+                g.stor_depth = st;
+                g.pave_depth = pd;
+            }
+        }
     }
 
     /// Call one of step()'s helpers by the name gate/diff/ctxstep's helper mode uses; the
@@ -1469,13 +1480,7 @@ impl SwmmEngine {
         match name {
             "stats" => self.update_statistics(dt),
             "massbal" => self.update_routing_mass_balance(dt),
-            "finalstore" => {
-                if self.lid_.groups_.iter().any(|g| g.count > 0) {
-                    o.extend_from_slice(b"finalstore skipped (LID units)\n");
-                    return Ok(o);
-                }
-                self.compute_final_storage();
-            }
+            "finalstore" => self.compute_final_storage(),
             "finalqual" => self.compute_final_quality_mass_balance(),
             "nodetotals" => self.accumulate_node_routing_totals(dt / 2.0),
             "diverged" => {
