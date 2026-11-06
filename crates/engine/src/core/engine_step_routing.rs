@@ -22,10 +22,9 @@
 // NOT YET TRANSLATED (StepError::NotTranslated, returned before the hydraulic step changes
 // anything it would not also change upstream): the quality stage (QualitySolver::execute,
 // the EULERIAN_ARD and LAGRANGIAN engines, inlet quality transfer), species surface washoff
-// delivery (msxsurf::deliver for an active surface), routing interface inflow files (InterfaceManager
-// ::readInflows with a file open), engine checkpointing, the FV router, node LID Richards
-// columns, and what the solvers report as not translated (DYNAMIC_SLOT, TPA, physical
-// junction areas, control-rule expression premises, checkpoint sessions).
+// delivery (msxsurf::deliver for an active surface), engine checkpointing, the FV router,
+// node LID Richards columns, and what the solvers report as not translated (DYNAMIC_SLOT,
+// TPA, physical junction areas, control-rule expression premises, checkpoint sessions).
 
 use crate::core::context::SimulationContext;
 use crate::core::datetime;
@@ -77,9 +76,6 @@ impl SwmmEngine {
         }
         if !ctx.options.ignore_quality && ctx.reactions.surface.active() {
             return Some("species surface washoff delivery");
-        }
-        if self.iface_.infile_.is_some() {
-            return Some("routing interface inflow files");
         }
         if (ctx.n_pollutants() > 0 || legacy_reactions_active(ctx) || ctx.options.water_age || ctx.options.heat_transport) && !ctx.options.ignore_quality {
             return Some("quality routing");
@@ -171,7 +167,8 @@ impl SwmmEngine {
             }
         }
 
-        // B2b. Interface file inflows (no file open: refused above otherwise)
+        // B2b. Interface file inflows (legacy addIfaceInflows(currentDate), the same +1 ms date)
+        self.iface_.read_inflows(&mut self.ctx_, routing_date);
 
         // B2c. Assemble the lateral inflows
         self.assemble_lateral_inflows(dt_routing);

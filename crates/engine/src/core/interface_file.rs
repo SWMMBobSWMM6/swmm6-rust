@@ -8,10 +8,10 @@
 //
 // Routing interface files: the manager's state and InterfaceManager::init; and (5 November
 // 2026, for SWMMEngine::start) InterfaceFileSoA::resize, openFiles, readFileHeader,
-// readNextPeriod, setOldValues, writeFileHeader and isOutletNode.
+// readNextPeriod, setOldValues, writeFileHeader and isOutletNode; and (5 November 2026, for
+// SWMMEngine::stepRouting) readInflows, getFlow, getQuality and getIfaceNode.
 //
-// NOT YET TRANSLATED (run-time, with the routing step and the output): readInflows,
-// writeOutfallResults, getFlow, getQuality, getIfaceNode.
+// NOT YET TRANSLATED (run-time, with the output): writeOutfallResults.
 //
 // Differences in form, never in result:
 //   * The input `FILE*` is data::table::CFile (fgets as glibc does it), the output one a
@@ -387,5 +387,106 @@ impl InterfaceManager {
             return ctx.nodes.type_[ui] == NodeType::Outfall;
         }
         ctx.nodes.degree[ui] == 0
+    }
+}
+
+// ============================================================================
+// Run time (5 November 2026, for SWMMEngine::stepRouting): readInflows, getFlow, getQuality,
+// getIfaceNode
+// ============================================================================
+
+impl InterfaceManager {
+    /// readInflows: add the interface file's interpolated flows (and positive-flow pollutant
+    /// loads) at current_time to the nodes' interface inflow.
+    pub fn read_inflows(&mut self, ctx: &mut SimulationContext, current_time: f64) {
+        if self.infile_.is_none() {
+            return;
+        }
+        // Fallback: read the header if start() has not done so eagerly.
+        if self.data_.old_values.is_empty() && self.read_file_header(ctx) != 0 {
+            self.close_files();
+            return;
+        }
+        if self.data_.count == 0 {
+            return;
+        }
+        if self.old_time_ > current_time {
+            return;
+        }
+        while self.new_time_ < current_time && self.new_time_ != NO_DATE {
+            self.set_old_values();
+            self.read_next_period();
+        }
+        if self.new_time_ == NO_DATE {
+            return;
+        }
+        let dt_iface = self.new_time_ - self.old_time_;
+        if dt_iface > 0.0 {
+            self.iface_frac_ = (current_time - self.old_time_) / dt_iface;
+            self.iface_frac_ = crate::core::cmath::cmax(0.0, crate::core::cmath::cmin(1.0, self.iface_frac_));
+        } else {
+            self.iface_frac_ = 0.0;
+        }
+        for i in 0..self.data_.count {
+            let node = self.data_.node_idx[i as usize];
+            if node < 0 || node >= ctx.n_nodes() {
+                continue;
+            }
+            let flow = self.get_flow(i, self.iface_frac_);
+            // legacy addIfaceInflows: the flow and its loads are skipped below FLOW_TOL
+            if flow.abs() < crate::core::constants::FLOW_TOL {
+                continue;
+            }
+            ctx.nodes.iface_inflow[node as usize] += flow;
+            let n_polluts = ctx.n_pollutants();
+            if flow > 0.0 && n_polluts > 0 && !self.pollut_map_.is_empty() && !ctx.nodes.iface_qual_mass.is_empty() {
+                let base_q = node as usize * n_polluts as usize;
+                for p in 0..n_polluts {
+                    let qual = self.get_quality(i, p, self.iface_frac_);
+                    if qual > 0.0 {
+                        ctx.nodes.iface_qual_mass[base_q + p as usize] += flow * qual;
+                    }
+                }
+            }
+        }
+    }
+
+    /// getFlow: the interpolated flow of interface entry `index`.
+    pub fn get_flow(&self, index: i32, frac: f64) -> f64 {
+        if index < 0 || index >= self.data_.count {
+            return 0.0;
+        }
+        let base = index as usize * self.n_values_per_node_ as usize;
+        let q1 = self.data_.old_values[base];
+        let q2 = self.data_.new_values[base];
+        (1.0 - frac) * q1 + frac * q2
+    }
+
+    /// getQuality: the interpolated concentration of pollutant `pollut_idx` at entry `index`.
+    pub fn get_quality(&self, index: i32, pollut_idx: i32, frac: f64) -> f64 {
+        if index < 0 || index >= self.data_.count {
+            return 0.0;
+        }
+        if pollut_idx < 0 || pollut_idx >= self.pollut_map_.len() as i32 {
+            return 0.0;
+        }
+        let col = self.pollut_map_[pollut_idx as usize];
+        if col < 0 {
+            return 0.0;
+        }
+        let base = index as usize * self.n_values_per_node_ as usize;
+        let offset = base + (col + 1) as usize;
+        let c1 = self.data_.old_values[offset];
+        let c2 = self.data_.new_values[offset];
+        (1.0 - frac) * c1 + frac * c2
+    }
+
+    /// getIfaceNode: the project node of interface entry `index` (-1 outside the table).
+    pub fn get_iface_node(&self, index: i32) -> i32 {
+        if index >= 0 && index < self.data_.count {
+            self.data_.node_idx[index as usize]
+        } else {
+            -1
+        }
     }
 }
