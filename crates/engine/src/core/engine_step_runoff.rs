@@ -31,13 +31,11 @@
 //   * The local `total_sec_clamp` at the top of stepRunoff is computed and never used
 //     upstream; it is left out.
 //   * Code a deck reaches whose solver is not translated yet returns Err(stub(...)) at the
-//     point upstream would first act (see `stub_if`). NOT YET TRANSLATED: UEB snow
-//     (ueb::advanceSubcatchments), the heat transport hooks (routeSubcatchmentTemperature,
-//     addRunonTemperature(At), setLidInflowTemperature, routeLidLayerTemperature and the
-//     LID drain temperature), the water-age LID hooks (setLidInflowAge, routeLidLayerAge
-//     and the LID drain age), the reactions surface and LID species (msxsurf::step,
-//     bookPostLid, addLidDrain, addLidDrainRunon, msxlid::routeUnits / publishUnits), and
-//     the runoff interface file (USE RUNOFF readResults, SAVE RUNOFF saveResults).
+//     point upstream would first act (see `stub_if`). NOT YET TRANSLATED: the UEB
+//     EQUILIBRIUM surface-temperature kernel (refused before ueb::advanceSubcatchments),
+//     the reactions surface and LID species (msxsurf::step, bookPostLid, addLidDrain,
+//     addLidDrainRunon, msxlid::routeUnits / publishUnits), and the runoff interface file
+//     (USE RUNOFF readResults, SAVE RUNOFF saveResults).
 
 use crate::core::cmath::{cclamp, cmax, cmin};
 use crate::core::context::FileMode;
@@ -299,7 +297,7 @@ impl SwmmEngine {
         if dt_runoff <= 0.0 {
             dt_runoff = 1.0;
         }
-        dt_runoff = next_snow_boundary(&self.ctx_, self.old_runoff_time_, dt_runoff);
+        dt_runoff = crate::hydrology::ueb_subcatchments::next_snow_boundary(&self.ctx_, self.old_runoff_time_, dt_runoff);
 
         // Update runoff clock (legacy runoff.c:230-237)
         self.new_runoff_time_ = self.old_runoff_time_ + dt_runoff;
@@ -625,7 +623,18 @@ impl SwmmEngine {
         self.snow_.plow_snow(&self.ctx_, dt_runoff, &self.snow_snow_);
         let cs = self.ctx_.climate_state;
         self.snow_.execute(&self.ctx_, dt_runoff, cs.temperature, cs.wind_speed, &self.snow_rain_, &self.snow_snow_, cs.gamma, cs.ea);
-        stub_if(self.ctx_.snowpacks.runtime.active, "ueb::advanceSubcatchments")?;
+        // The EQUILIBRIUM surface temperature kernel is not translated: refused here, before
+        // advanceSubcatchments changes any state.
+        stub_if(self.ctx_.snowpacks.runtime.active && self.ctx_.snowpacks.config.parameters.temperature == crate::hydrology::ueb_types::TemperatureMethod::Equilibrium, "ueb_reference::equilibriumStep (UEB EQUILIBRIUM surface temperature)")?;
+        let snow_date = self.ctx_.options.start_date + self.old_runoff_time_ / 86400.;
+        match crate::hydrology::ueb_subcatchments::advance_subcatchments(&mut self.ctx_, self.snow_.state_mut(), snow_date, self.old_runoff_time_, dt_runoff, &self.snow_rain_, &self.snow_snow_) {
+            Ok(error) => {
+                if !error.is_empty() {
+                    return Err(thrown(&error));
+                }
+            }
+            Err(what) => return Err(thrown(what.as_bytes())),
+        }
 
         // A3a (Gap #20): per-subcatch snow-modified net precip
         for i in 0..self.ctx_.n_subcatches() {
@@ -1393,24 +1402,6 @@ impl SwmmEngine {
         }
         self.ctx_.mass_balance.runoff_lid_drain += lid_drain_cfs * dt_runoff;
     }
-}
-
-/// ueb::nextSnowBoundary (hydrology/surface/UebSubcatchments.cpp): the runoff step shortened
-/// to the next UEB snow step (and hourly meteorology hour) boundary.
-fn next_snow_boundary(ctx: &crate::core::context::SimulationContext, elapsed: f64, mut proposed: f64) -> f64 {
-    if !ctx.snowpacks.runtime.active || ctx.options.ignore_snow_melt {
-        return proposed;
-    }
-    let step = ctx.snowpacks.config.step;
-    let next = (((elapsed + 1e-7) / step).floor() + 1.0) * step;
-    proposed = cmin(proposed, next - elapsed);
-    if !ctx.snowpacks.meteorology.is_empty() {
-        let start = ctx.options.start_date;
-        let hour = (start - start.floor()) * 86400. + elapsed;
-        let boundary = (((hour + 1e-5) / 3600.).floor() + 1.0) * 3600.;
-        proposed = cmin(proposed, boundary - hour);
-    }
-    proposed
 }
 
 /// msxsurf::rollLidDrain (quality/MsxSurfaceQuality.cpp), active or not.

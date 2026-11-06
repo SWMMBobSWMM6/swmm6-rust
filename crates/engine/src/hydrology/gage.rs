@@ -11,10 +11,10 @@
 // sizes (gage_states_); and (5 November 2026, for the runoff step) splitPrecip,
 // updatePastRain (the context form), gageRainSeries, gageSeriesRainType, gageUnitsFactor,
 // the legacy rain-gage state machine (recordRate, nextNonzeroRecord, initGageState,
-// currentInterval, setGageState), gageNextRainDate and updateAllGages.
+// currentInterval, setGageState), gageNextRainDate, gageNextRateChange (UEB snow, 6 November
+// 2026) and updateAllGages.
 // NOT YET TRANSLATED: convertRainfall, the GageState overloads of updatePastRain and
-// getPastRain, convertGageValue, gageNextRateChange (UEB only) and the report-rainfall
-// functions.
+// getPastRain, convertGageValue and the report-rainfall functions.
 //
 // Differences of form, never in result:
 //   * gageRainSeries returns a pointer into either ctx.gages.rain_series or ctx.tables.
@@ -28,7 +28,7 @@
 // 1D build: the 2D-mesh clause (every gage is used under a rain-on-grid RAINFALL_MODE)
 // tests ctx.twod_io.mesh, which a 1D build never sets, so it is always false here.
 
-use crate::core::cmath::cclamp;
+use crate::core::cmath::{cclamp, cmin};
 use crate::core::context::SimulationContext;
 use crate::core::datetime;
 use crate::core::unit_conversion as ucf;
@@ -417,6 +417,43 @@ pub fn gage_next_rain_date(ctx: &SimulationContext, gage_idx: i32, t: f64) -> f6
     } else {
         K_NO_DATE_VALUE
     }
+}
+
+/// gageNextRateChange: the first date in (date, limit) at which gage j's rain rate changes,
+/// or limit (the UEB snow step's horizon).
+pub fn gage_next_rate_change(ctx: &SimulationContext, j: i32, date: f64, limit: f64) -> f64 {
+    let table = match gage_rain_series(ctx, j) {
+        Some(t) if !t.x.is_empty() && !ctx.options.ignore_rainfall => t,
+        _ => return limit,
+    };
+    const TOLERANCE: f64 = 1e-5 / 86400.0;
+    let uj = j as usize;
+    let duration = ctx.gages.interval_sec[uj] as f64 / 86400.0;
+    let mut current = ctx.gages.st_cur[uj];
+    let mut end = date;
+    let mut rate = 0.0;
+    if current >= 0 {
+        end = table.x[current as usize] + duration;
+        if date < end - TOLERANCE {
+            rate = record_rate(ctx, j, table, current);
+        }
+    }
+    if rate == 0.0 {
+        let mut next = ctx.gages.st_next[uj];
+        while next >= 0 && table.x[next as usize] <= date + TOLERANCE {
+            next = next_nonzero_record(ctx, j, table, next, 1.0);
+        }
+        return if next >= 0 { cmin(limit, table.x[next as usize]) } else { limit };
+    }
+    while end < limit - TOLERANCE {
+        let next = next_nonzero_record(ctx, j, table, current, 1.0);
+        if next < 0 || table.x[next as usize] > end + TOLERANCE || record_rate(ctx, j, table, next) != rate {
+            return end;
+        }
+        current = next;
+        end = table.x[current as usize] + duration;
+    }
+    limit
 }
 
 /// updateAllGages: every gage's rainfall at `current_time` (absolute days).
