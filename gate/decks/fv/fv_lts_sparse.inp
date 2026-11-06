@@ -1,0 +1,58 @@
+[TITLE]
+FV synthetic gate deck: local time stepping on a mesh of long and short conduits (sparse
+macro-cycle firing), a DUMMY link inside the cycle, LINK_STEPS reporting, and a surge that
+surcharges the short pipe (swmm6-rust, 6 Nov 2026).
+
+[OPTIONS]
+FLOW_UNITS           CFS
+FLOW_ROUTING         FV
+FV_CELL_LENGTH       10
+FV_LTS_MAX_TIERS     6
+START_DATE           01/01/2026
+START_TIME           00:00:00
+END_DATE             01/01/2026
+END_TIME             01:30:00
+REPORT_STEP          00:05:00
+ROUTING_STEP         5
+LENGTHENING_STEP     0
+
+[JUNCTIONS]
+J0     110.0  8.0  0  0  0
+J1     105.0  8.0  0  0  0
+J2     104.9  8.0  0  0  0
+J3     100.0  8.0  0  0  0
+J4      99.0  8.0  0  0  0
+
+[OUTFALLS]
+OF      95.0  FREE NO
+
+[CONDUITS]
+C1     J0   J1  1000  0.013 0 0 0 0
+C2     J1   J2    20  0.013 0 0 0 0
+C3     J2   J3  1000  0.013 0 0 0 0
+D1     J3   J4   100  0.013 0 0 0 0
+C4     J4   OF  1000  0.013 0 0 0 0
+
+[XSECTIONS]
+C1     CIRCULAR 3.0 0 0 0 1
+C2     CIRCULAR 1.0 0 0 0 1
+C3     CIRCULAR 3.0 0 0 0 1
+D1     DUMMY    0   0 0 0 1
+C4     CIRCULAR 3.0 0 0 0 1
+
+[INFLOWS]
+J0     FLOW HYD FLOW 1.0 1.0 0.5
+
+[TIMESERIES]
+HYD    0:00  0.0
+HYD    0:10  20.0
+HYD    0:20  45.0
+HYD    0:40  10.0
+HYD    1:30  0.0
+
+[REPORT]
+CONTINUITY YES
+FLOWSTATS YES
+LINK_STEPS YES
+NODES ALL
+LINKS ALL

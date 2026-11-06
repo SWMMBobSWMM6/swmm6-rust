@@ -101,6 +101,10 @@ impl Router {
         if self.fv_state_.n_species > 0 {
             return Some("FV species transport");
         }
+        if s.lts_fit_ {
+            // the OPENSWMM_FV_LTS_FIT=1 development switch (a cut macro cycle); no gate run sets it
+            return Some("FV local time stepping with OPENSWMM_FV_LTS_FIT (the fitted macro cycle)");
+        }
         let _ = ctx;
         None
     }
