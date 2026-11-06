@@ -31,6 +31,8 @@ These conventions apply to every file in `crates/engine`. `crates/engine/src/dat
 
 * An exception upstream catches becomes an `Err` the caller handles at the catch site.
 * An exception that escapes a `noexcept` function (so upstream calls `std::terminate`) becomes `Err(Terminated { exception, what })` from that function, using `core::engine_init_hydraulics::Terminated` with upstream's exception type (`"std::invalid_argument"`) and `what()` (`"stod"`). Never `panic!` and never `std::process::abort` in the library; only a gate harness may abort, to reproduce the exit code.
+* An exception still on its way to a catch further up (thrown by a function that is not `noexcept`, such as stepRunoff or stepRouting, and caught by step()'s `catch (const std::exception&)`) is an `Err(Terminated)` whose `exception` starts with `core::engine_step::THROWN_PREFIX` (`"throw std::runtime_error"`); the catch site turns it into upstream's handling.
+* A call into code not translated yet returns `Err(core::engine_step::stub("what"))` (exception `STUB_EXCEPTION`), so the gate harness reports where a run stopped. A stub of a function upstream returns no error from may `panic!("STUB: what")`; `examples/ctxstep.rs` catches that. Stubs live in files of their own (see PLAN.md, "The step's signatures") that the real translation replaces whole.
 
 ## Each file's header
 

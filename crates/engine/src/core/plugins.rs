@@ -141,11 +141,45 @@ pub struct DefaultOutputPlugin {
     state_: PluginState,
     step_count_: i64,
     n_periods_: i32,
+    // prepare() (5 November 2026, for SWMMEngine::start)
+    pub out_file_: Option<std::fs::File>,
+    pub flow_units_code_: i32,
+    pub ucf_length_: f64,
+    pub last_error_: Bytes,
 }
 
 impl DefaultOutputPlugin {
     pub fn new(out_path: Bytes) -> Self {
-        DefaultOutputPlugin { out_path_: out_path, state_: PluginState::Loaded, step_count_: 0, n_periods_: 0 }
+        DefaultOutputPlugin { out_path_: out_path, state_: PluginState::Loaded, step_count_: 0, n_periods_: 0, out_file_: None, flow_units_code_: 0, ucf_length_: 1.0, last_error_: Vec::new() }
+    }
+    /// prepare(ctx): open the .out file ("w+b") and write its header. The header writer
+    /// (writeHeader) is the output side's: core/engine_output.rs.
+    pub fn prepare(&mut self, ctx: &SimulationContext) -> i32 {
+        // checkpoint_fresh_ is false: no managed checkpoint session in a 1D CLI run
+        self.out_file_ = std::fs::OpenOptions::new().read(true).write(true).create(true).truncate(true).open(crate::core::file_io::path_from_bytes(&self.out_path_)).ok();
+        if self.out_file_.is_none() {
+            let mut m = b"Cannot open output file: ".to_vec();
+            m.extend_from_slice(&self.out_path_);
+            self.last_error_ = m;
+            return -1;
+        }
+        // setvbuf: buffering only
+        self.flow_units_code_ = ctx.options.flow_units as i32;
+        self.ucf_length_ = crate::core::unit_conversion::ucf(crate::core::unit_conversion::LENGTH, &ctx.options);
+        self.write_header(ctx);
+        self.step_count_ = 0;
+        self.n_periods_ = 0;
+        self.state_ = PluginState::Prepared;
+        0
+    }
+    pub fn last_error_message(&self) -> &[u8] {
+        &self.last_error_
+    }
+    pub fn step_count(&self) -> i64 {
+        self.step_count_
+    }
+    pub fn n_periods(&self) -> i32 {
+        self.n_periods_
     }
     pub fn initialize(&mut self, _init_args: &[Bytes]) -> i32 {
         self.step_count_ = 0;
@@ -168,11 +202,30 @@ impl DefaultOutputPlugin {
 pub struct DefaultReportPlugin {
     rpt_path_: Bytes,
     state_: PluginState,
+    // prepare() (5 November 2026, for SWMMEngine::start)
+    pub file_: Option<std::fs::File>,
+    pub last_error_: Bytes,
 }
 
 impl DefaultReportPlugin {
     pub fn new(rpt_path: Bytes) -> Self {
-        DefaultReportPlugin { rpt_path_: rpt_path, state_: PluginState::Loaded }
+        DefaultReportPlugin { rpt_path_: rpt_path, state_: PluginState::Loaded, file_: None, last_error_: Vec::new() }
+    }
+    /// prepare(ctx): open the .rpt early and write its preamble (title, input summaries,
+    /// analysis options). The preamble writer is the report side's: core/engine_output.rs.
+    pub fn prepare(&mut self, ctx: &SimulationContext) -> i32 {
+        if !self.rpt_path_.is_empty() && !ctx.options.rpt_disabled {
+            // fopen(rpt_path_, "w"); checkpoint_fresh_ is false
+            self.file_ = std::fs::OpenOptions::new().write(true).create(true).truncate(true).open(crate::core::file_io::path_from_bytes(&self.rpt_path_)).ok();
+            if self.file_.is_some() {
+                self.write_preamble(ctx);
+            }
+        }
+        self.state_ = PluginState::Prepared;
+        0
+    }
+    pub fn last_error_message(&self) -> &[u8] {
+        &self.last_error_
     }
     pub fn initialize(&mut self, _init_args: &[Bytes]) -> i32 {
         self.state_ = PluginState::Initialized;
@@ -216,6 +269,9 @@ impl DefaultStateIOPlugin {
     }
     pub fn state(&self) -> PluginState {
         self.state_
+    }
+    pub fn last_error_message(&self) -> &[u8] {
+        &self.last_error_
     }
 }
 
@@ -381,6 +437,93 @@ impl PluginFactory {
     pub fn add_report_plugin(&mut self, plugin: DefaultReportPlugin) {
         self.report_plugins_.push(plugin);
     }
+    /// initialize_all (5 November 2026, for SWMMEngine::start): every output, report and
+    /// state-IO plugin, in that order; the last nonzero code.
+    pub fn initialize_all(&mut self, _ctx: &mut SimulationContext) -> i32 {
+        let mut last_err = 0;
+        for p in self.output_plugins_.iter_mut() {
+            let rc = p.initialize(&[]);
+            if rc != 0 {
+                last_err = rc;
+            }
+        }
+        for p in self.report_plugins_.iter_mut() {
+            let rc = p.initialize(&[]);
+            if rc != 0 {
+                last_err = rc;
+            }
+        }
+        for p in self.state_io_plugins_.iter_mut() {
+            let rc = p.initialize(&[]);
+            if rc != 0 {
+                last_err = rc;
+            }
+        }
+        last_err
+    }
+
+    /// validate_all: the INITIALIZED plugins.
+    pub fn validate_all(&mut self, ctx: &mut SimulationContext) -> i32 {
+        let mut last_err = 0;
+        for p in self.output_plugins_.iter_mut() {
+            if p.state() != PluginState::Initialized {
+                continue;
+            }
+            let rc = p.validate(ctx);
+            if rc != 0 {
+                last_err = rc;
+            }
+        }
+        for p in self.report_plugins_.iter_mut() {
+            if p.state() != PluginState::Initialized {
+                continue;
+            }
+            let rc = p.validate(ctx);
+            if rc != 0 {
+                last_err = rc;
+            }
+        }
+        for p in self.state_io_plugins_.iter_mut() {
+            if p.state() != PluginState::Initialized {
+                continue;
+            }
+            let rc = p.validate(ctx);
+            if rc != 0 {
+                last_err = rc;
+            }
+        }
+        last_err
+    }
+
+    /// prepare_all: the VALIDATED output and report plugins.
+    pub fn prepare_all(&mut self, ctx: &mut SimulationContext) -> i32 {
+        let mut last_err = 0;
+        for p in self.output_plugins_.iter_mut() {
+            if p.state() != PluginState::Validated {
+                continue;
+            }
+            let rc = p.prepare(ctx);
+            if rc != 0 {
+                last_err = rc;
+            }
+        }
+        for p in self.report_plugins_.iter_mut() {
+            if p.state() != PluginState::Validated {
+                continue;
+            }
+            let rc = p.prepare(ctx);
+            if rc != 0 {
+                last_err = rc;
+            }
+        }
+        last_err
+    }
+
+    /// is_empty(): no plugin of any role (PluginFactory::empty).
+    pub fn is_empty(&self) -> bool {
+        self.input_plugins_.is_empty() && self.output_plugins_.is_empty() && self.report_plugins_.is_empty() && self.state_io_plugins_.is_empty()
+    }
+
     pub fn add_state_io_plugin(&mut self, plugin: DefaultStateIOPlugin) {
         self.state_io_plugins_.push(plugin);
     }

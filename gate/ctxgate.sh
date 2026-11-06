@@ -31,9 +31,33 @@
 #         rust:  examples/ctxopen dump -> examples/ctxload (load into a fresh engine, dump
 #                again) -> cmp
 #         cross: gate/diff/ctxopen (upstream) dump -> examples/ctxload -> cmp with upstream's text
-#       "init" dumps upstream after swmm_engine_initialize too; the translation has no
-#       initialize yet, so only the cross test runs. A deck upstream aborts on (no dump) is
-#       counted apart.
+#       "init" dumps after initialize too (the translation's SwmmEngine::initialize on the
+#       rust side). A deck where a harness aborts (no dump: the U1/U57 decks, on both sides)
+#       is counted apart.
+#
+#   gate/ctxgate.sh init | start
+#       the run lifecycle (gate/diff/ctxstep, examples/ctxstep): open, SWMMEngine::initialize
+#       (and SWMMEngine::start(1) for "start"), then the whole state: the context, the open()
+#       members, the router and hydraulic solvers, the hydrology solvers, the quality members
+#       and the lifecycle members (lifedump). Files a deck SAVEs to ([FILES], gate/savefiles.py)
+#       are backed up before each side runs and restored after, since start() truncates them.
+#   gate/ctxgate.sh step [N]
+#       the same, then up to N routing steps (default 1) through SWMMEngine::step, the dump of
+#       each step hashed (FNV-1a 64). A deck counts as identical when both sides print the same
+#       (both ran N steps, or to the end, or stopped on the same error); as "stub" when the
+#       translation stopped at a call into code not translated yet ("stub <phase> <what>", its
+#       last line) with everything before it identical; otherwise it differs, and with
+#       CTXGATE_DIFFDIR=dir the first differing deck's full dumps at the first differing step
+#       are written there (c.txt, r.txt).
+#   gate/ctxgate.sh helpers [K]
+#       step()'s own helpers against upstream's on a real mid-run state: upstream runs K real
+#       steps (default 10), writes its context and the engine members the helpers read, and
+#       calls each helper (updateStatistics, updateRoutingMassBalance, computeFinalStorage,
+#       computeFinalQualityMassBalance, accumulateNodeRoutingTotals, checkRoutingDiverged,
+#       isBetweenEvents/isInSteadyState, assembleLateralInflows, resetStepMassBalance +
+#       applyForcings) on that state; the translation loads the same state into its own
+#       started engine and calls its translation. The context after each helper is compared
+#       (hashed). Decks a helper does not apply to print "skipped" on both sides.
 #   gate/ctxgate.sh route [K1 [K0 [hyd]]]
 #       the routing-step cross test (default calls 1..300). Per deck, upstream
 #       (gate/diff/routestep) is opened, initialized and started through its C API and stepped
@@ -51,7 +75,9 @@
 #       compare saved streams by hand.)
 #       "hyd" runs each dumped call with options.ignore_quality set on both sides (the
 #       hydraulic step of a deck with pollutants, while quality routing is not translated).
-#       CTXGATE_LOG=file appends one line per deck.
+#       CTXGATE_LOG=file appends one line per deck. Files a deck SAVEs to (gate/savefiles.py)
+#       are backed up before the run and restored after, since upstream's start() truncates
+#       them and another deck may USE them.
 #
 # DECKLIST=file runs the decks listed in it (one path per line) instead of the default set.
 # CTXGATE_KEEP=file keeps the list of differing decks; CTXGATE_SHOW=n shows the first n.
@@ -63,10 +89,15 @@ else { find /root/work/corpus -name '*.inp'; find /root/work/swmm6src/upstream/t
 if [ "${1:-}" = route ]; then
   K1=${2:-300}; K0=${3:-1}; HYD=${4:-}; C_BIN="$H/gate/diff/routestep"; R_BIN="$E/routestep"
   : > "$W/res.txt"
+  mkdir -p "$W/bak"
   while IFS= read -r d; do
+    # back up the files the deck SAVEs to; restore them after the run
+    python3 "$H/gate/savefiles.py" "$d" > "$W/saves.txt" 2>/dev/null; k=0
+    while IFS= read -r f; do k=$((k+1)); rm -f "$W/bak/$k"; [ -f "$f" ] && cp -p "$f" "$W/bak/$k"; done < "$W/saves.txt"
     # upstream's dumps are piped straight into the translation (no file: a big deck's 300
     # dumped calls run to gigabytes); examples/routestep stream prints one result line
     ( cd "$(dirname "$d")" && timeout 3600 "$C_BIN" "$d" "$K0" "$K1" $HYD 2>/dev/null | timeout 3600 "$R_BIN" "$d" stream > "$W/r.txt" 2> "$W/err.txt" ) 2>/dev/null
+    k=0; while IFS= read -r f; do k=$((k+1)); if [ -f "$W/bak/$k" ]; then cp -p "$W/bak/$k" "$f"; else rm -f "$f"; fi; done < "$W/saves.txt"
     res=$(head -1 "$W/r.txt")
     if grep -q panicked "$W/err.txt"; then res="panic $(grep -m1 -A1 panicked "$W/err.txt" | tail -1 | head -c 160)"
     elif [ -z "$res" ]; then res="noresult"; fi
@@ -83,12 +114,13 @@ fi
 
 if [ "${1:-}" = loadrt ]; then
   M=${2:-open}; C_BIN="$H/gate/diff/ctxopen"; R_BIN="$E/ctxopen"; L_BIN="$E/ctxload"
-  rs=0; rd=0; xs=0; xd=0; xn=0; : > "$W/differ.txt"
+  rs=0; rd=0; rn=0; xs=0; xd=0; xn=0; : > "$W/differ.txt"
   while IFS= read -r d; do
     cd "$(dirname "$d")" || continue
-    if [ "$M" != init ]; then
-      timeout 120 "$R_BIN" "$d" "$M" > "$W/a.txt" 2>/dev/null
+    if ( timeout 120 "$R_BIN" "$d" "$M" > "$W/a.txt"; rc=$?; exit $rc ) 2>/dev/null; then
       if timeout 120 "$L_BIN" "$W/a.txt" > "$W/b.txt" 2> "$W/err.txt" && cmp -s "$W/a.txt" "$W/b.txt"; then rs=$((rs+1)); else rd=$((rd+1)); echo "rust  $d $(head -c 200 "$W/err.txt")" >> "$W/differ.txt"; fi
+    else
+      rn=$((rn+1)); echo "nodump rust $d" >> "$W/differ.txt"
     fi
     if ( timeout 120 "$C_BIN" "$d" "$M" > "$W/c.txt"; rc=$?; exit $rc ) 2>/dev/null; then
       if timeout 120 "$L_BIN" "$W/c.txt" > "$W/e.txt" 2> "$W/err.txt" && cmp -s "$W/c.txt" "$W/e.txt"; then xs=$((xs+1)); else xd=$((xd+1)); echo "cross $d $(head -c 200 "$W/err.txt")" >> "$W/differ.txt"; fi
@@ -96,9 +128,60 @@ if [ "${1:-}" = loadrt ]; then
       xn=$((xn+1)); echo "nodump $d" >> "$W/differ.txt"
     fi
   done < "$W/decks.txt"
-  [ "$M" != init ] && echo "ctxgate loadrt $M rust: $rs identical, $rd differ"
+  echo "ctxgate loadrt $M rust: $rs identical, $rd differ, $rn without a translation dump"
   echo "ctxgate loadrt $M cross: $xs identical, $xd differ, $xn without an upstream dump"
   head -${CTXGATE_SHOW:-5} "$W/differ.txt"
+  [ -n "$CTXGATE_KEEP" ] && cp "$W/differ.txt" "$CTXGATE_KEEP"; rm -rf "$W"
+  exit 0
+fi
+
+if [ "${1:-}" = init ] || [ "${1:-}" = start ] || [ "${1:-}" = step ] || [ "${1:-}" = helpers ]; then
+  M=$1; NS=${2:-1}; [ "$M" = helpers ] && NS=${2:-10}; C_BIN="$H/gate/diff/ctxstep"; R_BIN="$E/ctxstep"
+  same=0; diff=0; stubn=0; : > "$W/differ.txt"; : > "$W/stubs.txt"; : > "$W/reached.txt"; mkdir -p "$W/bak"
+  if [ "$M" = step ]; then A2=(step "$NS" hash); elif [ "$M" = helpers ]; then A2=(helper "$NS" all "$W/side"); else A2=("$M"); fi
+  while IFS= read -r d; do
+    # back up the files the deck SAVEs to; restore them after each side's run
+    python3 "$H/gate/savefiles.py" "$d" > "$W/saves.txt" 2>/dev/null; k=0
+    while IFS= read -r f; do k=$((k+1)); rm -f "$W/bak/$k"; [ -f "$f" ] && cp -p "$f" "$W/bak/$k"; done < "$W/saves.txt"
+    restore() { local k=0; while IFS= read -r f; do k=$((k+1)); if [ -f "$W/bak/$k" ]; then cp -p "$W/bak/$k" "$f"; else rm -f "$f"; fi; done < "$W/saves.txt"; }
+    ( cd "$(dirname "$d")" && timeout 600 "$C_BIN" "$d" "${A2[@]}" > "$W/c.txt" 2>/dev/null; echo "exit $?" >> "$W/c.txt" ) 2>/dev/null; restore
+    ( cd "$(dirname "$d")" && timeout 600 "$R_BIN" "$d" "${A2[@]}" > "$W/r.txt" 2>/dev/null; echo "exit $?" >> "$W/r.txt" ) 2>/dev/null; restore
+    if cmp -s "$W/c.txt" "$W/r.txt"; then
+      same=$((same+1))
+      # what the deck reached: the return codes and the exit code (an all-crash would show here)
+      echo "$(grep -aE '^(open|init|start)_rc ' "$W/c.txt" | tr '\n' ' ')$(grep -aE '^step [0-9]+ rc ' "$W/c.txt" | tail -1 | cut -d' ' -f1-4)$(grep -acE '^(skipped|.* skipped \()' "$W/c.txt" | sed 's/^0$//; s/^[1-9].*/ [some helpers skipped]/') $(tail -1 "$W/c.txt")" >> "$W/reached.txt"
+      continue
+    fi
+    # a stub: the Rust side's last line before "exit 0" is "stub ...", and everything before
+    # it matches upstream's output
+    nr=$(wc -l < "$W/r.txt"); sl=$(sed -n "$((nr-1))p" "$W/r.txt")
+    if [ "${sl%% *}" = stub ] && [ "$(tail -1 "$W/r.txt")" = "exit 0" ] && cmp -s <(head -n $((nr-2)) "$W/r.txt") <(head -n $((nr-2)) "$W/c.txt"); then
+      stubn=$((stubn+1)); echo "$sl  $d" >> "$W/stubs.txt"; continue
+    fi
+    diff=$((diff+1)); echo "$d" >> "$W/differ.txt"
+    if [ -n "$CTXGATE_DIFFDIR" ] && [ ! -f "$CTXGATE_DIFFDIR/c.txt" ]; then
+      mkdir -p "$CTXGATE_DIFFDIR"; echo "$d" > "$CTXGATE_DIFFDIR/deck.txt"
+      if [ "$M" = step ]; then
+        # the first differing line names the step (hash <k> or step <k> ...)
+        fl=$(cmp "$W/c.txt" "$W/r.txt" 2>/dev/null | sed -n 's/.* line \([0-9]*\).*/\1/p')
+        lk=$(sed -n "${fl}p" "$W/c.txt"); set -- $lk; K=${2:-0}; [ "$K" = start ] && K=0
+        ( cd "$(dirname "$d")" && timeout 600 "$C_BIN" "$d" step "$NS" full "$K" > "$CTXGATE_DIFFDIR/c.txt" 2>/dev/null ) 2>/dev/null; restore
+        ( cd "$(dirname "$d")" && timeout 600 "$R_BIN" "$d" step "$NS" full "$K" > "$CTXGATE_DIFFDIR/r.txt" 2>/dev/null ) 2>/dev/null; restore
+      else
+        cp "$W/c.txt" "$CTXGATE_DIFFDIR/c.txt"; cp "$W/r.txt" "$CTXGATE_DIFFDIR/r.txt"
+      fi
+    fi
+  done < "$W/decks.txt"
+  echo "identical decks by what they reached:"; sort "$W/reached.txt" 2>/dev/null | uniq -c | sort -rn | head -${CTXGATE_SHOW_REACHED:-12}
+  if [ "$M" = helpers ]; then
+    echo "ctxgate helpers $NS: $same identical, $diff differ (stub reached on $stubn)"
+  elif [ "$M" = step ]; then
+    echo "ctxgate step $NS: $same identical, $stubn stopped at a stub, $diff differ"
+    sed 's/  .*//' "$W/stubs.txt" | sort | uniq -c | sort -rn
+  else
+    echo "ctxgate $M: $same identical, $diff differ (stub reached on $stubn)"
+  fi
+  head -${CTXGATE_SHOW:-5} "$W/differ.txt"; head -3 "$W/stubs.txt"
   [ -n "$CTXGATE_KEEP" ] && cp "$W/differ.txt" "$CTXGATE_KEEP"; rm -rf "$W"
   exit 0
 fi

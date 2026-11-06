@@ -26,7 +26,8 @@ mod rtdump;
 use std::io::Write;
 use swmm6_rust::core::context::SimulationContext;
 use swmm6_rust::core::engine::SwmmEngine;
-use swmm6_rust::core::engine_step_routing::{STUB_EXCEPTION, THROWN_RUNTIME_ERROR};
+use swmm6_rust::core::engine_step::STUB_EXCEPTION;
+use swmm6_rust::core::engine_step_routing::THROWN_RUNTIME_ERROR;
 
 fn pf(o: &mut Vec<u8>, l: &str, v: f64) {
     writeln!(o, "{} {:016x}", l, v.to_bits()).unwrap();
@@ -80,8 +81,10 @@ fn load_stepdump(r: &mut ctxload::Rd, e: &mut SwmmEngine) {
     *s.new_rule_time_ms_ = r.pf("engine.new_rule_time_ms_");
     *s.checkpoint_enabled_ = r.pi("engine.checkpoint_enabled_") != 0;
     *s.ard_init_attempted_ = r.pi("engine.ard_init_attempted_") != 0;
-    *s.rdii_iface_open_ = r.pi("engine.rdii_iface_file_.open") != 0;
-    *s.rdii_iface_writing_ = r.pi("engine.rdii_iface_file_.writing") != 0;
+    // the RDII interface file is not loaded (the translation's stays closed): a deck with
+    // USE/SAVE RDII shows as loaddiff here, and the step gate (ctxgate.sh step) covers it
+    r.pi("engine.rdii_iface_file_.open");
+    r.pi("engine.rdii_iface_file_.writing");
     *s.wet_q_interp_ = r.vf("engine.wet_q_interp_");
     let n = r.count("engine.lid_drain_q_units_.n");
     s.lid_drain_q_units_.clear();

@@ -58,7 +58,13 @@ pub const SWMM_ERR_MEMORY: i32 = 1;
 pub const SWMM_ERR_FILE_NOT_FOUND: i32 = 2;
 pub const SWMM_ERR_PARSE: i32 = 5;
 pub const SWMM_ERR_WRONG_STATE: i32 = 6;
+pub const SWMM_ERR_BADPARAM: i32 = 9;
 pub const SWMM_ERR_PLUGIN: i32 = 10;
+pub const SWMM_ERR_IO: i32 = 11;
+// core/ErrorCodes.hpp CffiErrorCode values the lifecycle returns
+pub const CFFI_ERR_LIFECYCLE: i32 = 6;
+pub const CFFI_ERR_BADPARAM: i32 = 9;
+pub const CFFI_ERR_HOTSTART: i32 = 12;
 
 /// The warning callback of EngineCallbacks (code, message).
 pub type WarningCallback = Box<dyn FnMut(i32, &[u8])>;
@@ -66,6 +72,69 @@ pub type WarningCallback = Box<dyn FnMut(i32, &[u8])>;
 #[derive(Default)]
 pub struct EngineCallbacks {
     pub on_warning: Option<WarningCallback>,
+    /// on_progress (fraction complete, current date); the C callback's engine pointer and
+    /// user data are the closure's captures
+    pub on_progress: Option<Box<dyn FnMut(f64, f64)>>,
+    /// on_step_begin (current date, dt)
+    pub on_step_begin: Option<Box<dyn FnMut(f64, f64)>>,
+    /// on_step_end (current date, dt)
+    pub on_step_end: Option<Box<dyn FnMut(f64, f64)>>,
+}
+
+/// SWMMEngine::AvgAccumulator: float32 display-unit sums of node and link results between
+/// report boundaries (legacy RptFlags.averages).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct AvgAccumulator {
+    pub node_depth: Vec<f32>,
+    pub node_head: Vec<f32>,
+    pub node_volume: Vec<f32>,
+    pub node_lat_inflow: Vec<f32>,
+    pub node_total_inflow: Vec<f32>,
+    pub node_overflow: Vec<f32>,
+    pub link_flow: Vec<f32>,
+    pub link_depth: Vec<f32>,
+    pub link_velocity: Vec<f32>,
+    pub link_volume: Vec<f32>,
+    pub link_capacity: Vec<f32>,
+    /// Number of routing steps accumulated
+    pub n_steps: i32,
+}
+
+impl AvgAccumulator {
+    /// Allocate zeroed report-sum arrays and reset the sample count.
+    pub fn resize(&mut self, n_nodes: i32, n_links: i32) {
+        let un = n_nodes as usize;
+        let ul = n_links as usize;
+        for v in [&mut self.node_depth, &mut self.node_head, &mut self.node_volume, &mut self.node_lat_inflow, &mut self.node_total_inflow, &mut self.node_overflow] {
+            v.clear();
+            v.resize(un, 0.0);
+        }
+        for v in [&mut self.link_flow, &mut self.link_depth, &mut self.link_velocity, &mut self.link_volume, &mut self.link_capacity] {
+            v.clear();
+            v.resize(ul, 0.0);
+        }
+        self.n_steps = 0;
+    }
+
+    /// Zero the report-sum arrays and the sample count without resizing.
+    pub fn reset(&mut self) {
+        for v in [
+            &mut self.node_depth,
+            &mut self.node_head,
+            &mut self.node_volume,
+            &mut self.node_lat_inflow,
+            &mut self.node_total_inflow,
+            &mut self.node_overflow,
+            &mut self.link_flow,
+            &mut self.link_depth,
+            &mut self.link_velocity,
+            &mut self.link_volume,
+            &mut self.link_capacity,
+        ] {
+            v.iter_mut().for_each(|x| *x = 0.0);
+        }
+        self.n_steps = 0;
+    }
 }
 
 pub struct SwmmEngine {
@@ -73,10 +142,10 @@ pub struct SwmmEngine {
     /// permissive open (see set_lenient_open)
     lenient_open_: bool,
     /// parse-only handle cannot initialize a run
-    metadata_only_: bool,
+    pub(crate) metadata_only_: bool,
     /// initialize(): a native USE HOTSTART waits for the end of initialize()
     pub(crate) hotstart_deferred_: bool,
-    plugins_: PluginFactory,
+    pub(crate) plugins_: PluginFactory,
 
     // Computational modules (SWMMEngine.hpp order)
     /// Hydraulic routing (owns XSectGroups, the DW/KW solvers and the FV state)
@@ -145,40 +214,81 @@ pub struct SwmmEngine {
     /// receiving node for gw_q_interp_ (-1 = skip)
     pub(crate) gw_q_node_: Vec<i32>,
     pub(crate) old_gw_rate_: Vec<f64>,
-    callbacks_: EngineCallbacks,
+    pub(crate) callbacks_: EngineCallbacks,
     /// index of the built-in .out writer in plugins_.output_plugins() (owned there)
     binary_output_plugin_: Option<usize>,
 
-    // Members stepRouting reads or writes (core/engine_step_routing.rs), in SWMMEngine.hpp's
-    // order among themselves. The lifecycle (initialize/start/step) sets them upstream.
-    /// lazy EULERIAN_ARD init after Router::init
-    pub(crate) ard_init_attempted_: bool,
-    /// rdii_iface_file_ (RdiiInterfaceFile, [FILES] USE/SAVE RDII): not translated yet; only
-    /// whether it is open and writing is kept (stepRouting reads those two flags)
-    pub(crate) rdii_iface_open_: bool,
-    pub(crate) rdii_iface_writing_: bool,
-    /// engine checkpointing (coupled heat): not translated; stepRouting only reads the flag
-    pub(crate) checkpoint_enabled_: bool,
+    // ---- the run lifecycle's members (initialize, start, step: core/engine_initialize.rs,
+    // engine_start.rs, engine_step.rs), in upstream's relative order. Declared together
+    // here, after the others, rather than interleaved at their upstream positions. They are
+    // pub (upstream's are private) so the gate's state dumper can read them.
+    /// start() reached prepare_all (report file may be open)
+    pub plugins_prepare_attempted_: bool,
+    /// per SAVE HOTSTART row: its dated save was written this run
+    pub hotstart_save_done_: Vec<u8>,
+    /// USE HOTSTART runoff section, applied in init_modules()
+    pub hotstart_runoff_: Vec<f64>,
+    /// USE HOTSTART species surface block, applied in init_modules()
+    pub hotstart_species_: crate::core::hot_start_manager::LegacySpeciesTrailer,
+    /// optional runoff interface file (legacy "Frunoff"), opened by start()
+    pub runoff_iface_file_: Option<crate::hydrology::runoff_interface::RunoffInterfaceFile>,
+    /// RDII interface file (legacy "Frdii"), opened by start()
+    pub rdii_iface_file_: crate::hydrology::rdii_interface::RdiiInterfaceFile,
+    pub step_active_: bool,
+    pub runtime_pipeline_: bool,
+    pub checkpoint_enabled_: bool,
+    pub checkpoint_ready_: bool,
+    pub checkpoint_output_: bool,
+    pub checkpoint_model_: Bytes,
+    pub pending_hotstart_checkpoint_: Bytes,
+    pub hotstart_checkpoint_error_: Bytes,
+    pub exchange_target_: f64,
+    /// Previous runoff boundary (seconds from start)
+    pub old_runoff_time_: f64,
+    /// Next runoff boundary (seconds from start)
+    pub new_runoff_time_: f64,
+    /// legacy OldRunoffTime (msec)
+    pub old_runoff_ms_: f64,
+    /// span of the runoff step just completed (legacy oldRunoffStep)
+    pub prev_runoff_step_sec_: f64,
+    /// legacy NewRunoffTime (msec)
+    pub new_runoff_ms_: f64,
     /// legacy NewRuleTime (msec, routing.c:58)
-    pub(crate) new_rule_time_ms_: f64,
+    pub new_rule_time_ms_: f64,
+    pub prev_lid_infil_vol_: f64,
+    pub prev_lid_evap_vol_: f64,
     /// per-subcatch interpolated runoff (cfs)
-    pub(crate) wet_q_interp_: Vec<f64>,
-    /// legacy LID drain inflows, one (node, q) per unit in legacy's unit order
-    pub(crate) lid_drain_q_units_: Vec<(i32, f64)>,
-    /// the last routing step was skipped as steady
-    pub(crate) last_step_steady_: bool,
-}
-
-impl SwmmEngine {
-    /// rdii_iface_file_.isOpen() (RdiiInterfaceFile is rs6-init's; MERGE: return
-    /// self.rdii_iface_file_.is_open() and drop rdii_iface_open_)
-    pub(crate) fn rdii_iface_is_open(&self) -> bool {
-        self.rdii_iface_open_
-    }
-    /// rdii_iface_file_.isWriting() (MERGE: self.rdii_iface_file_.is_writing())
-    pub(crate) fn rdii_iface_is_writing(&self) -> bool {
-        self.rdii_iface_writing_
-    }
+    pub wet_q_interp_: Vec<f64>,
+    /// per-node interpolated LID drain inflow this routing step (cfs)
+    pub lid_drain_q_interp_: Vec<f64>,
+    /// the same drain flows per unit as (node, q), in legacy's order
+    pub lid_drain_q_units_: Vec<(i32, f64)>,
+    /// per-subcatch VlidIn this runoff step (ft3)
+    pub lid_vlidin_vol_: Vec<f64>,
+    /// per-subcatch LID surface outflow to outlet (cfs)
+    pub lid_qsurf_cfs_: Vec<f64>,
+    /// Prev step generated runoff (legacy HasRunoff)
+    pub has_runoff_: bool,
+    /// Prev step had snow cover (legacy HasSnow)
+    pub has_snow_: bool,
+    /// Whether to save binary results
+    pub save_results_: i32,
+    /// Legacy DoRouting analog (swmm5.c:748), set by start()
+    pub do_routing_: bool,
+    /// Averaging accumulator (only used when rpt_averages == true)
+    pub avg_: AvgAccumulator,
+    /// xsp_cache_: the reporting-path XSectParams cache. Upstream's entries borrow the
+    /// context's transect tables; here the cache keeps its size only, and its users build
+    /// the (verbatim-copy, so bit-identical) params from the link store when they need them.
+    pub xsp_cache_len_: usize,
+    /// generation the cache was built at
+    pub xsp_cache_gen_: u64,
+    /// True when the last stepRouting() skipped routing as steady state.
+    pub last_step_steady_: bool,
+    /// Previous routing step's system flow RATES (cfs) for the eleven routing continuity terms
+    pub routing_prev_rates_: [f64; 11],
+    /// lazy EULERIAN_ARD init after Router::init (read and set by stepRouting)
+    pub(crate) ard_init_attempted_: bool,
 }
 
 impl Default for SwmmEngine {
@@ -242,14 +352,44 @@ impl SwmmEngine {
             old_gw_rate_: Vec::new(),
             callbacks_: EngineCallbacks::default(),
             binary_output_plugin_: None,
-            ard_init_attempted_: false,
-            rdii_iface_open_: false,
-            rdii_iface_writing_: false,
+            plugins_prepare_attempted_: false,
+            hotstart_save_done_: Vec::new(),
+            hotstart_runoff_: Vec::new(),
+            hotstart_species_: Default::default(),
+            runoff_iface_file_: None,
+            rdii_iface_file_: Default::default(),
+            step_active_: false,
+            runtime_pipeline_: false,
             checkpoint_enabled_: false,
+            checkpoint_ready_: false,
+            checkpoint_output_: false,
+            checkpoint_model_: Vec::new(),
+            pending_hotstart_checkpoint_: Vec::new(),
+            hotstart_checkpoint_error_: Vec::new(),
+            exchange_target_: -1.0,
+            old_runoff_time_: 0.0,
+            new_runoff_time_: 0.0,
+            old_runoff_ms_: 0.0,
+            prev_runoff_step_sec_: 0.0,
+            new_runoff_ms_: 0.0,
             new_rule_time_ms_: 0.0,
+            prev_lid_infil_vol_: 0.0,
+            prev_lid_evap_vol_: 0.0,
             wet_q_interp_: Vec::new(),
+            lid_drain_q_interp_: Vec::new(),
             lid_drain_q_units_: Vec::new(),
+            lid_vlidin_vol_: Vec::new(),
+            lid_qsurf_cfs_: Vec::new(),
+            has_runoff_: false,
+            has_snow_: false,
+            save_results_: 0,
+            do_routing_: true,
+            avg_: AvgAccumulator::default(),
+            xsp_cache_len_: 0,
+            xsp_cache_gen_: !0u64,
             last_step_steady_: false,
+            routing_prev_rates_: [0.0; 11],
+            ard_init_attempted_: false,
         };
         e.ctx_.state = EngineState::Created;
         e
@@ -822,8 +962,6 @@ pub struct GateStepStateMut<'a> {
     pub new_rule_time_ms_: &'a mut f64,
     pub checkpoint_enabled_: &'a mut bool,
     pub ard_init_attempted_: &'a mut bool,
-    pub rdii_iface_open_: &'a mut bool,
-    pub rdii_iface_writing_: &'a mut bool,
     pub wet_q_interp_: &'a mut Vec<f64>,
     pub lid_drain_q_units_: &'a mut Vec<(i32, f64)>,
     pub gw_q_interp_: &'a mut Vec<f64>,
@@ -861,8 +999,8 @@ impl SwmmEngine {
             new_rule_time_ms_: self.new_rule_time_ms_,
             checkpoint_enabled_: self.checkpoint_enabled_,
             ard_init_attempted_: self.ard_init_attempted_,
-            rdii_iface_open_: self.rdii_iface_open_,
-            rdii_iface_writing_: self.rdii_iface_writing_,
+            rdii_iface_open_: self.rdii_iface_file_.is_open(),
+            rdii_iface_writing_: self.rdii_iface_file_.is_writing(),
             wet_q_interp_: &self.wet_q_interp_,
             lid_drain_q_units_: &self.lid_drain_q_units_,
             gw_q_interp_: &self.gw_q_interp_,
@@ -875,8 +1013,6 @@ impl SwmmEngine {
             new_rule_time_ms_: &mut self.new_rule_time_ms_,
             checkpoint_enabled_: &mut self.checkpoint_enabled_,
             ard_init_attempted_: &mut self.ard_init_attempted_,
-            rdii_iface_open_: &mut self.rdii_iface_open_,
-            rdii_iface_writing_: &mut self.rdii_iface_writing_,
             wet_q_interp_: &mut self.wet_q_interp_,
             lid_drain_q_units_: &mut self.lid_drain_q_units_,
             gw_q_interp_: &mut self.gw_q_interp_,

@@ -16,8 +16,10 @@
 //     does not write it.
 //   * `ucf::Ucf[q][unit_sys]` is `UCF[q][unit_sys]`, indexed with unit_sys as given (0 or 1).
 //
-// Not translated here (run-time; translated with the hydraulics phase): getDepth,
-// getPondedArea, getMaxOutflow, getOverflow, both storeVolume overloads,
+// getDepth (the inverse of getVolume) is at the end of the file (5 November 2026, for
+// SWMMEngine::initialize).
+//
+// Not translated here (run-time; translated with the hydraulics phase): getPondedArea, getMaxOutflow, getOverflow, both storeVolume overloads,
 // computeHeads, computeVolumes, computeOverflows and the batch kernels.
 
 use crate::core::cmath::{cclamp, cmax};
@@ -194,4 +196,120 @@ pub fn get_surf_area(nodes: &NodeData, idx: i32, depth: f64, tables: Option<&Tab
 
     // Non-storage nodes: legacy node_getSurfArea returns 0.
     0.0
+}
+
+// ============================================================================
+// Per-element: getDepth (inverse of getVolume). Translated 5 November 2026 for
+// SWMMEngine::initialize (the LID-node seeding loop); the run-time callers use it too.
+// ============================================================================
+
+/// node::getDepth(nodes, idx, volume, tables, unit_sys, subs): depth (ft) holding `volume`.
+pub fn get_depth(nodes: &NodeData, idx: i32, volume: f64, tables: Option<&TableData>, unit_sys: i32, subs: Option<&NodeSubtypes>) -> f64 {
+    let mut volume = volume;
+    if volume < 0.0 {
+        return 0.0;
+    }
+    let ui = idx as usize;
+    if nodes.storage_area[ui] > 0.0 {
+        return cclamp(volume / nodes.storage_area[ui], 0.0, nodes.full_depth[ui]);
+    }
+
+    if nodes.type_[ui] == NodeType::Storage {
+        let lr = match subs {
+            Some(s) => s.storage_row(idx),
+            None => -1,
+        };
+        if lr >= 0 && !subs.unwrap().storages.lid_state[lr as usize].cells.is_empty() {
+            let st = &subs.unwrap().storages.lid_state[lr as usize];
+            let cells = &st.cells;
+            if st.richards {
+                let surface = &cells[0];
+                return crate::core::cmath::cmin(surface.top, surface.bottom + volume / (surface.area * surface.porosity));
+            }
+            for c in cells.iter().rev() {
+                let capacity = c.geometric_volume * cmax(0.0, c.porosity - c.theta);
+                if capacity > 0.0 && volume < capacity {
+                    return c.bottom + volume / capacity * (c.top - c.bottom);
+                }
+                volume -= capacity;
+            }
+            return nodes.full_depth[ui];
+        }
+        if volume <= 0.0 {
+            return 0.0;
+        }
+        let fd = nodes.full_depth[ui];
+        let fv = nodes.full_volume[ui];
+        if fv > 0.0 && volume >= fv {
+            return fd;
+        }
+
+        // Geometry fetched lazily, only after the clamp early-out (as legacy did).
+        let g = storage_geom(nodes, subs, ui);
+
+        if g.curve >= 0 {
+            // Tabulated: quadratic solve per interval (legacy table_getStorageDepth).
+            let ci = g.curve as usize;
+            if let Some(t) = tables {
+                if ci < t.tables.len() {
+                    let ucf_len = UCF[LENGTH as usize][unit_sys as usize];
+                    let ucf_vol = UCF[VOLUME as usize][unit_sys as usize];
+                    let vol_disp = volume * ucf_vol;
+                    let d_disp = crate::data::table::table_get_storage_depth(&t.tables[ci], vol_disp);
+                    return d_disp / ucf_len;
+                }
+            }
+            if fv > 0.0 {
+                return fd * (volume / fv);
+            }
+            return 0.0;
+        }
+
+        // Functional: V = a0*d + a1/(a2+1) * d^(a2+1), in USER units (legacy storage_getDepth).
+        let a0 = g.c;
+        let a1 = g.a;
+        let a2 = g.b;
+        let ucf_len = UCF[LENGTH as usize][unit_sys as usize];
+        let ucf_vol = UCF[VOLUME as usize][unit_sys as usize];
+        let v = volume * ucf_vol;
+        let mut d: f64;
+
+        let newton_solve = |seed: f64| -> f64 {
+            let mut d = seed;
+            crate::math::find_root::newton(0.0, fd * ucf_len, &mut d, 0.001, |y: f64, f: &mut f64, df: &mut f64| {
+                let y_ft = y / ucf_len;
+                *f = get_volume(nodes, idx, y_ft, tables, unit_sys, subs) * ucf_vol - v;
+                *df = get_surf_area(nodes, idx, y_ft, tables, unit_sys, subs) * ucf_vol / ucf_len;
+            });
+            d
+        };
+
+        if is_geometric(&g) {
+            match g.shape {
+                StorageShape::Cylindrical => {
+                    d = v / a0;
+                }
+                StorageShape::Paraboloid => {
+                    d = (2.0 * v / a1).sqrt();
+                }
+                _ => {
+                    d = newton_solve(v / a0);
+                }
+            }
+        } else if a2 == 0.0 {
+            d = v / (a0 + a1);
+        } else if a0 == 0.0 {
+            let e = 1.0 / (a2 + 1.0);
+            d = (v / (a1 * e)).powf(e); // LIBM
+        } else if a2 == 1.0 && a1 > 0.0 {
+            d = ((a0 * a0 + 2. * a1 * v).sqrt() - a0) / a1;
+        } else {
+            d = newton_solve(v / (a0 + a1));
+        }
+        d /= ucf_len;
+        return crate::core::cmath::cmin(d, fd);
+    }
+
+    // JUNCTION / OUTFALL / DIVIDER: V = MIN_SURFAREA * d -> d = V / MIN_SURFAREA
+    volume / MIN_SURFAREA
 }

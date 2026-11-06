@@ -22,6 +22,7 @@ pub mod roadway;
 pub mod routing;
 pub mod routing_step;
 pub mod street;
+pub mod timestep_controller;
 pub mod topo_sort;
 pub mod transect;
 pub mod transect_types;

@@ -22,8 +22,7 @@
 // NOT YET TRANSLATED (StepError::NotTranslated, returned before the hydraulic step changes
 // anything it would not also change upstream): the quality stage (QualitySolver::execute,
 // the EULERIAN_ARD and LAGRANGIAN engines, inlet quality transfer), species surface washoff
-// delivery (msxsurf::deliver for an active surface), [FILES] USE RDII
-// (RdiiInterfaceFile::applyFlows), routing interface inflow files (InterfaceManager
+// delivery (msxsurf::deliver for an active surface), routing interface inflow files (InterfaceManager
 // ::readInflows with a file open), engine checkpointing, the FV router, node LID Richards
 // columns, and what the solvers report as not translated (DYNAMIC_SLOT, TPA, physical
 // junction areas, control-rule expression premises, checkpoint sessions).
@@ -31,6 +30,7 @@
 use crate::core::context::SimulationContext;
 use crate::core::datetime;
 use crate::core::engine_init_hydraulics::Terminated;
+use crate::core::engine_step::STUB_EXCEPTION;
 use crate::core::engine::SwmmEngine;
 use crate::core::options::{QualitySolverKind, RoutingModel};
 use crate::data::link::LinkType;
@@ -50,9 +50,7 @@ pub enum StepError {
     NotTranslated(&'static str),
 }
 
-/// core::engine_step's STUB_EXCEPTION (rs6-init): a call into code not translated yet.
-pub const STUB_EXCEPTION: &str = "swmm6_rust::stub";
-/// A std::runtime_error on its way to step()'s catch (rs6-init's THROWN_PREFIX + the type).
+/// A std::runtime_error on its way to step()'s catch (engine_step's THROWN_PREFIX + the type).
 pub const THROWN_RUNTIME_ERROR: &str = "throw std::runtime_error";
 
 impl From<StepError> for Terminated {
@@ -79,9 +77,6 @@ impl SwmmEngine {
         }
         if !ctx.options.ignore_quality && ctx.reactions.surface.active() {
             return Some("species surface washoff delivery");
-        }
-        if !ctx.options.ignore_rdii && self.rdii_iface_is_open() && !self.rdii_iface_is_writing() {
-            return Some("[FILES] USE RDII");
         }
         if self.iface_.infile_.is_some() {
             return Some("routing interface inflow files");
@@ -169,8 +164,11 @@ impl SwmmEngine {
 
         // B2a. RDII inflows
         if !self.ctx_.options.ignore_rdii {
-            // (the RDII interface file's applyFlows: refused above)
-            apply_rdii_inflows(&self.rdii_, &mut self.ctx_, routing_secs);
+            if self.rdii_iface_file_.is_open() && !self.rdii_iface_file_.is_writing() {
+                self.rdii_iface_file_.apply_flows(&mut self.ctx_, routing_date);
+            } else {
+                apply_rdii_inflows(&self.rdii_, &mut self.ctx_, routing_secs);
+            }
         }
 
         // B2b. Interface file inflows (no file open: refused above otherwise)
