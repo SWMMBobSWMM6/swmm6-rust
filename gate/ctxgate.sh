@@ -31,9 +31,9 @@
 #         rust:  examples/ctxopen dump -> examples/ctxload (load into a fresh engine, dump
 #                again) -> cmp
 #         cross: gate/diff/ctxopen (upstream) dump -> examples/ctxload -> cmp with upstream's text
-#       "init" dumps upstream after swmm_engine_initialize too; the translation has no
-#       initialize yet, so only the cross test runs. A deck upstream aborts on (no dump) is
-#       counted apart.
+#       "init" dumps after initialize too (the translation's SwmmEngine::initialize on the
+#       rust side). A deck upstream aborts on (no dump) is counted apart; on the rust side such
+#       a deck's (empty) dump fails to load and counts as differing.
 #
 #   gate/ctxgate.sh init | start
 #       the run lifecycle (gate/diff/ctxstep, examples/ctxstep): open, SWMMEngine::initialize
@@ -71,7 +71,7 @@ if [ "${1:-}" = loadrt ]; then
   rs=0; rd=0; xs=0; xd=0; xn=0; : > "$W/differ.txt"
   while IFS= read -r d; do
     cd "$(dirname "$d")" || continue
-    if [ "$M" != init ]; then
+    if true; then
       timeout 120 "$R_BIN" "$d" "$M" > "$W/a.txt" 2>/dev/null
       if timeout 120 "$L_BIN" "$W/a.txt" > "$W/b.txt" 2> "$W/err.txt" && cmp -s "$W/a.txt" "$W/b.txt"; then rs=$((rs+1)); else rd=$((rd+1)); echo "rust  $d $(head -c 200 "$W/err.txt")" >> "$W/differ.txt"; fi
     fi
@@ -81,7 +81,7 @@ if [ "${1:-}" = loadrt ]; then
       xn=$((xn+1)); echo "nodump $d" >> "$W/differ.txt"
     fi
   done < "$W/decks.txt"
-  [ "$M" != init ] && echo "ctxgate loadrt $M rust: $rs identical, $rd differ"
+  echo "ctxgate loadrt $M rust: $rs identical, $rd differ"
   echo "ctxgate loadrt $M cross: $xs identical, $xd differ, $xn without an upstream dump"
   head -${CTXGATE_SHOW:-5} "$W/differ.txt"
   [ -n "$CTXGATE_KEEP" ] && cp "$W/differ.txt" "$CTXGATE_KEEP"; rm -rf "$W"
@@ -90,7 +90,7 @@ fi
 
 if [ "${1:-}" = init ] || [ "${1:-}" = start ] || [ "${1:-}" = step ] || [ "${1:-}" = helpers ]; then
   M=$1; NS=${2:-1}; [ "$M" = helpers ] && NS=${2:-10}; C_BIN="$H/gate/diff/ctxstep"; R_BIN="$E/ctxstep"
-  same=0; diff=0; stubn=0; : > "$W/differ.txt"; : > "$W/stubs.txt"; mkdir -p "$W/bak"
+  same=0; diff=0; stubn=0; : > "$W/differ.txt"; : > "$W/stubs.txt"; : > "$W/reached.txt"; mkdir -p "$W/bak"
   if [ "$M" = step ]; then A2=(step "$NS" hash); elif [ "$M" = helpers ]; then A2=(helper "$NS" all "$W/side"); else A2=("$M"); fi
   while IFS= read -r d; do
     # back up the files the deck SAVEs to; restore them after each side's run
@@ -99,7 +99,12 @@ if [ "${1:-}" = init ] || [ "${1:-}" = start ] || [ "${1:-}" = step ] || [ "${1:
     restore() { local k=0; while IFS= read -r f; do k=$((k+1)); if [ -f "$W/bak/$k" ]; then cp -p "$W/bak/$k" "$f"; else rm -f "$f"; fi; done < "$W/saves.txt"; }
     ( cd "$(dirname "$d")" && timeout 600 "$C_BIN" "$d" "${A2[@]}" > "$W/c.txt" 2>/dev/null; echo "exit $?" >> "$W/c.txt" ) 2>/dev/null; restore
     ( cd "$(dirname "$d")" && timeout 600 "$R_BIN" "$d" "${A2[@]}" > "$W/r.txt" 2>/dev/null; echo "exit $?" >> "$W/r.txt" ) 2>/dev/null; restore
-    if cmp -s "$W/c.txt" "$W/r.txt"; then same=$((same+1)); continue; fi
+    if cmp -s "$W/c.txt" "$W/r.txt"; then
+      same=$((same+1))
+      # what the deck reached: the return codes and the exit code (an all-crash would show here)
+      echo "$(grep -E '^(open|init|start)_rc ' "$W/c.txt" | tr '\n' ' ')$(grep -E '^step [0-9]+ rc ' "$W/c.txt" | tail -1 | cut -d' ' -f1-4)$(grep -cE '^(skipped|.* skipped \()' "$W/c.txt" | sed 's/^0$//; s/^[1-9].*/ [some helpers skipped]/') $(tail -1 "$W/c.txt")" >> "$W/reached.txt"
+      continue
+    fi
     # a stub: the Rust side's last line before "exit 0" is "stub ...", and everything before
     # it matches upstream's output
     nr=$(wc -l < "$W/r.txt"); sl=$(sed -n "$((nr-1))p" "$W/r.txt")
@@ -120,6 +125,7 @@ if [ "${1:-}" = init ] || [ "${1:-}" = start ] || [ "${1:-}" = step ] || [ "${1:
       fi
     fi
   done < "$W/decks.txt"
+  echo "identical decks by what they reached:"; sort "$W/reached.txt" 2>/dev/null | uniq -c | sort -rn | head -${CTXGATE_SHOW_REACHED:-12}
   if [ "$M" = helpers ]; then
     echo "ctxgate helpers $NS: $same identical, $diff differ (stub reached on $stubn)"
   elif [ "$M" = step ]; then

@@ -1,7 +1,10 @@
 // Rust side of gate/diff/ctxopen.cpp: create the translated engine, open the deck as the
 // harness does (report and output "/dev/null", no input plugin library), print open_rc,
 // then dump the context and the engine members open() sets.
-// Usage: ctxopen deck.inp [open|lenient|metadata]
+// Usage: ctxopen deck.inp [open|lenient|metadata|init]
+// "init" also runs SwmmEngine::initialize (core/engine_initialize.rs) and prints init_rc;
+// where upstream terminates inside initialize, it prints libstdc++'s terminate message and
+// aborts, as the C++ harness's process does.
 #[path = "common/ctxdump.rs"]
 mod ctxdump;
 use std::io::Write;
@@ -22,7 +25,14 @@ fn main() {
     let mut out = std::io::stdout().lock();
     writeln!(out, "open_rc {}", rc).unwrap();
     if rc == 0 && mode == "init" {
-        panic!("initialize is not translated yet");
+        match e.initialize() {
+            Ok(irc) => writeln!(out, "init_rc {}", irc).unwrap(),
+            Err(t) => {
+                out.flush().unwrap();
+                eprintln!("terminate called after throwing an instance of '{}'\n  what():  {}", t.exception, t.what);
+                std::process::abort();
+            }
+        }
     }
     out.write_all(&ctxdump::dump(e.context())).unwrap();
     out.write_all(&ctxdump::engdump(&e)).unwrap();
