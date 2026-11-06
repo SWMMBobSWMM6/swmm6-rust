@@ -25,8 +25,7 @@
 // step_routing_not_translated): the EULERIAN_ARD and LAGRANGIAN quality engines (ArdEngine,
 // LagrangianSolver), the reaction solvers ROS2 and BDF2, EQUIL species, booster sources and
 // reaction-species LID controls (msxlid), the heat flux modules (surface, radiative and
-// bed exchange), species surface washoff delivery (msxsurf::deliver
-// for an active surface), engine checkpointing, the FV router (and FV quality transport),
+// bed exchange), engine checkpointing, the FV router (and FV quality transport),
 // node LID Richards columns, and what the solvers report as not translated (DYNAMIC_SLOT,
 // TPA, physical junction areas, control-rule expression premises, checkpoint sessions).
 
@@ -76,9 +75,6 @@ impl SwmmEngine {
         }
         if lidnode::unsupported(ctx) {
             return Some("Richards node LID columns");
-        }
-        if !ctx.options.ignore_quality && ctx.reactions.surface.active() {
-            return Some("species surface washoff delivery");
         }
         // B5's gate: the quality stage runs this step
         if (ctx.n_pollutants() > 0 || legacy_reactions_active(ctx) || ctx.options.water_age || ctx.options.heat_transport) && !ctx.options.ignore_quality {
@@ -167,7 +163,10 @@ impl SwmmEngine {
         // B2. Inflow sources into the decomposed buffers
         self.ctx_.nodes.clear_inflow_sources();
         self.inflow_.compute_all(&mut self.ctx_, routing_date, dt_routing);
-        // (msxsurf::deliver: a no-op without an active species surface, refused above)
+        // BW-MSX: this step's species washoff joins the external species loads
+        if !self.ctx_.options.ignore_quality {
+            crate::transport::msx_surface::deliver(&mut self.ctx_, dt_routing);
+        }
         if !self.ctx_.options.ignore_quality {
             drain_msx_coupling_queue(&mut self.ctx_, dt_routing);
         }

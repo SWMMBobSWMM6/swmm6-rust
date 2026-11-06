@@ -10,8 +10,9 @@
 // (namespace msxsurf): resolve() binds the [BUILDUP]/[WASHOFF]/[LOADINGS] rows that name
 // a species (or a pollutant declared after the section), resolves LID REMOVALS by name,
 // and activates the species store for rainfall-only decks; and the init-time initState
-// (with the file-local buildupAt), which SWMMEngine::initQuality calls. The run-time
-// kernels in the same upstream file are not translated here.
+// (with the file-local buildupAt), which SWMMEngine::initQuality calls; and deliver
+// (translated 5 November 2026), which SWMMEngine::stepRouting calls each routing step. The
+// other run-time kernels in the same upstream file are not translated here.
 
 use crate::core::cmath::{cmax, cmin};
 use crate::core::context::SimulationContext;
@@ -471,4 +472,73 @@ pub fn remaining_buildup(ctx: &SimulationContext, m: i32) -> f64 {
         total += s.led_ponded_lost[m as usize];
     }
     total
+}
+
+/// msxsurf::deliver: this routing step's species washoff (and the LID drain species loads)
+/// into the external species loads (msx_ext_mass_in) at the outlet nodes, at legacy's
+/// interpolation point between the runoff times.
+pub fn deliver(ctx: &mut SimulationContext, _dt_routing: f64) {
+    if !ctx.reactions.surface.active() {
+        return;
+    }
+    let nm = ctx.reactions.n_species();
+    if nm != ctx.reactions.surface.n_species || ctx.n_nodes() <= 0 {
+        return;
+    }
+    let want = ctx.n_nodes() as usize * nm as usize;
+    if ctx.reactions.msx_ext_mass_in.len() != want {
+        ctx.reactions.msx_ext_mass_in.clear();
+        ctx.reactions.msx_ext_mass_in.resize(want, 0.0);
+    }
+    for i in 0..ctx.n_subcatches() {
+        let ui = i as usize;
+        let out_node = ctx.subcatches.outlet_node[ui];
+        if out_node < 0 || out_node >= ctx.n_nodes() {
+            continue;
+        }
+        let f = ctx.runoff_interp_f;
+        let f1 = 1.0 - f;
+        let q_old = ctx.subcatches.old_runoff[ui];
+        let q_new = ctx.subcatches.runoff[ui];
+        let q = f1 * q_old + f * q_new;
+        if q <= 0.0 {
+            continue;
+        }
+        let rx = &mut ctx.reactions;
+        let s = &rx.surface;
+        let has_old = s.washoff_conc_old.len() == s.washoff_conc.len();
+        let base = out_node as usize * nm as usize;
+        for m in 0..nm {
+            let si = s.sidx(i, m);
+            let c_new = s.washoff_conc[si];
+            let c_old = if has_old { s.washoff_conc_old[si] } else { c_new };
+            let mass_rate = f1 * (q_old * c_old) + f * (q_new * c_new);
+            if mass_rate > 0.0 {
+                rx.msx_ext_mass_in[base + m as usize] += mass_rate;
+            }
+        }
+    }
+    if ctx.reactions.surface.lid_drain_load.len() == want {
+        let f = ctx.runoff_interp_f;
+        let f1 = 1.0 - f;
+        let has_old = ctx.reactions.surface.lid_drain_load_old.len() == want;
+        for j in 0..ctx.n_nodes() {
+            let uj = j as usize;
+            let v_new = if uj < ctx.nodes.lid_drain_qual_vol.len() { ctx.nodes.lid_drain_qual_vol[uj] } else { 0.0 };
+            let v_old = if uj < ctx.nodes.lid_drain_qual_vol_old.len() { ctx.nodes.lid_drain_qual_vol_old[uj] } else { 0.0 };
+            if f1 * v_old + f * v_new <= 0.0 {
+                continue;
+            }
+            let rx = &mut ctx.reactions;
+            for m in 0..nm as usize {
+                let k = uj * nm as usize + m;
+                let w_new = rx.surface.lid_drain_load[k];
+                let w_old = if has_old { rx.surface.lid_drain_load_old[k] } else { 0.0 };
+                let load = f1 * w_old + f * w_new;
+                if load > 0.0 {
+                    rx.msx_ext_mass_in[k] += load;
+                }
+            }
+        }
+    }
 }

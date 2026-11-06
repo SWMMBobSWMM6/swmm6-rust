@@ -13,7 +13,8 @@ Phase 1a (1D) is under way. Done, and identical to upstream on every gate deck:
 * the leaf numerics: cross-section geometry and its tables, transects, streets, force mains, the C library functions upstream depends on (`strtod`, `from_chars`, `sscanf`, `%.10g`, `std::sort` and the `unordered_map`/`map` orders);
 * the run lifecycle: `initialize()` as a whole and `start()` (identical on all 932 gate decks), and `step()` with its own bookkeeping (statistics, routing mass balance, final storage), gated helper by helper;
 * the runoff (hydrology) step, `stepRunoff`: rain gages, climate, the nonlinear reservoir, all infiltration methods, degree-day snow, groundwater, RDII, the LID units, buildup and washoff, the runoff mass balance (identical on every gate deck that reaches it, loaded from upstream's own state mid-run; the SWMM6-only UEB snow, heat and reaction-species hooks are still stubs);
-* the hydraulic routing step (`stepRouting`) for STEADY, KINWAVE and DYNWAVE routing: the dynamic-wave solver (EXTRAN and SLOT surcharge, virtual junctions), kinematic wave and steady flow, nodes, outfalls, dividers, storage and its exfiltration, pumps, orifices, weirs, outlets, culverts, force mains, roadways, street and channel inlets, node LID columns, control rules and the inflows. It is checked call by call against upstream's own `stepRouting` (`ctxgate.sh route`, PLAN.md).
+* the hydraulic routing step (`stepRouting`) for STEADY, KINWAVE and DYNWAVE routing: the dynamic-wave solver (EXTRAN and SLOT surcharge, virtual junctions), kinematic wave and steady flow, nodes, outfalls, dividers, storage and its exfiltration, pumps, orifices, weirs, outlets, culverts, force mains, roadways, street and channel inlets, node LID columns, control rules and the inflows. It is checked call by call against upstream's own `stepRouting` (`ctxgate.sh route`, PLAN.md);
+* the routing step's water quality under the LEGACY quality solver: pollutant loads from every source, mixing in nodes and links, decay, evaporation and seepage, `[TREATMENT]` expressions, the storage-node LID layer treatment, the SWMM6 water-age and temperature mirrors, and reaction species (transport and kinetics with the EUL and RK5 solvers), also checked by `ctxgate.sh route`.
 
 * the output side and the end of the run: the `.out` writer (header, every report period, the closing records), the `.rpt` writer (preamble, warnings and errors, every continuity block and summary table, the timing lines, the report of a run that fails in open, initialize or start), the report-period snapshot with its interpolation and time-step averaging, SAVE HOTSTART in the legacy format, `end()`, `report()`, `close()`, and the command-line program `openswmm` (`src/bin/openswmm.rs`, upstream's `src/cli/main.cpp`). Checked by `ctxgate.sh out`, which loads upstream's own mid-run and end-of-run state into the translated writers (PLAN.md).
 
@@ -44,7 +45,7 @@ Where upstream crashes (an exception escaping a `noexcept` function), the Rust f
 | `tools/` | generators for the state dumpers and loader, and a first-pass translator for structure-of-arrays headers |
 | `census/` | OpenSWMM 6 against EPA SWMM 5.2.4 on a corpus of SWMM5 models |
 | `TRANSLATING.md` | the translation rules |
-| `UPSTREAM_NOTES.md` | 91 upstream oddities found along the way, each quoting the code |
+| `UPSTREAM_NOTES.md` | 92 upstream oddities found along the way, each quoting the code |
 
 `cargo build --release` builds the library. The gates also need the reference build of OpenSWMM 6 and the deck corpora; `gate/build.sh` and `gate/ctxgate.sh` say where they expect them.
 
