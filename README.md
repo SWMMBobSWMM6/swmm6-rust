@@ -14,7 +14,9 @@ Phase 1a (1D) is under way. Done, and identical to upstream on every gate deck:
 * the run lifecycle: `initialize()` as a whole and `start()` (identical on all 932 gate decks), and `step()` with its own bookkeeping (statistics, routing mass balance, final storage), gated helper by helper;
 * the hydraulic routing step (`stepRouting`) for STEADY, KINWAVE and DYNWAVE routing: the dynamic-wave solver (EXTRAN and SLOT surcharge, virtual junctions), kinematic wave and steady flow, nodes, outfalls, dividers, storage and its exfiltration, pumps, orifices, weirs, outlets, culverts, force mains, roadways, street and channel inlets, node LID columns, control rules and the inflows. It is checked call by call against upstream's own `stepRouting` (`ctxgate.sh route`, PLAN.md).
 
-Not yet translated: runoff, quality routing, the FV router, and the `.out` and `.rpt` writers; `step()` calls the missing pieces through stub files. **It does not run a simulation yet.** [PLAN.md](PLAN.md) has the phases and what comes next. 2D comes after 1D.
+* the output side and the end of the run: the `.out` writer (header, every report period, the closing records), the `.rpt` writer (preamble, warnings and errors, every continuity block and summary table, the timing lines, the report of a run that fails in open, initialize or start), the report-period snapshot with its interpolation and time-step averaging, SAVE HOTSTART in the legacy format, `end()`, `report()`, `close()`, and the command-line program `openswmm` (`src/bin/openswmm.rs`, upstream's `src/cli/main.cpp`). Checked by `ctxgate.sh out`, which loads upstream's own mid-run and end-of-run state into the translated writers (PLAN.md).
+
+Not yet translated: runoff (in progress on its own branch), quality routing and the FV router; `step()` calls the missing pieces through stub files. **It does not run a simulation end to end yet**: `openswmm` stops at the runoff step's stub with exit status 3. [PLAN.md](PLAN.md) has the phases and what comes next. 2D comes after 1D.
 
 ## How it is checked
 
@@ -35,13 +37,13 @@ Where upstream crashes (an exception escaping a `noexcept` function), the Rust f
 
 | Path | What |
 |---|---|
-| `crates/engine` | the library (`swmm6_rust`), `#![forbid(unsafe_code)]` |
+| `crates/engine` | the library (`swmm6_rust`), `#![forbid(unsafe_code)]`, and the command-line program `openswmm` (`src/bin`) |
 | `crates/engine/examples` | the Rust side of each gate harness |
 | `gate/` | the C++ harnesses that link the reference library, the deck set, `ctxgate.sh` |
 | `tools/` | generators for the state dumpers and loader, and a first-pass translator for structure-of-arrays headers |
 | `census/` | OpenSWMM 6 against EPA SWMM 5.2.4 on a corpus of SWMM5 models |
 | `TRANSLATING.md` | the translation rules |
-| `UPSTREAM_NOTES.md` | 77 upstream oddities found along the way, each quoting the code |
+| `UPSTREAM_NOTES.md` | 84 upstream oddities found along the way, each quoting the code |
 
 `cargo build --release` builds the library. The gates also need the reference build of OpenSWMM 6 and the deck corpora; `gate/build.sh` and `gate/ctxgate.sh` say where they expect them.
 

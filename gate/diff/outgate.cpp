@@ -249,6 +249,8 @@ int main(int argc, char** argv) {
             break;
     }
     std::printf("ENDSTATE %d\n", err);
+    // the writer thread's queue drained, so the period count dumped is the final one
+    static_cast<openswmm::SWMMEngine*>(engine)->io_thread_.flush();
     dumpall(*static_cast<openswmm::SWMMEngine*>(engine));
     std::fflush(stdout);
     int result = err;
