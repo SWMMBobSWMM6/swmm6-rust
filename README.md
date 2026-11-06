@@ -40,7 +40,7 @@ Where upstream crashes (an exception escaping a `noexcept` function), the Rust f
 | `tools/` | generators for the state dumpers and loader, and a first-pass translator for structure-of-arrays headers |
 | `census/` | OpenSWMM 6 against EPA SWMM 5.2.4 on a corpus of SWMM5 models |
 | `TRANSLATING.md` | the translation rules |
-| `UPSTREAM_NOTES.md` | 73 upstream oddities found along the way, each quoting the code |
+| `UPSTREAM_NOTES.md` | 74 upstream oddities found along the way, each quoting the code |
 
 `cargo build --release` builds the library. The gates also need the reference build of OpenSWMM 6 and the deck corpora; `gate/build.sh` and `gate/ctxgate.sh` say where they expect them.
 

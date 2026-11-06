@@ -103,7 +103,7 @@ if [ "${1:-}" = init ] || [ "${1:-}" = start ] || [ "${1:-}" = step ] || [ "${1:
     if cmp -s "$W/c.txt" "$W/r.txt"; then
       same=$((same+1))
       # what the deck reached: the return codes and the exit code (an all-crash would show here)
-      echo "$(grep -E '^(open|init|start)_rc ' "$W/c.txt" | tr '\n' ' ')$(grep -E '^step [0-9]+ rc ' "$W/c.txt" | tail -1 | cut -d' ' -f1-4)$(grep -cE '^(skipped|.* skipped \()' "$W/c.txt" | sed 's/^0$//; s/^[1-9].*/ [some helpers skipped]/') $(tail -1 "$W/c.txt")" >> "$W/reached.txt"
+      echo "$(grep -aE '^(open|init|start)_rc ' "$W/c.txt" | tr '\n' ' ')$(grep -aE '^step [0-9]+ rc ' "$W/c.txt" | tail -1 | cut -d' ' -f1-4)$(grep -acE '^(skipped|.* skipped \()' "$W/c.txt" | sed 's/^0$//; s/^[1-9].*/ [some helpers skipped]/') $(tail -1 "$W/c.txt")" >> "$W/reached.txt"
       continue
     fi
     # a stub: the Rust side's last line before "exit 0" is "stub ...", and everything before
