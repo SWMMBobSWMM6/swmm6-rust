@@ -10,10 +10,11 @@
 // The FV section closure (Hermite area/width/I1 tables and their inverse), the slot
 // taper, and the exact section geometry (secgeom) the closure tables are sampled from.
 //
-// NOT YET TRANSLATED (step kernels, with the FV step): FvKernels' celerity, FaceState,
-// FaceFlux, waveSpeeds, physicalFlux, riemannMassFlux, riemannFlux, speciesFlux,
-// frictionUpdate, localLossUpdate, ufUpdate, the tpa* kernels, faceCflDt and
-// positivityScale.
+// The step kernels (5 November 2026, with the FV step): closureEval with the radius output,
+// closureI1, i1OfDepth, celerity, waveSpeeds, physicalFlux, riemannMassFlux, riemannFlux,
+// frictionUpdate, localLossUpdate, ufUpdate, the tpa* kernels, faceCflDt and positivityScale
+// (FaceState and FaceFlux are in explicit_solver). NOT TRANSLATED: speciesFlux (species
+// transport on the FV mesh; no gate deck carries FV species).
 //
 // Differences in form, never in result:
 //   * `static_cast<int>(double)` is cvt_i32 (INT_MIN for NaN / out of range, as x86).
@@ -116,6 +117,43 @@ pub fn closure_eval(c: &FvClosure, h: f64) -> ClosureEval {
     e.t = if dadh > 0.0 { dadh } else { 0.0 };
     e.i1 = c.I1[i as usize] + idh;
     e
+}
+
+/// closureEval(c, h, radius): the same evaluation, with the hydraulic radius as well.
+pub fn closure_eval_r(c: &FvClosure, h: f64) -> (ClosureEval, f64) {
+    let mut e = ClosureEval::default();
+    let mut radius = 0.0;
+    if h <= 0.0 {
+        return (e, radius);
+    }
+    if h >= c.y_full {
+        radius = c.r_full;
+        let d = h - c.y_full;
+        e.a = c.a_crown + c.t_slot * d;
+        e.t = c.t_slot;
+        e.i1 = c.i1_crown + c.a_crown * d + 0.5 * c.t_slot * d * d;
+        return (e, radius);
+    }
+    if c.kind == K_CLOSURE_POLYNOMIAL {
+        e.a = (c.c2 * h + c.c1) * h;
+        let p = c.p0 + c.p1 * h;
+        radius = if p > 0.0 { (c.c2 * h + c.c1) * h / p } else { 0.0 };
+        e.t = 2.0 * c.c2 * h + c.c1;
+        e.i1 = (c.c2 * h / 3.0 + 0.5 * c.c1) * h * h;
+        return (e, radius);
+    }
+    let (i, t) = closure_locate(c, h);
+    let ui = i as usize;
+    radius = c.R[ui] + t * (c.R[ui + 1] - c.R[ui]);
+    let (a, dadh, idh) = closure_hermite(c, i, t);
+    e.a = a;
+    e.t = if dadh > 0.0 { dadh } else { 0.0 };
+    e.i1 = c.I1[ui] + idh;
+    (e, radius)
+}
+
+pub fn closure_i1(c: &FvClosure, h: f64) -> f64 {
+    closure_eval(c, h).i1
 }
 
 pub fn closure_area(c: &FvClosure, h: f64) -> f64 {
@@ -278,6 +316,168 @@ pub fn hyd_rad_of_depth(g: &FvGeometry, h: f64) -> f64 {
 
 pub fn depth_of_area(g: &FvGeometry, a: f64) -> f64 {
     closure_depth_of_area(&g.closure_tbl, a)
+}
+
+pub fn i1_of_depth(g: &FvGeometry, h: f64, _area_at_h: f64) -> f64 {
+    closure_i1(&g.closure_tbl, h)
+}
+
+pub fn celerity(a: f64, t: f64) -> f64 {
+    if a <= K_DRY_AREA || t <= 0.0 {
+        return 0.0;
+    }
+    (K_GRAVITY * a / t).sqrt()
+}
+
+use crate::core::cmath::{cmax, cmin};
+use crate::hydraulics::fv::explicit_solver::{FaceFlux, FaceState};
+
+/// waveSpeeds(L, R, sl, sr), returned as (sl, sr).
+pub fn wave_speeds(l: &FaceState, r: &FaceState) -> (f64, f64) {
+    let wet_l = l.a > K_DRY_AREA;
+    let wet_r = r.a > K_DRY_AREA;
+    let (mut sl, mut sr);
+    if wet_l && wet_r {
+        sl = cmin(l.u - l.c, r.u - r.c);
+        sr = cmax(l.u + l.c, r.u + r.c);
+        if l.press != r.press && l.press < 2 && r.press < 2 {
+            if l.press != 0 {
+                let da = l.a - r.a;
+                let w = if da > 0.0 { (l.q - r.q) / da } else { sr };
+                sr = cmax(r.u + r.c, cmin(sr, w));
+            } else {
+                let da = r.a - l.a;
+                let w = if da > 0.0 { (r.q - l.q) / da } else { sl };
+                sl = cmin(l.u - l.c, cmax(sl, w));
+            }
+        }
+    } else if wet_r {
+        sl = r.u - 2.0 * r.c;
+        sr = r.u + r.c;
+    } else if wet_l {
+        sl = l.u - l.c;
+        sr = l.u + 2.0 * l.c;
+    } else {
+        sl = 0.0;
+        sr = 0.0;
+    }
+    (sl, sr)
+}
+
+/// physicalFlux(S, fa, fq), returned as (fa, fq).
+pub fn physical_flux(s: &FaceState) -> (f64, f64) {
+    (s.q, s.q * s.u + K_GRAVITY * s.i1)
+}
+
+pub fn riemann_mass_flux(l: &FaceState, r: &FaceState) -> f64 {
+    if l.a <= K_DRY_AREA && r.a <= K_DRY_AREA {
+        return 0.0;
+    }
+    let (sl, sr) = wave_speeds(l, r);
+    let (fal, _fql) = physical_flux(l);
+    let (far, _fqr) = physical_flux(r);
+    if sl >= 0.0 {
+        return fal;
+    }
+    if sr <= 0.0 {
+        return far;
+    }
+    (sr * fal - sl * far + sl * sr * (r.a - l.a)) / (sr - sl)
+}
+
+pub fn riemann_flux(l: &FaceState, r: &FaceState) -> FaceFlux {
+    let mut out = FaceFlux::default();
+    if l.a <= K_DRY_AREA && r.a <= K_DRY_AREA {
+        return out;
+    }
+    let (sl, sr) = wave_speeds(l, r);
+    out.sl = sl;
+    out.sr = sr;
+    let (fal, fql) = physical_flux(l);
+    let (far, fqr) = physical_flux(r);
+    if sl >= 0.0 {
+        out.mass = fal;
+        out.mom = fql;
+        out.sstar = sl;
+        return out;
+    }
+    if sr <= 0.0 {
+        out.mass = far;
+        out.mom = fqr;
+        out.sstar = sr;
+        return out;
+    }
+    let dsr = sr - sl;
+    out.mass = (sr * fal - sl * far + sl * sr * (r.a - l.a)) / dsr;
+    out.mom = (sr * fql - sl * fqr + sl * sr * (r.q - l.q)) / dsr;
+    let den = r.a * (r.u - sr) - l.a * (l.u - sl);
+    if den.abs() > 1.0e-14 {
+        out.sstar = (sl * r.a * (r.u - sr) - sr * l.a * (l.u - sl)) / den;
+    } else {
+        let a_hll = (sr * r.a - sl * l.a - (far - fal)) / dsr;
+        out.sstar = if a_hll > K_DRY_AREA { out.mass / a_hll } else { 0.0 };
+    }
+    out
+}
+
+pub fn friction_update(q: f64, u: f64, r: f64, dt: f64, rough_factor: f64) -> f64 {
+    if r <= 0.0 || rough_factor <= 0.0 {
+        return q;
+    }
+    let r43 = r * crate::core::cmath::glibc_cbrt(r); // LIBM (std::cbrt: glibc's, not Rust's f64::cbrt)
+    let den = 1.0 + dt * rough_factor * u.abs() / r43;
+    q / den
+}
+
+pub fn local_loss_update(q: f64, u: f64, k: f64, dx: f64, dt: f64) -> f64 {
+    if k <= 0.0 || dx <= 0.0 {
+        return q;
+    }
+    q / (1.0 + dt * k * u.abs() / (2.0 * dx))
+}
+
+pub fn uf_update(q: f64, a: f64, u_old: f64, k3: f64, grad_term: f64, dt: f64) -> f64 {
+    if k3 <= 0.0 || a <= 0.0 {
+        return q;
+    }
+    const K_UF_VEL_FLOOR: f64 = 0.01;
+    if u_old.abs() < K_UF_VEL_FLOOR && (q / a).abs() < K_UF_VEL_FLOOR {
+        return q;
+    }
+    let mut qn = (q + k3 * a * u_old) / (1.0 + k3);
+    qn -= dt * k3 * a * grad_term;
+    let dq = qn - q;
+    let cap = 0.5 * q.abs();
+    if dq.abs() > cap {
+        qn = q + if dq > 0.0 { cap } else { -cap };
+    }
+    qn
+}
+
+pub fn tpa_depth_of_area(g: &FvGeometry, a: f64) -> f64 {
+    g.y_full + (a - g.a_crown) / g.t_slot
+}
+
+pub fn tpa_area_of_depth(g: &FvGeometry, h: f64) -> f64 {
+    g.a_crown + g.t_slot * (h - g.y_full)
+}
+
+pub fn tpa_i1_of_depth(g: &FvGeometry, h: f64) -> f64 {
+    g.i1_crown + g.a_crown * (h - g.y_full)
+}
+
+pub fn face_cfl_dt(cfl: f64, dx: f64, u: f64, c: f64) -> f64 {
+    let s = u.abs() + c;
+    if s > 1.0e-12 { cfl * dx / s } else { 1.0e30 }
+}
+
+pub fn positivity_scale(vol: f64, outflow: f64, dt: f64) -> f64 {
+    if outflow <= 0.0 || dt <= 0.0 {
+        return 1.0;
+    }
+    let take = outflow * dt;
+    let avail = if vol > 0.0 { vol } else { 0.0 };
+    if take <= avail { 1.0 } else { avail / take }
 }
 
 // ===========================================================================

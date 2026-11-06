@@ -1376,6 +1376,21 @@ impl FromI64 for swmm6_rust::hydraulics::xsect_kernels::LutId {
         bad_enum("LutId", v)
     }
 }
+impl FromI64 for swmm6_rust::hydraulics::fv::native_gmres::GmresStatus {
+    fn from_i64(v: i64) -> Self {
+        use swmm6_rust::hydraulics::fv::native_gmres::GmresStatus as E;
+        if v == E::Converged as i64 { return E::Converged; }
+        if v == E::InvalidInput as i64 { return E::InvalidInput; }
+        if v == E::MemoryLimit as i64 { return E::MemoryLimit; }
+        if v == E::NonFinite as i64 { return E::NonFinite; }
+        if v == E::OperatorFailure as i64 { return E::OperatorFailure; }
+        if v == E::PreconditionerFailure as i64 { return E::PreconditionerFailure; }
+        if v == E::Breakdown as i64 { return E::Breakdown; }
+        if v == E::Stagnated as i64 { return E::Stagnated; }
+        if v == E::IterationLimit as i64 { return E::IterationLimit; }
+        bad_enum("GmresStatus", v)
+    }
+}
 impl FromI64 for swmm6_rust::hydrology::climate_file::ClimateFileFormat {
     fn from_i64(v: i64) -> Self {
         use swmm6_rust::hydrology::climate_file::ClimateFileFormat as E;
@@ -4009,7 +4024,217 @@ pub fn load_rt(r: &mut Rd, e: &mut SwmmEngine) {
     g.router_.fv_opts_.lts_max_tiers = FromI64::from_i64(r.pi("router.fv_opts_.lts_max_tiers"));
     g.router_.fv_opts_.cfl_census_interval = FromI64::from_i64(r.pi("router.fv_opts_.cfl_census_interval"));
     g.router_.fv_opts_.dispersion = FromF64::from_f64(r.pf("router.fv_opts_.dispersion"));
-    r.skip_prefix("router.fv_solver_");
+    if r.pi("router.fv_solver_") != 0 { let s = (g.router_.fv_solver_).as_mut().expect("FV backend built by the init legs");
+    if r.pi("router.fv_solver_.attached") != s.attached_ as i64 || r.pi("router.fv_solver_.step_sink") != s.step_sink_set_ as i64 { r.fail("FV backend attachment differs from the init legs"); }
+    s.opts_.cell_length = FromF64::from_f64(r.pf("router.fv_solver_.opts_.cell_length"));
+    s.opts_.min_cells = FromI64::from_i64(r.pi("router.fv_solver_.opts_.min_cells"));
+    s.opts_.pressure_closure = FromI64::from_i64(r.pi("router.fv_solver_.opts_.pressure_closure"));
+    s.opts_.unsteady_friction = FromI64::from_i64(r.pi("router.fv_solver_.opts_.unsteady_friction"));
+    s.opts_.uf_k3 = FromF64::from_f64(r.pf("router.fv_solver_.opts_.uf_k3"));
+    s.opts_.cfl = FromF64::from_f64(r.pf("router.fv_solver_.opts_.cfl"));
+    s.opts_.riemann = FromI64::from_i64(r.pi("router.fv_solver_.opts_.riemann"));
+    s.opts_.order = FromI64::from_i64(r.pi("router.fv_solver_.opts_.order"));
+    s.opts_.limiter = FromI64::from_i64(r.pi("router.fv_solver_.opts_.limiter"));
+    s.opts_.scalar_scheme = FromI64::from_i64(r.pi("router.fv_solver_.opts_.scalar_scheme"));
+    s.opts_.time_integration = FromI64::from_i64(r.pi("router.fv_solver_.opts_.time_integration"));
+    s.opts_.slot_celerity = FromF64::from_f64(r.pf("router.fv_solver_.opts_.slot_celerity"));
+    s.opts_.pressurized_implicit = FromI64::from_i64(r.pi("router.fv_solver_.opts_.pressurized_implicit"));
+    s.opts_.structure_coupling = FromI64::from_i64(r.pi("router.fv_solver_.opts_.structure_coupling"));
+    s.opts_.backend = FromI64::from_i64(r.pi("router.fv_solver_.opts_.backend"));
+    s.opts_.min_parallel_cells = FromI64::from_i64(r.pi("router.fv_solver_.opts_.min_parallel_cells"));
+    s.opts_.compaction = FromI64::from_i64(r.pi("router.fv_solver_.opts_.compaction"));
+    s.opts_.lts = FromI64::from_i64(r.pi("router.fv_solver_.opts_.lts"));
+    s.opts_.node_feedback_dt = FromI64::from_i64(r.pi("router.fv_solver_.opts_.node_feedback_dt"));
+    s.opts_.lts_max_tiers = FromI64::from_i64(r.pi("router.fv_solver_.opts_.lts_max_tiers"));
+    s.opts_.cfl_census_interval = FromI64::from_i64(r.pi("router.fv_solver_.opts_.cfl_census_interval"));
+    s.opts_.dispersion = FromF64::from_f64(r.pf("router.fv_solver_.opts_.dispersion"));
+    set_vf(&mut s.f_mass_, r.vf("router.fv_solver_.f_mass_"));
+    set_vf(&mut s.f_mom_, r.vf("router.fv_solver_.f_mom_"));
+    set_vf(&mut s.f_sstar_, r.vf("router.fv_solver_.f_sstar_"));
+    set_vf(&mut s.f_corr_l_, r.vf("router.fv_solver_.f_corr_l_"));
+    set_vf(&mut s.f_corr_r_, r.vf("router.fv_solver_.f_corr_r_"));
+    set_vf(&mut s.f_phi_l_, r.vf("router.fv_solver_.f_phi_l_"));
+    set_vf(&mut s.f_phi_r_, r.vf("router.fv_solver_.f_phi_r_"));
+    set_vf(&mut s.f_phi_flux_, r.vf("router.fv_solver_.f_phi_flux_"));
+    set_vf(&mut s.cell_slope_, r.vf("router.fv_solver_.cell_slope_"));
+    set_vf(&mut s.cell_eta_slope_, r.vf("router.fv_solver_.cell_eta_slope_"));
+    set_vf(&mut s.cell_u_slope_, r.vf("router.fv_solver_.cell_u_slope_"));
+    set_vf(&mut s.cell_eta_, r.vf("router.fv_solver_.cell_eta_"));
+    set_vf(&mut s.cell_u_, r.vf("router.fv_solver_.cell_u_"));
+    set_vf(&mut s.cell_ah_, r.vf("router.fv_solver_.cell_ah_"));
+    set_vf(&mut s.cell_t_, r.vf("router.fv_solver_.cell_t_"));
+    set_vf(&mut s.cell_i1_, r.vf("router.fv_solver_.cell_i1_"));
+    set_vf(&mut s.cell_q_int_, r.vf("router.fv_solver_.cell_q_int_"));
+    set_vf(&mut s.uf_grad_, r.vf("router.fv_solver_.uf_grad_"));
+    set_vf(&mut s.withdrawal_rates_, r.vf("router.fv_solver_.withdrawal_rates_"));
+    set_vf(&mut s.unmet_withdrawal_, r.vf("router.fv_solver_.unmet_withdrawal_"));
+    set_vf(&mut s.save_unmet_, r.vf("router.fv_solver_.save_unmet_"));
+    set_vf(&mut s.rk_unmet_, r.vf("router.fv_solver_.rk_unmet_"));
+    set_vf(&mut s.node_exch_, r.vf("router.fv_solver_.node_exch_"));
+    set_vf(&mut s.node_in_, r.vf("router.fv_solver_.node_in_"));
+    set_vf(&mut s.node_out_, r.vf("router.fv_solver_.node_out_"));
+    set_vf(&mut s.flood_vol_, r.vf("router.fv_solver_.flood_vol_"));
+    set_vf(&mut s.node_qdummy_, r.vf("router.fv_solver_.node_qdummy_"));
+    set_vf(&mut s.dummy_vol_, r.vf("router.fv_solver_.dummy_vol_"));
+    set_vf(&mut s.relax_beta_, r.vf("router.fv_solver_.relax_beta_"));
+    set_vf(&mut s.acc_a_, r.vf("router.fv_solver_.acc_a_"));
+    set_vf(&mut s.acc_q_, r.vf("router.fv_solver_.acc_q_"));
+    set_vf(&mut s.acc_nvol_, r.vf("router.fv_solver_.acc_nvol_"));
+    set_vf(&mut s.node_carry_, r.vf("router.fv_solver_.node_carry_"));
+    set_vf(&mut s.node_vfull_, r.vf("router.fv_solver_.node_vfull_"));
+    set_vf(&mut s.face_a_rim_, r.vf("router.fv_solver_.face_a_rim_"));
+    set_vf(&mut s.face_lat_spill_, r.vf("router.fv_solver_.face_lat_spill_"));
+    set_vf(&mut s.cell_qlat_, r.vf("router.fv_solver_.cell_qlat_"));
+    set_vf(&mut s.node_qstruct_, r.vf("router.fv_solver_.node_qstruct_"));
+    set_vf(&mut s.save_dummy_, r.vf("router.fv_solver_.save_dummy_"));
+    set_vf(&mut s.save_cell_a_, r.vf("router.fv_solver_.save_cell_a_"));
+    set_vf(&mut s.save_cell_q_, r.vf("router.fv_solver_.save_cell_q_"));
+    set_vf(&mut s.save_cell_phi_, r.vf("router.fv_solver_.save_cell_phi_"));
+    set_vf(&mut s.save_node_vol_, r.vf("router.fv_solver_.save_node_vol_"));
+    set_vf(&mut s.save_node_head_, r.vf("router.fv_solver_.save_node_head_"));
+    set_vf(&mut s.save_exch_, r.vf("router.fv_solver_.save_exch_"));
+    set_vf(&mut s.save_in_, r.vf("router.fv_solver_.save_in_"));
+    set_vf(&mut s.save_out_, r.vf("router.fv_solver_.save_out_"));
+    set_vf(&mut s.save_flood_, r.vf("router.fv_solver_.save_flood_"));
+    set_vf(&mut s.save_qint_, r.vf("router.fv_solver_.save_qint_"));
+    set_vf(&mut s.save_carry_, r.vf("router.fv_solver_.save_carry_"));
+    set_vi(&mut s.cell_ho2_, r.vi("router.fv_solver_.cell_ho2_"));
+    set_vi(&mut s.tpa_scratch_, r.vi("router.fv_solver_.tpa_scratch_"));
+    set_vi(&mut s.inlet_control_, r.vi("router.fv_solver_.inlet_control_"));
+    set_vi(&mut s.cell_tier_, r.vi("router.fv_solver_.cell_tier_"));
+    set_vi(&mut s.node_tier_, r.vi("router.fv_solver_.node_tier_"));
+    set_vi(&mut s.face_tier_, r.vi("router.fv_solver_.face_tier_"));
+    set_vi(&mut s.cell_active_, r.vi("router.fv_solver_.cell_active_"));
+    set_vi(&mut s.active_faces_, r.vi("router.fv_solver_.active_faces_"));
+    set_vi(&mut s.node_alg_, r.vi("router.fv_solver_.node_alg_"));
+    set_vi(&mut s.node_pass_static_, r.vi("router.fv_solver_.node_pass_static_"));
+    set_vi(&mut s.node_pass_, r.vi("router.fv_solver_.node_pass_"));
+    set_vi(&mut s.node_pub_static_, r.vi("router.fv_solver_.node_pub_static_"));
+    set_vi(&mut s.node_pub_, r.vi("router.fv_solver_.node_pub_"));
+    set_vi(&mut s.node_lat_div_, r.vi("router.fv_solver_.node_lat_div_"));
+    set_vi(&mut s.save_tpa_, r.vi("router.fv_solver_.save_tpa_"));
+    set_vi(&mut s.halo_prev_, r.vi("router.fv_solver_.halo_prev_"));
+    set_vi(&mut s.live_stamp_, r.vi("router.fv_solver_.live_stamp_"));
+    set_vi(&mut s.node_solve_list_, r.vi("router.fv_solver_.node_solve_list_"));
+    set_vi(&mut s.node_heavy_, r.vi("router.fv_solver_.node_heavy_"));
+    set_vi(&mut s.node_light_, r.vi("router.fv_solver_.node_light_"));
+    { let n = r.count("router.fv_solver_.cells_by_tier_.n"); SeqLen::seq_len(&mut s.cells_by_tier_, n); for e97 in (s.cells_by_tier_).iter_mut() {
+    set_vi(&mut (*e97), r.vi("router.fv_solver_.cells_by_tier_[]"));
+    } }
+    { let n = r.count("router.fv_solver_.faces_by_tier_.n"); SeqLen::seq_len(&mut s.faces_by_tier_, n); for e98 in (s.faces_by_tier_).iter_mut() {
+    set_vi(&mut (*e98), r.vi("router.fv_solver_.faces_by_tier_[]"));
+    } }
+    { let n = r.count("router.fv_solver_.nodes_by_tier_.n"); SeqLen::seq_len(&mut s.nodes_by_tier_, n); for e99 in (s.nodes_by_tier_).iter_mut() {
+    set_vi(&mut (*e99), r.vi("router.fv_solver_.nodes_by_tier_[]"));
+    } }
+    { let n = r.count("router.fv_solver_.due_f_upto_.n"); SeqLen::seq_len(&mut s.due_f_upto_, n); for e100 in (s.due_f_upto_).iter_mut() {
+    set_vi(&mut (*e100), r.vi("router.fv_solver_.due_f_upto_[]"));
+    } }
+    { let n = r.count("router.fv_solver_.due_c_upto_.n"); SeqLen::seq_len(&mut s.due_c_upto_, n); for e101 in (s.due_c_upto_).iter_mut() {
+    set_vi(&mut (*e101), r.vi("router.fv_solver_.due_c_upto_[]"));
+    } }
+    { let n = r.count("router.fv_solver_.due_n_upto_.n"); SeqLen::seq_len(&mut s.due_n_upto_, n); for e102 in (s.due_n_upto_).iter_mut() {
+    set_vi(&mut (*e102), r.vi("router.fv_solver_.due_n_upto_[]"));
+    } }
+    s.hllc_ = FromI64::from_i64(r.pi("router.fv_solver_.hllc_"));
+    s.tpa_ = FromI64::from_i64(r.pi("router.fv_solver_.tpa_"));
+    s.mixed_wave_ = FromI64::from_i64(r.pi("router.fv_solver_.mixed_wave_"));
+    s.mw_rh_ = FromI64::from_i64(r.pi("router.fv_solver_.mw_rh_"));
+    s.deg1_guard_slot_ = FromI64::from_i64(r.pi("router.fv_solver_.deg1_guard_slot_"));
+    s.census_pass_far_ = FromI64::from_i64(r.pi("router.fv_solver_.census_pass_far_"));
+    s.lts_fit_ = FromI64::from_i64(r.pi("router.fv_solver_.lts_fit_"));
+    s.water_tracking_ = FromI64::from_i64(r.pi("router.fv_solver_.water_tracking_"));
+    s.conservative_node_balance_ = FromI64::from_i64(r.pi("router.fv_solver_.conservative_node_balance_"));
+    s.lts_tiers_ = FromI64::from_i64(r.pi("router.fv_solver_.lts_tiers_"));
+    s.lists_valid_ = FromI64::from_i64(r.pi("router.fv_solver_.lists_valid_"));
+    s.since_rebuild_ = FromI64::from_i64(r.pi("router.fv_solver_.since_rebuild_"));
+    s.census_count_ = FromI64::from_i64(r.pi("router.fv_solver_.census_count_"));
+    s.lts_valid_ = FromI64::from_i64(r.pi("router.fv_solver_.lts_valid_"));
+    s.lts_countdown_ = FromI64::from_i64(r.pi("router.fv_solver_.lts_countdown_"));
+    s.total_steps_ = FromI64::from_i64(r.pi("router.fv_solver_.total_steps_"));
+    s.total_flux_ = FromI64::from_i64(r.pi("router.fv_solver_.total_flux_"));
+    s.active_n_ = FromI64::from_i64(r.pi("router.fv_solver_.active_n_"));
+    s.n_macro_cycles_ = FromI64::from_i64(r.pi("router.fv_solver_.n_macro_cycles_"));
+    s.n_macro_rejected_ = FromI64::from_i64(r.pi("router.fv_solver_.n_macro_rejected_"));
+    s.state_clean_ = FromI64::from_i64(r.pi("router.fv_solver_.state_clean_"));
+    s.acc_dirty_ = FromI64::from_i64(r.pi("router.fv_solver_.acc_dirty_"));
+    s.live_gen_ = FromI64::from_i64(r.pi("router.fv_solver_.live_gen_"));
+    s.all_faces_live_ = FromI64::from_i64(r.pi("router.fv_solver_.all_faces_live_"));
+    s.div_link_ = FromI64::from_i64(r.pi("router.fv_solver_.div_link_"));
+    s.last_nsteps_ = FromI64::from_i64(r.pi("router.fv_solver_.last_nsteps_"));
+    s.dt_argmin_pressurized_ = FromI64::from_i64(r.pi("router.fv_solver_.dt_argmin_pressurized_"));
+    s.dt_argmin_band_ = FromI64::from_i64(r.pi("router.fv_solver_.dt_argmin_band_"));
+    s.dt_argmin_free_ = FromI64::from_i64(r.pi("router.fv_solver_.dt_argmin_free_"));
+    s.dt_argmin_node_ = FromI64::from_i64(r.pi("router.fv_solver_.dt_argmin_node_"));
+    s.press_step_ = FromI64::from_i64(r.pi("router.fv_solver_.press_step_"));
+    s.pressure_candidate_ = FromI64::from_i64(r.pi("router.fv_solver_.pressure_candidate_"));
+    s.dt_cache_ = FromF64::from_f64(r.pf("router.fv_solver_.dt_cache_"));
+    s.dt_census_ = FromF64::from_f64(r.pf("router.fv_solver_.dt_census_"));
+    s.lts_dt0_ = FromF64::from_f64(r.pf("router.fv_solver_.lts_dt0_"));
+    s.min_h_ = FromF64::from_f64(r.pf("router.fv_solver_.min_h_"));
+    s.sim_time_ = FromF64::from_f64(r.pf("router.fv_solver_.sim_time_"));
+    s.active_sum_ = FromF64::from_f64(r.pf("router.fv_solver_.active_sum_"));
+    s.active_min_ = FromF64::from_f64(r.pf("router.fv_solver_.active_min_"));
+    s.active_max_ = FromF64::from_f64(r.pf("router.fv_solver_.active_max_"));
+    s.div_value_ = FromF64::from_f64(r.pf("router.fv_solver_.div_value_"));
+    s.last_h_ = FromF64::from_f64(r.pf("router.fv_solver_.last_h_"));
+    s.suggested_h_ = FromF64::from_f64(r.pf("router.fv_solver_.suggested_h_"));
+    { let n = r.count("router.fv_solver_.tier_occupancy_.n"); if n != s.tier_occupancy_.len() { r.fail("tier_occupancy_ size"); } for q in 0..n { s.tier_occupancy_[q] = r.pi("router.fv_solver_.tier_occupancy_[]"); } }
+    { let n = r.count("router.fv_solver_.f_state_l_.n"); SeqLen::seq_len(&mut s.f_state_l_, n); for el in s.f_state_l_.iter_mut() {
+    (*el).a = FromF64::from_f64(r.pf("router.fv_solver_.f_state_l_[].a"));
+    (*el).q = FromF64::from_f64(r.pf("router.fv_solver_.f_state_l_[].q"));
+    (*el).u = FromF64::from_f64(r.pf("router.fv_solver_.f_state_l_[].u"));
+    (*el).c = FromF64::from_f64(r.pf("router.fv_solver_.f_state_l_[].c"));
+    (*el).i1 = FromF64::from_f64(r.pf("router.fv_solver_.f_state_l_[].i1"));
+    (*el).press = FromI64::from_i64(r.pi("router.fv_solver_.f_state_l_[].press"));
+    } }
+    { let n = r.count("router.fv_solver_.f_state_r_.n"); SeqLen::seq_len(&mut s.f_state_r_, n); for el in s.f_state_r_.iter_mut() {
+    (*el).a = FromF64::from_f64(r.pf("router.fv_solver_.f_state_r_[].a"));
+    (*el).q = FromF64::from_f64(r.pf("router.fv_solver_.f_state_r_[].q"));
+    (*el).u = FromF64::from_f64(r.pf("router.fv_solver_.f_state_r_[].u"));
+    (*el).c = FromF64::from_f64(r.pf("router.fv_solver_.f_state_r_[].c"));
+    (*el).i1 = FromF64::from_f64(r.pf("router.fv_solver_.f_state_r_[].i1"));
+    (*el).press = FromI64::from_i64(r.pi("router.fv_solver_.f_state_r_[].press"));
+    } }
+    { let n = r.count("router.fv_solver_.f_flux_.n"); SeqLen::seq_len(&mut s.f_flux_, n); for el in s.f_flux_.iter_mut() {
+    (*el).mass = FromF64::from_f64(r.pf("router.fv_solver_.f_flux_[].mass"));
+    (*el).mom = FromF64::from_f64(r.pf("router.fv_solver_.f_flux_[].mom"));
+    (*el).sstar = FromF64::from_f64(r.pf("router.fv_solver_.f_flux_[].sstar"));
+    (*el).sl = FromF64::from_f64(r.pf("router.fv_solver_.f_flux_[].sl"));
+    (*el).sr = FromF64::from_f64(r.pf("router.fv_solver_.f_flux_[].sr"));
+    } }
+    set_vf(&mut s.water_.face_forward, r.vf("router.fv_solver_.water_.face_forward"));
+    set_vf(&mut s.water_.face_reverse, r.vf("router.fv_solver_.water_.face_reverse"));
+    set_vf(&mut s.water_.structure_forward, r.vf("router.fv_solver_.water_.structure_forward"));
+    set_vf(&mut s.water_.structure_reverse, r.vf("router.fv_solver_.water_.structure_reverse"));
+    set_vf(&mut s.water_.cell_lateral, r.vf("router.fv_solver_.water_.cell_lateral"));
+    set_vf(&mut s.water_.cell_loss, r.vf("router.fv_solver_.water_.cell_loss"));
+    set_vf(&mut s.water_.node_deficit, r.vf("router.fv_solver_.water_.node_deficit"));
+    set_vf(&mut s.water_.face_lateral_left, r.vf("router.fv_solver_.water_.face_lateral_left"));
+    set_vf(&mut s.water_.face_lateral_right, r.vf("router.fv_solver_.water_.face_lateral_right"));
+    set_vf(&mut s.water_.face_spill, r.vf("router.fv_solver_.water_.face_spill"));
+    set_vf(&mut s.save_water_.face_forward, r.vf("router.fv_solver_.save_water_.face_forward"));
+    set_vf(&mut s.save_water_.face_reverse, r.vf("router.fv_solver_.save_water_.face_reverse"));
+    set_vf(&mut s.save_water_.structure_forward, r.vf("router.fv_solver_.save_water_.structure_forward"));
+    set_vf(&mut s.save_water_.structure_reverse, r.vf("router.fv_solver_.save_water_.structure_reverse"));
+    set_vf(&mut s.save_water_.cell_lateral, r.vf("router.fv_solver_.save_water_.cell_lateral"));
+    set_vf(&mut s.save_water_.cell_loss, r.vf("router.fv_solver_.save_water_.cell_loss"));
+    set_vf(&mut s.save_water_.node_deficit, r.vf("router.fv_solver_.save_water_.node_deficit"));
+    set_vf(&mut s.save_water_.face_lateral_left, r.vf("router.fv_solver_.save_water_.face_lateral_left"));
+    set_vf(&mut s.save_water_.face_lateral_right, r.vf("router.fv_solver_.save_water_.face_lateral_right"));
+    set_vf(&mut s.save_water_.face_spill, r.vf("router.fv_solver_.save_water_.face_spill"));
+    set_vf(&mut s.rk_water_.face_forward, r.vf("router.fv_solver_.rk_water_.face_forward"));
+    set_vf(&mut s.rk_water_.face_reverse, r.vf("router.fv_solver_.rk_water_.face_reverse"));
+    set_vf(&mut s.rk_water_.structure_forward, r.vf("router.fv_solver_.rk_water_.structure_forward"));
+    set_vf(&mut s.rk_water_.structure_reverse, r.vf("router.fv_solver_.rk_water_.structure_reverse"));
+    set_vf(&mut s.rk_water_.cell_lateral, r.vf("router.fv_solver_.rk_water_.cell_lateral"));
+    set_vf(&mut s.rk_water_.cell_loss, r.vf("router.fv_solver_.rk_water_.cell_loss"));
+    set_vf(&mut s.rk_water_.node_deficit, r.vf("router.fv_solver_.rk_water_.node_deficit"));
+    set_vf(&mut s.rk_water_.face_lateral_left, r.vf("router.fv_solver_.rk_water_.face_lateral_left"));
+    set_vf(&mut s.rk_water_.face_lateral_right, r.vf("router.fv_solver_.rk_water_.face_lateral_right"));
+    set_vf(&mut s.rk_water_.face_spill, r.vf("router.fv_solver_.rk_water_.face_spill"));
+    s.div_what_ = swmm6_rust::hydraulics::fv::explicit_step::div_what_of(&r.ps("router.fv_solver_.div_what_"));
+    }
     g.router_.fv_backend_ = r.ps("router.fv_backend_");
     SeqSet::seq_set(&mut g.router_.fv_warnings_, r.vs("router.fv_warnings_"));
     SeqSet::seq_set(&mut g.router_.fv_errors_, r.vs("router.fv_errors_"));
@@ -4348,8 +4573,8 @@ pub fn load_rt(r: &mut Rd, e: &mut SwmmEngine) {
     set_vi(&mut g.rdii_.groups_.rain_interval, r.vi("rdii.groups_.rain_interval"));
     set_vf(&mut g.rdii_.groups_.gage_elapsed, r.vf("rdii.groups_.gage_elapsed"));
     set_vf(&mut g.rdii_.groups_.rate_recorded_until, r.vf("rdii.groups_.rate_recorded_until"));
-    { let n = r.count("rdii.groups_.pending_rates.n"); SeqLen::seq_len(&mut g.rdii_.groups_.pending_rates, n); for e97 in (g.rdii_.groups_.pending_rates).iter_mut() {
-    set_vf(&mut (*e97), r.vf("rdii.groups_.pending_rates[]"));
+    { let n = r.count("rdii.groups_.pending_rates.n"); SeqLen::seq_len(&mut g.rdii_.groups_.pending_rates, n); for e103 in (g.rdii_.groups_.pending_rates).iter_mut() {
+    set_vf(&mut (*e103), r.vf("rdii.groups_.pending_rates[]"));
     } }
     r.skip_prefix("rdii.uh_name_to_idx_");
     set_vf(&mut g.rdii_.node_rdii_flow_, r.vf("rdii.node_rdii_flow_"));
@@ -4363,29 +4588,29 @@ pub fn load_rt(r: &mut Rd, e: &mut SwmmEngine) {
     set_vf(&mut g.exfil_.soa_.bank_min_depth, r.vf("exfil.soa_.bank_min_depth"));
     set_vf(&mut g.exfil_.soa_.bank_max_depth, r.vf("exfil.soa_.bank_max_depth"));
     set_vf(&mut g.exfil_.soa_.bank_max_area, r.vf("exfil.soa_.bank_max_area"));
-    { let n = r.count("exfil.soa_.btm_ga.n"); SeqLen::seq_len(&mut g.exfil_.soa_.btm_ga, n); for e98 in (g.exfil_.soa_.btm_ga).iter_mut() {
-    (*e98).S = FromF64::from_f64(r.pf("exfil.soa_.btm_ga[].S"));
-    (*e98).Ks = FromF64::from_f64(r.pf("exfil.soa_.btm_ga[].Ks"));
-    (*e98).IMDmax = FromF64::from_f64(r.pf("exfil.soa_.btm_ga[].IMDmax"));
-    (*e98).IMD = FromF64::from_f64(r.pf("exfil.soa_.btm_ga[].IMD"));
-    (*e98).F = FromF64::from_f64(r.pf("exfil.soa_.btm_ga[].F"));
-    (*e98).Fu = FromF64::from_f64(r.pf("exfil.soa_.btm_ga[].Fu"));
-    (*e98).Fumax = FromF64::from_f64(r.pf("exfil.soa_.btm_ga[].Fumax"));
-    (*e98).Lu = FromF64::from_f64(r.pf("exfil.soa_.btm_ga[].Lu"));
-    (*e98).T = FromF64::from_f64(r.pf("exfil.soa_.btm_ga[].T"));
-    (*e98).saturated = FromI64::from_i64(r.pi("exfil.soa_.btm_ga[].saturated"));
+    { let n = r.count("exfil.soa_.btm_ga.n"); SeqLen::seq_len(&mut g.exfil_.soa_.btm_ga, n); for e104 in (g.exfil_.soa_.btm_ga).iter_mut() {
+    (*e104).S = FromF64::from_f64(r.pf("exfil.soa_.btm_ga[].S"));
+    (*e104).Ks = FromF64::from_f64(r.pf("exfil.soa_.btm_ga[].Ks"));
+    (*e104).IMDmax = FromF64::from_f64(r.pf("exfil.soa_.btm_ga[].IMDmax"));
+    (*e104).IMD = FromF64::from_f64(r.pf("exfil.soa_.btm_ga[].IMD"));
+    (*e104).F = FromF64::from_f64(r.pf("exfil.soa_.btm_ga[].F"));
+    (*e104).Fu = FromF64::from_f64(r.pf("exfil.soa_.btm_ga[].Fu"));
+    (*e104).Fumax = FromF64::from_f64(r.pf("exfil.soa_.btm_ga[].Fumax"));
+    (*e104).Lu = FromF64::from_f64(r.pf("exfil.soa_.btm_ga[].Lu"));
+    (*e104).T = FromF64::from_f64(r.pf("exfil.soa_.btm_ga[].T"));
+    (*e104).saturated = FromI64::from_i64(r.pi("exfil.soa_.btm_ga[].saturated"));
     } }
-    { let n = r.count("exfil.soa_.bank_ga.n"); SeqLen::seq_len(&mut g.exfil_.soa_.bank_ga, n); for e99 in (g.exfil_.soa_.bank_ga).iter_mut() {
-    (*e99).S = FromF64::from_f64(r.pf("exfil.soa_.bank_ga[].S"));
-    (*e99).Ks = FromF64::from_f64(r.pf("exfil.soa_.bank_ga[].Ks"));
-    (*e99).IMDmax = FromF64::from_f64(r.pf("exfil.soa_.bank_ga[].IMDmax"));
-    (*e99).IMD = FromF64::from_f64(r.pf("exfil.soa_.bank_ga[].IMD"));
-    (*e99).F = FromF64::from_f64(r.pf("exfil.soa_.bank_ga[].F"));
-    (*e99).Fu = FromF64::from_f64(r.pf("exfil.soa_.bank_ga[].Fu"));
-    (*e99).Fumax = FromF64::from_f64(r.pf("exfil.soa_.bank_ga[].Fumax"));
-    (*e99).Lu = FromF64::from_f64(r.pf("exfil.soa_.bank_ga[].Lu"));
-    (*e99).T = FromF64::from_f64(r.pf("exfil.soa_.bank_ga[].T"));
-    (*e99).saturated = FromI64::from_i64(r.pi("exfil.soa_.bank_ga[].saturated"));
+    { let n = r.count("exfil.soa_.bank_ga.n"); SeqLen::seq_len(&mut g.exfil_.soa_.bank_ga, n); for e105 in (g.exfil_.soa_.bank_ga).iter_mut() {
+    (*e105).S = FromF64::from_f64(r.pf("exfil.soa_.bank_ga[].S"));
+    (*e105).Ks = FromF64::from_f64(r.pf("exfil.soa_.bank_ga[].Ks"));
+    (*e105).IMDmax = FromF64::from_f64(r.pf("exfil.soa_.bank_ga[].IMDmax"));
+    (*e105).IMD = FromF64::from_f64(r.pf("exfil.soa_.bank_ga[].IMD"));
+    (*e105).F = FromF64::from_f64(r.pf("exfil.soa_.bank_ga[].F"));
+    (*e105).Fu = FromF64::from_f64(r.pf("exfil.soa_.bank_ga[].Fu"));
+    (*e105).Fumax = FromF64::from_f64(r.pf("exfil.soa_.bank_ga[].Fumax"));
+    (*e105).Lu = FromF64::from_f64(r.pf("exfil.soa_.bank_ga[].Lu"));
+    (*e105).T = FromF64::from_f64(r.pf("exfil.soa_.bank_ga[].T"));
+    (*e105).saturated = FromI64::from_i64(r.pi("exfil.soa_.bank_ga[].saturated"));
     } }
     g.inlet_.soa_.count = FromI64::from_i64(r.pi("inlet.soa_.count"));
     set_vi(&mut g.inlet_.soa_.link_idx, r.vi("inlet.soa_.link_idx"));
@@ -4568,15 +4793,15 @@ pub fn load_qual(r: &mut Rd, e: &mut SwmmEngine) {
     set_vf(&mut q.quality_.fv_transport_.thermal_mixer_.outgoing_, r.vf("quality.fv_transport_.thermal_mixer_.outgoing_"));
     q.quality_.fv_transport_.thermal_mixer_.prepared_ = FromI64::from_i64(r.pi("quality.fv_transport_.thermal_mixer_.prepared_"));
     q.quality_.fv_transport_.thermal_mixer_.water_residual_ = FromF64::from_f64(r.pf("quality.fv_transport_.thermal_mixer_.water_residual_"));
-    { let n = r.count("quality.fv_transport_.held_.n"); SeqLen::seq_len(&mut q.quality_.fv_transport_.held_, n); for e100 in (q.quality_.fv_transport_.held_).iter_mut() {
-    set_vf(&mut (*e100), r.vf("quality.fv_transport_.held_[]"));
+    { let n = r.count("quality.fv_transport_.held_.n"); SeqLen::seq_len(&mut q.quality_.fv_transport_.held_, n); for e106 in (q.quality_.fv_transport_.held_).iter_mut() {
+    set_vf(&mut (*e106), r.vf("quality.fv_transport_.held_[]"));
     } }
-    { let n = r.count("quality.fv_transport_.results_.n"); SeqLen::seq_len(&mut q.quality_.fv_transport_.results_, n); for e101 in (q.quality_.fv_transport_.results_).iter_mut() {
-    set_vf(&mut (*e101).concentration, r.vf("quality.fv_transport_.results_[].concentration"));
-    set_vf(&mut (*e101).held_dry_mass, r.vf("quality.fv_transport_.results_[].held_dry_mass"));
-    set_vf(&mut (*e101).transfer_mass, r.vf("quality.fv_transport_.results_[].transfer_mass"));
-    set_vf(&mut (*e101).exported_mass, r.vf("quality.fv_transport_.results_[].exported_mass"));
-    set_vf(&mut (*e101).seeped_mass, r.vf("quality.fv_transport_.results_[].seeped_mass"));
+    { let n = r.count("quality.fv_transport_.results_.n"); SeqLen::seq_len(&mut q.quality_.fv_transport_.results_, n); for e107 in (q.quality_.fv_transport_.results_).iter_mut() {
+    set_vf(&mut (*e107).concentration, r.vf("quality.fv_transport_.results_[].concentration"));
+    set_vf(&mut (*e107).held_dry_mass, r.vf("quality.fv_transport_.results_[].held_dry_mass"));
+    set_vf(&mut (*e107).transfer_mass, r.vf("quality.fv_transport_.results_[].transfer_mass"));
+    set_vf(&mut (*e107).exported_mass, r.vf("quality.fv_transport_.results_[].exported_mass"));
+    set_vf(&mut (*e107).seeped_mass, r.vf("quality.fv_transport_.results_[].seeped_mass"));
     } }
     { let n = r.count("quality.fv_transport_.inputs_.n"); SeqLen::seq_len(&mut q.quality_.fv_transport_.inputs_, n); for el in (q.quality_.fv_transport_.inputs_).iter_mut() {
     set_vf(&mut el.old_concentration, r.vf("quality.fv_transport_.inputs_[].old_concentration"));
@@ -4770,28 +4995,28 @@ pub fn load_qual(r: &mut Rd, e: &mut SwmmEngine) {
     set_vf(&mut q.ard_.rplus_, r.vf("ard.rplus_"));
     set_vf(&mut q.ard_.rminus_, r.vf("ard.rminus_"));
     set_vf(&mut q.ard_.cell_u_, r.vf("ard.cell_u_"));
-    { let n = r.count("ard.f_state_l_.n"); SeqLen::seq_len(&mut q.ard_.f_state_l_, n); for e102 in (q.ard_.f_state_l_).iter_mut() {
-    (*e102).a = FromF64::from_f64(r.pf("ard.f_state_l_[].a"));
-    (*e102).q = FromF64::from_f64(r.pf("ard.f_state_l_[].q"));
-    (*e102).u = FromF64::from_f64(r.pf("ard.f_state_l_[].u"));
-    (*e102).c = FromF64::from_f64(r.pf("ard.f_state_l_[].c"));
-    (*e102).i1 = FromF64::from_f64(r.pf("ard.f_state_l_[].i1"));
-    (*e102).press = FromI64::from_i64(r.pi("ard.f_state_l_[].press"));
+    { let n = r.count("ard.f_state_l_.n"); SeqLen::seq_len(&mut q.ard_.f_state_l_, n); for e108 in (q.ard_.f_state_l_).iter_mut() {
+    (*e108).a = FromF64::from_f64(r.pf("ard.f_state_l_[].a"));
+    (*e108).q = FromF64::from_f64(r.pf("ard.f_state_l_[].q"));
+    (*e108).u = FromF64::from_f64(r.pf("ard.f_state_l_[].u"));
+    (*e108).c = FromF64::from_f64(r.pf("ard.f_state_l_[].c"));
+    (*e108).i1 = FromF64::from_f64(r.pf("ard.f_state_l_[].i1"));
+    (*e108).press = FromI64::from_i64(r.pi("ard.f_state_l_[].press"));
     } }
-    { let n = r.count("ard.f_state_r_.n"); SeqLen::seq_len(&mut q.ard_.f_state_r_, n); for e103 in (q.ard_.f_state_r_).iter_mut() {
-    (*e103).a = FromF64::from_f64(r.pf("ard.f_state_r_[].a"));
-    (*e103).q = FromF64::from_f64(r.pf("ard.f_state_r_[].q"));
-    (*e103).u = FromF64::from_f64(r.pf("ard.f_state_r_[].u"));
-    (*e103).c = FromF64::from_f64(r.pf("ard.f_state_r_[].c"));
-    (*e103).i1 = FromF64::from_f64(r.pf("ard.f_state_r_[].i1"));
-    (*e103).press = FromI64::from_i64(r.pi("ard.f_state_r_[].press"));
+    { let n = r.count("ard.f_state_r_.n"); SeqLen::seq_len(&mut q.ard_.f_state_r_, n); for e109 in (q.ard_.f_state_r_).iter_mut() {
+    (*e109).a = FromF64::from_f64(r.pf("ard.f_state_r_[].a"));
+    (*e109).q = FromF64::from_f64(r.pf("ard.f_state_r_[].q"));
+    (*e109).u = FromF64::from_f64(r.pf("ard.f_state_r_[].u"));
+    (*e109).c = FromF64::from_f64(r.pf("ard.f_state_r_[].c"));
+    (*e109).i1 = FromF64::from_f64(r.pf("ard.f_state_r_[].i1"));
+    (*e109).press = FromI64::from_i64(r.pi("ard.f_state_r_[].press"));
     } }
-    { let n = r.count("ard.f_flux_.n"); SeqLen::seq_len(&mut q.ard_.f_flux_, n); for e104 in (q.ard_.f_flux_).iter_mut() {
-    (*e104).mass = FromF64::from_f64(r.pf("ard.f_flux_[].mass"));
-    (*e104).mom = FromF64::from_f64(r.pf("ard.f_flux_[].mom"));
-    (*e104).sstar = FromF64::from_f64(r.pf("ard.f_flux_[].sstar"));
-    (*e104).sl = FromF64::from_f64(r.pf("ard.f_flux_[].sl"));
-    (*e104).sr = FromF64::from_f64(r.pf("ard.f_flux_[].sr"));
+    { let n = r.count("ard.f_flux_.n"); SeqLen::seq_len(&mut q.ard_.f_flux_, n); for e110 in (q.ard_.f_flux_).iter_mut() {
+    (*e110).mass = FromF64::from_f64(r.pf("ard.f_flux_[].mass"));
+    (*e110).mom = FromF64::from_f64(r.pf("ard.f_flux_[].mom"));
+    (*e110).sstar = FromF64::from_f64(r.pf("ard.f_flux_[].sstar"));
+    (*e110).sl = FromF64::from_f64(r.pf("ard.f_flux_[].sl"));
+    (*e110).sr = FromF64::from_f64(r.pf("ard.f_flux_[].sr"));
     } }
     set_vi(&mut q.ard_.cell_active_, r.vi("ard.cell_active_"));
     set_vi(&mut q.ard_.active_faces_, r.vi("ard.active_faces_"));
@@ -4836,8 +5061,8 @@ pub fn load_qual(r: &mut Rd, e: &mut SwmmEngine) {
     set_vf(&mut q.lard_.release_vol_, r.vf("lard.release_vol_"));
     q.lard_.substep_counter_ = FromI64::from_i64(r.pi("lard.substep_counter_"));
     set_vi(&mut q.lard_.topo_, r.vi("lard.topo_"));
-    { let n = r.count("lard.node_out_links_.n"); SeqLen::seq_len(&mut q.lard_.node_out_links_, n); for e105 in (q.lard_.node_out_links_).iter_mut() {
-    set_vi(&mut (*e105), r.vi("lard.node_out_links_[]"));
+    { let n = r.count("lard.node_out_links_.n"); SeqLen::seq_len(&mut q.lard_.node_out_links_, n); for e111 in (q.lard_.node_out_links_).iter_mut() {
+    set_vi(&mut (*e111), r.vi("lard.node_out_links_[]"));
     } }
     set_vi(&mut q.lard_.flow_sign_, r.vi("lard.flow_sign_"));
     set_vf(&mut q.lard_.node_mass_in_, r.vf("lard.node_mass_in_"));

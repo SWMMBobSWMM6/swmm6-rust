@@ -617,22 +617,33 @@ def _rt_opt(pc, pr, lb, C, R):
     C.append(f'  pi("{lb}", (bool)({pc}));'); R.append(f'    pi(o, "{lb}", ({pr}).is_some() as i64);')
 
 # The CPU FV backend behind Router::fv_solver_ (a unique_ptr<INetworkSolver>): the
-# members ExplicitFvSolver::initialize and the Router's init-time setters write.
+# members ExplicitFvSolver::initialize and the Router's init-time setters write, and (from
+# 'cell_qlat_' on in each list, 5 Nov 2026) the members only the step writes. Not printed: the
+# RK2 snapshots and the species FCT scratch (their paths are refused before the step), the
+# PressurizedHeadSolver press_, and fireFaces' / limitPositivity's function-static scratch.
 RT_FV_SOLVER = {
     'vf': ['f_mass_', 'f_mom_', 'f_sstar_', 'f_corr_l_', 'f_corr_r_', 'f_phi_l_', 'f_phi_r_', 'f_phi_flux_',
            'cell_slope_', 'cell_eta_slope_', 'cell_u_slope_', 'cell_eta_', 'cell_u_', 'cell_ah_', 'cell_t_',
            'cell_i1_', 'cell_q_int_', 'uf_grad_', 'withdrawal_rates_', 'unmet_withdrawal_', 'save_unmet_',
            'rk_unmet_', 'node_exch_', 'node_in_', 'node_out_', 'flood_vol_', 'node_qdummy_', 'dummy_vol_',
            'relax_beta_', 'acc_a_', 'acc_q_', 'acc_nvol_', 'node_carry_', 'node_vfull_', 'face_a_rim_',
-           'face_lat_spill_'],
+           'face_lat_spill_',
+           'cell_qlat_', 'node_qstruct_', 'save_dummy_', 'save_cell_a_', 'save_cell_q_', 'save_cell_phi_',
+           'save_node_vol_', 'save_node_head_', 'save_exch_', 'save_in_', 'save_out_', 'save_flood_',
+           'save_qint_', 'save_carry_'],
     'vi': ['cell_ho2_', 'tpa_scratch_', 'inlet_control_', 'cell_tier_', 'node_tier_', 'face_tier_', 'cell_active_',
-           'active_faces_', 'node_alg_', 'node_pass_static_', 'node_pass_', 'node_pub_static_', 'node_pub_'],
-    'vvi': ['cells_by_tier_', 'faces_by_tier_', 'nodes_by_tier_'],
+           'active_faces_', 'node_alg_', 'node_pass_static_', 'node_pass_', 'node_pub_static_', 'node_pub_',
+           'node_lat_div_', 'save_tpa_', 'halo_prev_', 'live_stamp_', 'node_solve_list_',
+           'node_heavy_', 'node_light_'],
+    'vvi': ['cells_by_tier_', 'faces_by_tier_', 'nodes_by_tier_', 'due_f_upto_', 'due_c_upto_', 'due_n_upto_'],
     'i': ['hllc_', 'tpa_', 'mixed_wave_', 'mw_rh_', 'deg1_guard_slot_', 'census_pass_far_', 'lts_fit_',
           'water_tracking_', 'conservative_node_balance_', 'lts_tiers_', 'lists_valid_', 'since_rebuild_',
           'census_count_', 'lts_valid_', 'lts_countdown_', 'total_steps_', 'total_flux_', 'active_n_',
-          'n_macro_cycles_', 'n_macro_rejected_', 'state_clean_', 'acc_dirty_'],
-    'f': ['dt_cache_', 'dt_census_', 'lts_dt0_', 'min_h_', 'sim_time_', 'active_sum_', 'active_min_', 'active_max_'],
+          'n_macro_cycles_', 'n_macro_rejected_', 'state_clean_', 'acc_dirty_',
+          'live_gen_', 'all_faces_live_', 'div_link_', 'last_nsteps_', 'dt_argmin_pressurized_', 'dt_argmin_band_',
+          'dt_argmin_free_', 'dt_argmin_node_', 'press_step_', 'pressure_candidate_'],
+    'f': ['dt_cache_', 'dt_census_', 'lts_dt0_', 'min_h_', 'sim_time_', 'active_sum_', 'active_min_', 'active_max_',
+          'div_value_', 'last_h_', 'suggested_h_'],
 }
 
 def _rt_fv_solver(pc, pr, lb, C, R):
@@ -659,6 +670,8 @@ def _rt_fv_solver(pc, pr, lb, C, R):
         C.append('  }'); R.append('    }')
     for f in ['water_', 'save_water_', 'rk_water_']:
         rt_dump_struct('hydraulics/fv/AcceptedWaterVolumes.hpp', 'AcceptedWaterVolumes', f's->{f}', f's.{f}', f'{lb}.{f}', C, R)
+    C.append(f'  ps("{lb}.div_what_", s->div_what_ ? std::string(s->div_what_) : std::string());')
+    R.append(f'    ps(o, "{lb}.div_what_", &s.div_what_.unwrap_or("").as_bytes().to_vec());')
     C.append(f'  }} else pi("{lb}", 0);')
     R.append('    } }')
 

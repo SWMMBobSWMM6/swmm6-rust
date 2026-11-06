@@ -12,13 +12,11 @@
 // refreshNodeAreas, nodeVolumeFromDepth, algebraicActive, and the setters the Router
 // calls at init (setConduitStepSink, trackAcceptedWater, requireConservativeNodeBalance).
 //
-// NOT YET TRANSLATED (the FV step, phase 1e): advance and everything it reaches
-// (reinitialize, finalize, run_stats, nodeDepthFromVolume, rebuildActiveLists, the face
-// flux / reconstruction / census / LTS / RK2 / TPA / node-solve machinery), and the
-// members only that machinery reads or writes (save_*/rk_* snapshots, lo_flux_ and the
-// other FCT scratch, cell_qlat_, node_lat_div_, node_qstruct_, live_stamp_, the due_*
-// tier lists, div_link_/div_value_, last_nsteps_/last_h_/suggested_h_, the dt_argmin_*
-// counters, press_step_ and the other step-local flags).
+// The step (advance and what it reaches) is in explicit_step.rs, explicit_flux.rs and
+// explicit_nodes.rs (5 November 2026); the members only the step reads or writes are at the
+// end of the struct. NOT TRANSLATED (and so not carried): the RK2 snapshots (rk_*), the
+// species FCT scratch (lo_flux_, anti_flux_, td_, anew_, rplus_, rminus_) and the
+// PressurizedHeadSolver press_ with its candidate controls and result.
 //
 // Differences in form, never in result:
 //   * The solver keeps no pointers to the Router's mesh and state (`mesh_`, `state_`):
@@ -73,6 +71,31 @@ pub struct AcceptedWaterVolumes {
     pub face_lateral_left: Vec<f64>,
     pub face_lateral_right: Vec<f64>,
     pub face_spill: Vec<f64>,
+}
+
+impl AcceptedWaterVolumes {
+    /// clear(): every column to zero, sizes kept.
+    pub fn clear(&mut self) {
+        for v in [&mut self.face_forward, &mut self.face_reverse, &mut self.structure_forward, &mut self.structure_reverse, &mut self.cell_lateral, &mut self.cell_loss, &mut self.node_deficit, &mut self.face_lateral_left, &mut self.face_lateral_right, &mut self.face_spill] {
+            v.iter_mut().for_each(|x| *x = 0.0);
+        }
+    }
+    /// face(f, volume)
+    pub fn face(&mut self, f: usize, volume: f64) {
+        if volume >= 0.0 {
+            self.face_forward[f] += volume;
+        } else {
+            self.face_reverse[f] -= volume;
+        }
+    }
+    /// structure(s, volume)
+    pub fn structure(&mut self, s: usize, volume: f64) {
+        if volume >= 0.0 {
+            self.structure_forward[s] += volume;
+        } else {
+            self.structure_reverse[s] -= volume;
+        }
+    }
 }
 
 fn assign<T: Clone>(v: &mut Vec<T>, n: usize, d: T) {
@@ -204,6 +227,56 @@ pub struct ExplicitFvSolver {
 
     /// setConduitStepSink was called (the sink itself is the step's)
     pub step_sink_set_: bool,
+
+    // ---- the step's members (explicit_step.rs, 5 November 2026) ----------------
+    pub save_tpa_: Vec<u8>,
+    pub node_solve_list_: Vec<i32>,
+    pub node_heavy_: Vec<i32>,
+    pub node_light_: Vec<i32>,
+    pub cell_qlat_: Vec<f64>,
+    pub node_lat_div_: Vec<u8>,
+    pub node_qstruct_: Vec<f64>,
+    pub live_stamp_: Vec<u32>,
+    pub live_gen_: u32,
+    pub all_faces_live_: bool,
+    pub save_dummy_: Vec<f64>,
+    pub save_cell_a_: Vec<f64>,
+    pub save_cell_q_: Vec<f64>,
+    pub save_cell_phi_: Vec<f64>,
+    pub save_node_vol_: Vec<f64>,
+    pub save_node_head_: Vec<f64>,
+    pub save_exch_: Vec<f64>,
+    pub save_in_: Vec<f64>,
+    pub save_out_: Vec<f64>,
+    pub save_flood_: Vec<f64>,
+    pub save_qint_: Vec<f64>,
+    pub save_carry_: Vec<f64>,
+    pub div_link_: i32,
+    pub div_value_: f64,
+    pub div_what_: Option<&'static str>,
+    pub halo_prev_: Vec<i8>,
+    pub due_f_upto_: Vec<Vec<i32>>,
+    pub due_c_upto_: Vec<Vec<i32>>,
+    pub due_n_upto_: Vec<Vec<i32>>,
+    pub last_nsteps_: i64,
+    pub last_h_: f64,
+    pub suggested_h_: f64,
+    pub dt_argmin_pressurized_: i64,
+    pub dt_argmin_band_: i64,
+    pub dt_argmin_free_: i64,
+    pub dt_argmin_node_: i64,
+    pub press_step_: bool,
+    pub pressure_candidate_: bool,
+    /// fireFaces' function-static scratch (static thread_local upstream): the per-volume
+    /// outflow scales, the exporting lists and the previous call's sparse flag, and the
+    /// touched-node list. They outlive a call as upstream's do.
+    pub ff_out_cell_: Vec<f64>,
+    pub ff_out_node_: Vec<f64>,
+    pub ff_exporting_cells_: Vec<usize>,
+    pub ff_exporting_nodes_: Vec<usize>,
+    pub ff_previous_sparse_: bool,
+    pub ff_touched_: Vec<i8>,
+    pub ff_touched_nodes_: Vec<i32>,
 }
 
 impl Default for ExplicitFvSolver {
@@ -301,6 +374,51 @@ impl Default for ExplicitFvSolver {
             face_a_rim_: Vec::new(),
             face_lat_spill_: Vec::new(),
             step_sink_set_: false,
+            save_tpa_: Vec::new(),
+            node_solve_list_: Vec::new(),
+            node_heavy_: Vec::new(),
+            node_light_: Vec::new(),
+            cell_qlat_: Vec::new(),
+            node_lat_div_: Vec::new(),
+            node_qstruct_: Vec::new(),
+            live_stamp_: Vec::new(),
+            live_gen_: 0,
+            all_faces_live_: true,
+            save_dummy_: Vec::new(),
+            save_cell_a_: Vec::new(),
+            save_cell_q_: Vec::new(),
+            save_cell_phi_: Vec::new(),
+            save_node_vol_: Vec::new(),
+            save_node_head_: Vec::new(),
+            save_exch_: Vec::new(),
+            save_in_: Vec::new(),
+            save_out_: Vec::new(),
+            save_flood_: Vec::new(),
+            save_qint_: Vec::new(),
+            save_carry_: Vec::new(),
+            div_link_: -1,
+            div_value_: 0.0,
+            div_what_: None,
+            halo_prev_: Vec::new(),
+            due_f_upto_: Vec::new(),
+            due_c_upto_: Vec::new(),
+            due_n_upto_: Vec::new(),
+            last_nsteps_: 0,
+            last_h_: 0.0,
+            suggested_h_: 0.0,
+            dt_argmin_pressurized_: 0,
+            dt_argmin_band_: 0,
+            dt_argmin_free_: 0,
+            dt_argmin_node_: 0,
+            press_step_: false,
+            pressure_candidate_: false,
+            ff_out_cell_: Vec::new(),
+            ff_out_node_: Vec::new(),
+            ff_exporting_cells_: Vec::new(),
+            ff_exporting_nodes_: Vec::new(),
+            ff_previous_sparse_: false,
+            ff_touched_: Vec::new(),
+            ff_touched_nodes_: Vec::new(),
         }
     }
 }
@@ -310,12 +428,12 @@ fn env_first_byte(name: &str) -> Option<u8> {
 }
 
 impl ExplicitFvSolver {
-    fn tpa_cell(&self, state: &NetworkStateData, uc: usize) -> bool {
+    pub(crate) fn tpa_cell(&self, state: &NetworkStateData, uc: usize) -> bool {
         self.tpa_ && state.cell_tpa[uc] != 0
     }
 
     /// cacheClosure(uc, g, h, nullptr)
-    fn cache_closure(&mut self, state: &NetworkStateData, uc: usize, g: &FvGeometry, h: f64) {
+    pub(crate) fn cache_closure(&mut self, state: &NetworkStateData, uc: usize, g: &FvGeometry, h: f64) {
         if h > K_DRY_DEPTH && !self.tpa_cell(state, uc) {
             let e = closure_eval(&g.closure_tbl, h);
             self.cell_ah_[uc] = e.a;

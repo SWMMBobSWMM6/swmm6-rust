@@ -1,0 +1,68 @@
+[TITLE]
+FV synthetic gate deck: a weir and a pump under SUBSTEP structure coupling, second order with
+MINMOD, compaction off, node-feedback steps and three tiers (swmm6-rust, 6 Nov 2026).
+
+[OPTIONS]
+FLOW_UNITS           CFS
+FLOW_ROUTING         FV
+FV_ORDER             2
+FV_LIMITER           MINMOD
+FV_COMPACTION        NO
+FV_NODE_FEEDBACK_DT  YES
+FV_LTS_MAX_TIERS     3
+START_DATE           01/01/2026
+START_TIME           00:00:00
+END_DATE             01/01/2026
+END_TIME             02:00:00
+REPORT_STEP          00:05:00
+ROUTING_STEP         2
+LENGTHENING_STEP     0
+
+[JUNCTIONS]
+J0     100.0  8.0  0  0  0
+J1      99.0  8.0  0  0  0
+W2      98.0  8.0  0  0  0
+P1      94.0 10.0  2  0  0
+
+[OUTFALLS]
+OF      93.0  FREE NO
+
+[CONDUITS]
+C1     J0   J1  500  0.013 0 0 0 0
+C2     J1   W2  400  0.013 0 0 0 0
+C3     W2   P1  200  0.013 0 0 0 0
+C4     P1   OF  100  0.013 0 0 0 0
+
+[WEIRS]
+WR1    J1   OF  TRANSVERSE 3.0 3.33 NO 0 0
+
+[PUMPS]
+PU1    P1   OF  PC1 ON 4.0 1.0
+
+[CURVES]
+PC1    PUMP2  1.0  5.0
+PC1           4.0  10.0
+PC1           8.0  12.0
+
+[XSECTIONS]
+C1     CIRCULAR 2.5 0 0 0 1
+C2     CIRCULAR 2.0 0 0 0 1
+C3     CIRCULAR 2.0 0 0 0 1
+C4     CIRCULAR 1.0 0 0 0 1
+WR1    RECT_OPEN 2.0 6.0 0 0
+
+[INFLOWS]
+J0     FLOW HYD FLOW 1.0 1.0 0.2
+
+[TIMESERIES]
+HYD    0:00  0.0
+HYD    0:15  25.0
+HYD    0:45  40.0
+HYD    1:15  5.0
+HYD    2:00  0.0
+
+[REPORT]
+CONTINUITY YES
+FLOWSTATS YES
+NODES ALL
+LINKS ALL

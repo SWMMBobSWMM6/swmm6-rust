@@ -585,10 +585,28 @@ impl SwmmEngine {
     pub(crate) fn check_routing_diverged(&mut self) -> Result<i32, Terminated> {
         const K_ABSURD: f64 = 1.0e9;
         let diverged = |v: f64| !v.is_finite() || v.abs() > K_ABSURD;
-        // FV cell-state guard (issue #156 R3): router_.fvSolver()->divergence(dv), the FV
-        // solver's own check of its cells, is the routing step's code.
-        if self.router_.fv_solver_.is_some() {
-            return Err(stub("fv::INetworkSolver::divergence (checkRoutingDiverged)"));
+        // FV cell-state guard (issue #156 R3): the FV solver's own check of its cells.
+        if let Some(dv) = self.router_.fv_solver_.as_ref().and_then(|s| s.divergence()) {
+            let hours = self.ctx_.current_time / 3600.0;
+            let name: Vec<u8> = if dv.link >= 0 { crate::core::cstdlib::c_str(self.ctx_.link_names.name_of(dv.link)).to_vec() } else { b"?".to_vec() };
+            let what: &[u8] = if dv.what.is_empty() { b"state" } else { dv.what.as_bytes() };
+            let buf = cat(&[
+                b"ERROR ",
+                CFFI_ERR_NUMERICAL.to_string().as_bytes(),
+                b": the FV solution diverged in conduit '",
+                &name,
+                b"' (",
+                what,
+                b" ",
+                &crate::core::cstdio::printf_g(dv.value, 6),
+                b") after ",
+                format!("{:.4}", hours).as_bytes(),
+                b" hours -- a step-size-independent instability the substep retry cannot shrink away; the run cannot continue.",
+            ]);
+            let buf = truncate255(buf);
+            self.ctx_.errors.push(buf.clone());
+            self.set_error(CFFI_ERR_NUMERICAL, &buf);
+            return Ok(CFFI_ERR_NUMERICAL);
         }
         let hours = self.ctx_.current_time / 3600.0;
         for i in 0..self.ctx_.n_nodes() {

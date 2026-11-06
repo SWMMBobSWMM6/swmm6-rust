@@ -430,6 +430,9 @@ def load_rt_struct(header, struct, path_r, label, L):
             L.append(f'    *grp.buf_d.borrow_mut() = r.vf("{lb}[].buf_d"); *grp.buf_r.borrow_mut() = r.vf("{lb}[].buf_r"); *grp.buf_r2.borrow_mut() = r.vf("{lb}[].buf_r2"); }}')
             L.append(f'    r.sk("{lb}.packed_groups_"); r.sk("{lb}.packed_count_"); r.sk("{lb}.mask_active_"); }}')
             continue
+        if (struct, name) == ('Router', 'fv_solver_'):
+            load_fv_solver(pr, lb, L)
+            continue
         if (struct, name) in D.RT_CUSTOM:
             L.append(f'    r.skip_prefix("{lb}");')
             continue
@@ -458,6 +461,32 @@ def load_rt_struct(header, struct, path_r, label, L):
         load(pr, lb, k, L)
     for name, flag in D.RT_EXTRA.get(struct, []):
         L.append(f'    r.pi("{label}.{name}");')
+
+def load_fv_solver(pr, lb, L):
+    """Mirror of ctxdump._rt_fv_solver (5 Nov 2026): the CPU FV backend's members are loaded
+    over the solver the init legs built (the FV step's state carries over between steps)."""
+    L.append(f'    if r.pi("{lb}") != 0 {{ let s = ({pr}).as_mut().expect("FV backend built by the init legs");')
+    L.append(f'    if r.pi("{lb}.attached") != s.attached_ as i64 || r.pi("{lb}.step_sink") != s.step_sink_set_ as i64 {{ r.fail("FV backend attachment differs from the init legs"); }}')
+    load_struct('hydraulics/fv/FvOptions.hpp', 'FvOptions', 's.opts_', lb + '.opts_', L)
+    for f in D.RT_FV_SOLVER['vf']:
+        load(f's.{f}', f'{lb}.{f}', ('v', ('f', 'double')), L)
+    for f in D.RT_FV_SOLVER['vi']:
+        load(f's.{f}', f'{lb}.{f}', ('v', ('i', 'int')), L)
+    for f in D.RT_FV_SOLVER['vvi']:
+        load(f's.{f}', f'{lb}.{f}', ('v', ('v', ('i', 'int'))), L)
+    for f in D.RT_FV_SOLVER['i']:
+        load(f's.{f}', f'{lb}.{f}', ('i', 'int'), L)
+    for f in D.RT_FV_SOLVER['f']:
+        load(f's.{f}', f'{lb}.{f}', ('f', 'double'), L)
+    L.append(f'    {{ let n = r.count("{lb}.tier_occupancy_.n"); if n != s.tier_occupancy_.len() {{ r.fail("tier_occupancy_ size"); }} for q in 0..n {{ s.tier_occupancy_[q] = r.pi("{lb}.tier_occupancy_[]"); }} }}')
+    for f, st in [('f_state_l_', 'FaceState'), ('f_state_r_', 'FaceState'), ('f_flux_', 'FaceFlux')]:
+        L.append(f'    {{ let n = r.count("{lb}.{f}.n"); SeqLen::seq_len(&mut s.{f}, n); for el in s.{f}.iter_mut() {{')
+        load_struct('hydraulics/fv/FvKernels.hpp', st, '(*el)', f'{lb}.{f}[]', L)
+        L.append('    } }')
+    for f in ['water_', 'save_water_', 'rk_water_']:
+        load_struct('hydraulics/fv/AcceptedWaterVolumes.hpp', 'AcceptedWaterVolumes', f's.{f}', f'{lb}.{f}', L)
+    L.append(f'    s.div_what_ = swmm6_rust::hydraulics::fv::explicit_step::div_what_of(&r.ps("{lb}.div_what_"));')
+    L.append('    }')
 
 def walk_rt():
     saved = dict(D.STRUCTS)

@@ -37,59 +37,59 @@ inline void hydrodump(openswmm::SWMMEngine& e) {
   { std::vector<double> t; for (auto x : e.runoff_.soa_.perv_runoff_cfs) t.push_back((double)x); vf("runoff_.soa_.perv_runoff_cfs", t); }
   { std::vector<double> t; for (auto x : e.runoff_.soa_.outflow_vol) t.push_back((double)x); vf("runoff_.soa_.outflow_vol", t); }
   pi("runoff_.soa_.completed.n", (long long)(e.runoff_.soa_.completed).size());
-  for (const auto& e106 : e.runoff_.soa_.completed) {
-  pi("runoff_.soa_.completed[].n", (long long)(e106).size());
-  for (const auto& e107 : e106) {
-  pf("runoff_.soa_.completed[][].area", (double)(e107.area));
-  pf("runoff_.soa_.completed[][].opening", (double)(e107.opening));
-  pf("runoff_.soa_.completed[][].rain", (double)(e107.rain));
-  pf("runoff_.soa_.completed[][].runon", (double)(e107.runon));
-  pf("runoff_.soa_.completed[][].evaporation", (double)(e107.evaporation));
-  pf("runoff_.soa_.completed[][].infiltration", (double)(e107.infiltration));
-  pf("runoff_.soa_.completed[][].spatial_infiltration", (double)(e107.spatial_infiltration));
-  pf("runoff_.soa_.completed[][].outflow", (double)(e107.outflow));
-  pf("runoff_.soa_.completed[][].outlet", (double)(e107.outlet));
-  pf("runoff_.soa_.completed[][].closing", (double)(e107.closing));
+  for (const auto& e109 : e.runoff_.soa_.completed) {
+  pi("runoff_.soa_.completed[].n", (long long)(e109).size());
+  for (const auto& e110 : e109) {
+  pf("runoff_.soa_.completed[][].area", (double)(e110.area));
+  pf("runoff_.soa_.completed[][].opening", (double)(e110.opening));
+  pf("runoff_.soa_.completed[][].rain", (double)(e110.rain));
+  pf("runoff_.soa_.completed[][].runon", (double)(e110.runon));
+  pf("runoff_.soa_.completed[][].evaporation", (double)(e110.evaporation));
+  pf("runoff_.soa_.completed[][].infiltration", (double)(e110.infiltration));
+  pf("runoff_.soa_.completed[][].spatial_infiltration", (double)(e110.spatial_infiltration));
+  pf("runoff_.soa_.completed[][].outflow", (double)(e110.outflow));
+  pf("runoff_.soa_.completed[][].outlet", (double)(e110.outlet));
+  pf("runoff_.soa_.completed[][].closing", (double)(e110.closing));
   }
   }
   { std::vector<double> t; for (auto x : e.runoff_.spatial_full_area_ft2_) t.push_back((double)x); vf("runoff_.spatial_full_area_ft2_", t); }
   { std::vector<long long> t; for (auto x : e.runoff_.infil_bank_.methods_) t.push_back((long long)x); vi("runoff_.infil_bank_.methods_", t); }
   { std::vector<long long> t; for (auto x : e.runoff_.infil_bank_.owners_) t.push_back((long long)x); vi("runoff_.infil_bank_.owners_", t); }
   pi("runoff_.infil_bank_.horton_.n", (long long)(e.runoff_.infil_bank_.horton_).size());
-  for (const auto& e108 : e.runoff_.infil_bank_.horton_) {
-  pf("runoff_.infil_bank_.horton_[].f0", (double)(e108.f0));
-  pf("runoff_.infil_bank_.horton_[].fmin", (double)(e108.fmin));
-  pf("runoff_.infil_bank_.horton_[].decay", (double)(e108.decay));
-  pf("runoff_.infil_bank_.horton_[].regen", (double)(e108.regen));
-  pf("runoff_.infil_bank_.horton_[].Fmax", (double)(e108.Fmax));
-  pf("runoff_.infil_bank_.horton_[].tp", (double)(e108.tp));
-  pf("runoff_.infil_bank_.horton_[].Fe", (double)(e108.Fe));
-  pf("runoff_.infil_bank_.horton_[].Fmh", (double)(e108.Fmh));
+  for (const auto& e111 : e.runoff_.infil_bank_.horton_) {
+  pf("runoff_.infil_bank_.horton_[].f0", (double)(e111.f0));
+  pf("runoff_.infil_bank_.horton_[].fmin", (double)(e111.fmin));
+  pf("runoff_.infil_bank_.horton_[].decay", (double)(e111.decay));
+  pf("runoff_.infil_bank_.horton_[].regen", (double)(e111.regen));
+  pf("runoff_.infil_bank_.horton_[].Fmax", (double)(e111.Fmax));
+  pf("runoff_.infil_bank_.horton_[].tp", (double)(e111.tp));
+  pf("runoff_.infil_bank_.horton_[].Fe", (double)(e111.Fe));
+  pf("runoff_.infil_bank_.horton_[].Fmh", (double)(e111.Fmh));
   }
   pi("runoff_.infil_bank_.grnampt_.n", (long long)(e.runoff_.infil_bank_.grnampt_).size());
-  for (const auto& e109 : e.runoff_.infil_bank_.grnampt_) {
-  pf("runoff_.infil_bank_.grnampt_[].S", (double)(e109.S));
-  pf("runoff_.infil_bank_.grnampt_[].Ks", (double)(e109.Ks));
-  pf("runoff_.infil_bank_.grnampt_[].IMDmax", (double)(e109.IMDmax));
-  pf("runoff_.infil_bank_.grnampt_[].IMD", (double)(e109.IMD));
-  pf("runoff_.infil_bank_.grnampt_[].F", (double)(e109.F));
-  pf("runoff_.infil_bank_.grnampt_[].Fu", (double)(e109.Fu));
-  pf("runoff_.infil_bank_.grnampt_[].Fumax", (double)(e109.Fumax));
-  pf("runoff_.infil_bank_.grnampt_[].Lu", (double)(e109.Lu));
-  pf("runoff_.infil_bank_.grnampt_[].T", (double)(e109.T));
-  pi("runoff_.infil_bank_.grnampt_[].saturated", (long long)(e109.saturated));
+  for (const auto& e112 : e.runoff_.infil_bank_.grnampt_) {
+  pf("runoff_.infil_bank_.grnampt_[].S", (double)(e112.S));
+  pf("runoff_.infil_bank_.grnampt_[].Ks", (double)(e112.Ks));
+  pf("runoff_.infil_bank_.grnampt_[].IMDmax", (double)(e112.IMDmax));
+  pf("runoff_.infil_bank_.grnampt_[].IMD", (double)(e112.IMD));
+  pf("runoff_.infil_bank_.grnampt_[].F", (double)(e112.F));
+  pf("runoff_.infil_bank_.grnampt_[].Fu", (double)(e112.Fu));
+  pf("runoff_.infil_bank_.grnampt_[].Fumax", (double)(e112.Fumax));
+  pf("runoff_.infil_bank_.grnampt_[].Lu", (double)(e112.Lu));
+  pf("runoff_.infil_bank_.grnampt_[].T", (double)(e112.T));
+  pi("runoff_.infil_bank_.grnampt_[].saturated", (long long)(e112.saturated));
   }
   pi("runoff_.infil_bank_.curvenum_.n", (long long)(e.runoff_.infil_bank_.curvenum_).size());
-  for (const auto& e110 : e.runoff_.infil_bank_.curvenum_) {
-  pf("runoff_.infil_bank_.curvenum_[].Smax", (double)(e110.Smax));
-  pf("runoff_.infil_bank_.curvenum_[].S", (double)(e110.S));
-  pf("runoff_.infil_bank_.curvenum_[].Se", (double)(e110.Se));
-  pf("runoff_.infil_bank_.curvenum_[].P", (double)(e110.P));
-  pf("runoff_.infil_bank_.curvenum_[].F", (double)(e110.F));
-  pf("runoff_.infil_bank_.curvenum_[].f", (double)(e110.f));
-  pf("runoff_.infil_bank_.curvenum_[].regen", (double)(e110.regen));
-  pf("runoff_.infil_bank_.curvenum_[].T", (double)(e110.T));
-  pf("runoff_.infil_bank_.curvenum_[].Tmax", (double)(e110.Tmax));
+  for (const auto& e113 : e.runoff_.infil_bank_.curvenum_) {
+  pf("runoff_.infil_bank_.curvenum_[].Smax", (double)(e113.Smax));
+  pf("runoff_.infil_bank_.curvenum_[].S", (double)(e113.S));
+  pf("runoff_.infil_bank_.curvenum_[].Se", (double)(e113.Se));
+  pf("runoff_.infil_bank_.curvenum_[].P", (double)(e113.P));
+  pf("runoff_.infil_bank_.curvenum_[].F", (double)(e113.F));
+  pf("runoff_.infil_bank_.curvenum_[].f", (double)(e113.f));
+  pf("runoff_.infil_bank_.curvenum_[].regen", (double)(e113.regen));
+  pf("runoff_.infil_bank_.curvenum_[].T", (double)(e113.T));
+  pf("runoff_.infil_bank_.curvenum_[].Tmax", (double)(e113.Tmax));
   }
   { std::vector<double> t; for (auto x : e.runoff_.infil_bank_.constant_) t.push_back((double)x); vf("runoff_.infil_bank_.constant_", t); }
   { std::vector<double> t; for (auto x : e.runoff_.infil_bank_.cumulative_) t.push_back((double)x); vf("runoff_.infil_bank_.cumulative_", t); }
@@ -166,142 +166,142 @@ inline void hydrodump(openswmm::SWMMEngine& e) {
   { std::vector<double> t; for (auto x : e.groundwater_.soa_.deep_loss) t.push_back((double)x); vf("groundwater_.soa_.deep_loss", t); }
   { std::vector<double> t; for (auto x : e.groundwater_.soa_.max_infil_vol) t.push_back((double)x); vf("groundwater_.soa_.max_infil_vol", t); }
   pi("groundwater_.soa_.lateral_expr.n", (long long)(e.groundwater_.soa_.lateral_expr).size());
-  for (const auto& e111 : e.groundwater_.soa_.lateral_expr) {
-  pi("groundwater_.soa_.lateral_expr[].postfix.n", (long long)(e111.postfix).size());
-  for (const auto& e112 : e111.postfix) {
-  pi("groundwater_.soa_.lateral_expr[].postfix[].type", (long long)(e112.type));
-  pf("groundwater_.soa_.lateral_expr[].postfix[].value", (double)(e112.value));
-  pi("groundwater_.soa_.lateral_expr[].postfix[].var_idx", (long long)(e112.var_idx));
-  ps("groundwater_.soa_.lateral_expr[].postfix[].var_name", e112.var_name);
+  for (const auto& e114 : e.groundwater_.soa_.lateral_expr) {
+  pi("groundwater_.soa_.lateral_expr[].postfix.n", (long long)(e114.postfix).size());
+  for (const auto& e115 : e114.postfix) {
+  pi("groundwater_.soa_.lateral_expr[].postfix[].type", (long long)(e115.type));
+  pf("groundwater_.soa_.lateral_expr[].postfix[].value", (double)(e115.value));
+  pi("groundwater_.soa_.lateral_expr[].postfix[].var_idx", (long long)(e115.var_idx));
+  ps("groundwater_.soa_.lateral_expr[].postfix[].var_name", e115.var_name);
   }
-  pi("groundwater_.soa_.lateral_expr[].valid", (long long)(e111.valid));
+  pi("groundwater_.soa_.lateral_expr[].valid", (long long)(e114.valid));
   }
   pi("groundwater_.soa_.deep_expr.n", (long long)(e.groundwater_.soa_.deep_expr).size());
-  for (const auto& e113 : e.groundwater_.soa_.deep_expr) {
-  pi("groundwater_.soa_.deep_expr[].postfix.n", (long long)(e113.postfix).size());
-  for (const auto& e114 : e113.postfix) {
-  pi("groundwater_.soa_.deep_expr[].postfix[].type", (long long)(e114.type));
-  pf("groundwater_.soa_.deep_expr[].postfix[].value", (double)(e114.value));
-  pi("groundwater_.soa_.deep_expr[].postfix[].var_idx", (long long)(e114.var_idx));
-  ps("groundwater_.soa_.deep_expr[].postfix[].var_name", e114.var_name);
+  for (const auto& e116 : e.groundwater_.soa_.deep_expr) {
+  pi("groundwater_.soa_.deep_expr[].postfix.n", (long long)(e116.postfix).size());
+  for (const auto& e117 : e116.postfix) {
+  pi("groundwater_.soa_.deep_expr[].postfix[].type", (long long)(e117.type));
+  pf("groundwater_.soa_.deep_expr[].postfix[].value", (double)(e117.value));
+  pi("groundwater_.soa_.deep_expr[].postfix[].var_idx", (long long)(e117.var_idx));
+  ps("groundwater_.soa_.deep_expr[].postfix[].var_name", e117.var_name);
   }
-  pi("groundwater_.soa_.deep_expr[].valid", (long long)(e113.valid));
+  pi("groundwater_.soa_.deep_expr[].valid", (long long)(e116.valid));
   }
   pi("lid_.groups_.n", (long long)(e.lid_.groups_).size());
-  for (const auto& e115 : e.lid_.groups_) {
-  pi("lid_.groups_[].type", (long long)(e115.type));
-  pi("lid_.groups_[].count", (long long)(e115.count));
-  pf("lid_.groups_[].ucf_raindepth", (double)(e115.ucf_raindepth));
-  pf("lid_.groups_[].ucf_rainfall", (double)(e115.ucf_rainfall));
-  { std::vector<long long> t; for (auto x : e115.subcatch_idx) t.push_back((long long)x); vi("lid_.groups_[].subcatch_idx", t); }
-  { std::vector<long long> t; for (auto x : e115.control_idx) t.push_back((long long)x); vi("lid_.groups_[].control_idx", t); }
-  { std::vector<double> t; for (auto x : e115.area) t.push_back((double)x); vf("lid_.groups_[].area", t); }
-  { std::vector<double> t; for (auto x : e115.from_imperv) t.push_back((double)x); vf("lid_.groups_[].from_imperv", t); }
-  { std::vector<double> t; for (auto x : e115.from_perv) t.push_back((double)x); vf("lid_.groups_[].from_perv", t); }
-  { std::vector<long long> t; for (auto x : e115.to_perv) t.push_back((long long)x); vi("lid_.groups_[].to_perv", t); }
-  { std::vector<long long> t; for (auto x : e115.drain_node) t.push_back((long long)x); vi("lid_.groups_[].drain_node", t); }
-  { std::vector<long long> t; for (auto x : e115.drain_subcatch) t.push_back((long long)x); vi("lid_.groups_[].drain_subcatch", t); }
-  { std::vector<double> t; for (auto x : e115.inflow) t.push_back((double)x); vf("lid_.groups_[].inflow", t); }
-  { std::vector<double> t; for (auto x : e115.evap_rate_unit) t.push_back((double)x); vf("lid_.groups_[].evap_rate_unit", t); }
-  { std::vector<double> t; for (auto x : e115.subcatch_rain) t.push_back((double)x); vf("lid_.groups_[].subcatch_rain", t); }
-  vs("lid_.groups_[].rpt_path", e115.rpt_path);
-  { std::vector<double> t; for (auto x : e115.rpt_surf_infil) t.push_back((double)x); vf("lid_.groups_[].rpt_surf_infil", t); }
-  { std::vector<double> t; for (auto x : e115.rpt_pave_perc) t.push_back((double)x); vf("lid_.groups_[].rpt_pave_perc", t); }
-  { std::vector<double> t; for (auto x : e115.rpt_soil_perc) t.push_back((double)x); vf("lid_.groups_[].rpt_soil_perc", t); }
-  { std::vector<double> t; for (auto x : e115.surf_store) t.push_back((double)x); vf("lid_.groups_[].surf_store", t); }
-  { std::vector<double> t; for (auto x : e115.surf_rough) t.push_back((double)x); vf("lid_.groups_[].surf_rough", t); }
-  { std::vector<double> t; for (auto x : e115.surf_slope) t.push_back((double)x); vf("lid_.groups_[].surf_slope", t); }
-  { std::vector<double> t; for (auto x : e115.soil_thick) t.push_back((double)x); vf("lid_.groups_[].soil_thick", t); }
-  { std::vector<double> t; for (auto x : e115.soil_poros) t.push_back((double)x); vf("lid_.groups_[].soil_poros", t); }
-  { std::vector<double> t; for (auto x : e115.soil_fc) t.push_back((double)x); vf("lid_.groups_[].soil_fc", t); }
-  { std::vector<double> t; for (auto x : e115.soil_wp) t.push_back((double)x); vf("lid_.groups_[].soil_wp", t); }
-  { std::vector<double> t; for (auto x : e115.soil_ksat) t.push_back((double)x); vf("lid_.groups_[].soil_ksat", t); }
-  { std::vector<double> t; for (auto x : e115.soil_kslope) t.push_back((double)x); vf("lid_.groups_[].soil_kslope", t); }
-  { std::vector<double> t; for (auto x : e115.soil_suction) t.push_back((double)x); vf("lid_.groups_[].soil_suction", t); }
-  { std::vector<double> t; for (auto x : e115.stor_thick) t.push_back((double)x); vf("lid_.groups_[].stor_thick", t); }
-  { std::vector<double> t; for (auto x : e115.stor_void) t.push_back((double)x); vf("lid_.groups_[].stor_void", t); }
-  { std::vector<double> t; for (auto x : e115.stor_ksat) t.push_back((double)x); vf("lid_.groups_[].stor_ksat", t); }
-  { std::vector<double> t; for (auto x : e115.stor_clog) t.push_back((double)x); vf("lid_.groups_[].stor_clog", t); }
-  { std::vector<long long> t; for (auto x : e115.stor_covered) t.push_back((long long)x); vi("lid_.groups_[].stor_covered", t); }
-  { std::vector<double> t; for (auto x : e115.drain_coeff) t.push_back((double)x); vf("lid_.groups_[].drain_coeff", t); }
-  { std::vector<double> t; for (auto x : e115.drain_expon) t.push_back((double)x); vf("lid_.groups_[].drain_expon", t); }
-  { std::vector<double> t; for (auto x : e115.drain_offset) t.push_back((double)x); vf("lid_.groups_[].drain_offset", t); }
-  { std::vector<double> t; for (auto x : e115.drain_delay) t.push_back((double)x); vf("lid_.groups_[].drain_delay", t); }
-  { std::vector<double> t; for (auto x : e115.drain_hopen) t.push_back((double)x); vf("lid_.groups_[].drain_hopen", t); }
-  { std::vector<double> t; for (auto x : e115.drain_hclose) t.push_back((double)x); vf("lid_.groups_[].drain_hclose", t); }
-  { std::vector<long long> t; for (auto x : e115.drain_open) t.push_back((long long)x); vi("lid_.groups_[].drain_open", t); }
-  { std::vector<double> t; for (auto x : e115.pave_thick) t.push_back((double)x); vf("lid_.groups_[].pave_thick", t); }
-  { std::vector<double> t; for (auto x : e115.pave_void) t.push_back((double)x); vf("lid_.groups_[].pave_void", t); }
-  { std::vector<double> t; for (auto x : e115.pave_imperv_frac) t.push_back((double)x); vf("lid_.groups_[].pave_imperv_frac", t); }
-  { std::vector<double> t; for (auto x : e115.pave_ksat) t.push_back((double)x); vf("lid_.groups_[].pave_ksat", t); }
-  { std::vector<double> t; for (auto x : e115.pave_clog_factor) t.push_back((double)x); vf("lid_.groups_[].pave_clog_factor", t); }
-  { std::vector<double> t; for (auto x : e115.pave_regen_days) t.push_back((double)x); vf("lid_.groups_[].pave_regen_days", t); }
-  { std::vector<double> t; for (auto x : e115.pave_regen_deg) t.push_back((double)x); vf("lid_.groups_[].pave_regen_deg", t); }
-  { std::vector<double> t; for (auto x : e115.next_regen_day) t.push_back((double)x); vf("lid_.groups_[].next_regen_day", t); }
-  { std::vector<double> t; for (auto x : e115.drainmat_thick) t.push_back((double)x); vf("lid_.groups_[].drainmat_thick", t); }
-  { std::vector<double> t; for (auto x : e115.drainmat_void) t.push_back((double)x); vf("lid_.groups_[].drainmat_void", t); }
-  { std::vector<double> t; for (auto x : e115.drainmat_rough) t.push_back((double)x); vf("lid_.groups_[].drainmat_rough", t); }
-  { std::vector<double> t; for (auto x : e115.surf_void_frac) t.push_back((double)x); vf("lid_.groups_[].surf_void_frac", t); }
-  { std::vector<double> t; for (auto x : e115.surf_alpha) t.push_back((double)x); vf("lid_.groups_[].surf_alpha", t); }
-  { std::vector<double> t; for (auto x : e115.surf_side_slope) t.push_back((double)x); vf("lid_.groups_[].surf_side_slope", t); }
-  { std::vector<double> t; for (auto x : e115.full_width) t.push_back((double)x); vf("lid_.groups_[].full_width", t); }
-  { std::vector<double> t; for (auto x : e115.unit_area) t.push_back((double)x); vf("lid_.groups_[].unit_area", t); }
-  { std::vector<double> t; for (auto x : e115.unit_width) t.push_back((double)x); vf("lid_.groups_[].unit_width", t); }
-  { std::vector<double> t; for (auto x : e115.dry_time) t.push_back((double)x); vf("lid_.groups_[].dry_time", t); }
-  { std::vector<double> t; for (auto x : e115.surf_depth) t.push_back((double)x); vf("lid_.groups_[].surf_depth", t); }
-  { std::vector<double> t; for (auto x : e115.soil_moist) t.push_back((double)x); vf("lid_.groups_[].soil_moist", t); }
-  { std::vector<double> t; for (auto x : e115.stor_depth) t.push_back((double)x); vf("lid_.groups_[].stor_depth", t); }
-  { std::vector<double> t; for (auto x : e115.pave_depth) t.push_back((double)x); vf("lid_.groups_[].pave_depth", t); }
-  pi("lid_.groups_[].soil_infil.n", (long long)(e115.soil_infil).size());
-  for (const auto& e116 : e115.soil_infil) {
-  pf("lid_.groups_[].soil_infil[].S", (double)(e116.S));
-  pf("lid_.groups_[].soil_infil[].Ks", (double)(e116.Ks));
-  pf("lid_.groups_[].soil_infil[].IMDmax", (double)(e116.IMDmax));
-  pf("lid_.groups_[].soil_infil[].IMD", (double)(e116.IMD));
-  pf("lid_.groups_[].soil_infil[].F", (double)(e116.F));
-  pf("lid_.groups_[].soil_infil[].Fu", (double)(e116.Fu));
-  pf("lid_.groups_[].soil_infil[].Fumax", (double)(e116.Fumax));
-  pf("lid_.groups_[].soil_infil[].Lu", (double)(e116.Lu));
-  pf("lid_.groups_[].soil_infil[].T", (double)(e116.T));
-  pi("lid_.groups_[].soil_infil[].saturated", (long long)(e116.saturated));
+  for (const auto& e118 : e.lid_.groups_) {
+  pi("lid_.groups_[].type", (long long)(e118.type));
+  pi("lid_.groups_[].count", (long long)(e118.count));
+  pf("lid_.groups_[].ucf_raindepth", (double)(e118.ucf_raindepth));
+  pf("lid_.groups_[].ucf_rainfall", (double)(e118.ucf_rainfall));
+  { std::vector<long long> t; for (auto x : e118.subcatch_idx) t.push_back((long long)x); vi("lid_.groups_[].subcatch_idx", t); }
+  { std::vector<long long> t; for (auto x : e118.control_idx) t.push_back((long long)x); vi("lid_.groups_[].control_idx", t); }
+  { std::vector<double> t; for (auto x : e118.area) t.push_back((double)x); vf("lid_.groups_[].area", t); }
+  { std::vector<double> t; for (auto x : e118.from_imperv) t.push_back((double)x); vf("lid_.groups_[].from_imperv", t); }
+  { std::vector<double> t; for (auto x : e118.from_perv) t.push_back((double)x); vf("lid_.groups_[].from_perv", t); }
+  { std::vector<long long> t; for (auto x : e118.to_perv) t.push_back((long long)x); vi("lid_.groups_[].to_perv", t); }
+  { std::vector<long long> t; for (auto x : e118.drain_node) t.push_back((long long)x); vi("lid_.groups_[].drain_node", t); }
+  { std::vector<long long> t; for (auto x : e118.drain_subcatch) t.push_back((long long)x); vi("lid_.groups_[].drain_subcatch", t); }
+  { std::vector<double> t; for (auto x : e118.inflow) t.push_back((double)x); vf("lid_.groups_[].inflow", t); }
+  { std::vector<double> t; for (auto x : e118.evap_rate_unit) t.push_back((double)x); vf("lid_.groups_[].evap_rate_unit", t); }
+  { std::vector<double> t; for (auto x : e118.subcatch_rain) t.push_back((double)x); vf("lid_.groups_[].subcatch_rain", t); }
+  vs("lid_.groups_[].rpt_path", e118.rpt_path);
+  { std::vector<double> t; for (auto x : e118.rpt_surf_infil) t.push_back((double)x); vf("lid_.groups_[].rpt_surf_infil", t); }
+  { std::vector<double> t; for (auto x : e118.rpt_pave_perc) t.push_back((double)x); vf("lid_.groups_[].rpt_pave_perc", t); }
+  { std::vector<double> t; for (auto x : e118.rpt_soil_perc) t.push_back((double)x); vf("lid_.groups_[].rpt_soil_perc", t); }
+  { std::vector<double> t; for (auto x : e118.surf_store) t.push_back((double)x); vf("lid_.groups_[].surf_store", t); }
+  { std::vector<double> t; for (auto x : e118.surf_rough) t.push_back((double)x); vf("lid_.groups_[].surf_rough", t); }
+  { std::vector<double> t; for (auto x : e118.surf_slope) t.push_back((double)x); vf("lid_.groups_[].surf_slope", t); }
+  { std::vector<double> t; for (auto x : e118.soil_thick) t.push_back((double)x); vf("lid_.groups_[].soil_thick", t); }
+  { std::vector<double> t; for (auto x : e118.soil_poros) t.push_back((double)x); vf("lid_.groups_[].soil_poros", t); }
+  { std::vector<double> t; for (auto x : e118.soil_fc) t.push_back((double)x); vf("lid_.groups_[].soil_fc", t); }
+  { std::vector<double> t; for (auto x : e118.soil_wp) t.push_back((double)x); vf("lid_.groups_[].soil_wp", t); }
+  { std::vector<double> t; for (auto x : e118.soil_ksat) t.push_back((double)x); vf("lid_.groups_[].soil_ksat", t); }
+  { std::vector<double> t; for (auto x : e118.soil_kslope) t.push_back((double)x); vf("lid_.groups_[].soil_kslope", t); }
+  { std::vector<double> t; for (auto x : e118.soil_suction) t.push_back((double)x); vf("lid_.groups_[].soil_suction", t); }
+  { std::vector<double> t; for (auto x : e118.stor_thick) t.push_back((double)x); vf("lid_.groups_[].stor_thick", t); }
+  { std::vector<double> t; for (auto x : e118.stor_void) t.push_back((double)x); vf("lid_.groups_[].stor_void", t); }
+  { std::vector<double> t; for (auto x : e118.stor_ksat) t.push_back((double)x); vf("lid_.groups_[].stor_ksat", t); }
+  { std::vector<double> t; for (auto x : e118.stor_clog) t.push_back((double)x); vf("lid_.groups_[].stor_clog", t); }
+  { std::vector<long long> t; for (auto x : e118.stor_covered) t.push_back((long long)x); vi("lid_.groups_[].stor_covered", t); }
+  { std::vector<double> t; for (auto x : e118.drain_coeff) t.push_back((double)x); vf("lid_.groups_[].drain_coeff", t); }
+  { std::vector<double> t; for (auto x : e118.drain_expon) t.push_back((double)x); vf("lid_.groups_[].drain_expon", t); }
+  { std::vector<double> t; for (auto x : e118.drain_offset) t.push_back((double)x); vf("lid_.groups_[].drain_offset", t); }
+  { std::vector<double> t; for (auto x : e118.drain_delay) t.push_back((double)x); vf("lid_.groups_[].drain_delay", t); }
+  { std::vector<double> t; for (auto x : e118.drain_hopen) t.push_back((double)x); vf("lid_.groups_[].drain_hopen", t); }
+  { std::vector<double> t; for (auto x : e118.drain_hclose) t.push_back((double)x); vf("lid_.groups_[].drain_hclose", t); }
+  { std::vector<long long> t; for (auto x : e118.drain_open) t.push_back((long long)x); vi("lid_.groups_[].drain_open", t); }
+  { std::vector<double> t; for (auto x : e118.pave_thick) t.push_back((double)x); vf("lid_.groups_[].pave_thick", t); }
+  { std::vector<double> t; for (auto x : e118.pave_void) t.push_back((double)x); vf("lid_.groups_[].pave_void", t); }
+  { std::vector<double> t; for (auto x : e118.pave_imperv_frac) t.push_back((double)x); vf("lid_.groups_[].pave_imperv_frac", t); }
+  { std::vector<double> t; for (auto x : e118.pave_ksat) t.push_back((double)x); vf("lid_.groups_[].pave_ksat", t); }
+  { std::vector<double> t; for (auto x : e118.pave_clog_factor) t.push_back((double)x); vf("lid_.groups_[].pave_clog_factor", t); }
+  { std::vector<double> t; for (auto x : e118.pave_regen_days) t.push_back((double)x); vf("lid_.groups_[].pave_regen_days", t); }
+  { std::vector<double> t; for (auto x : e118.pave_regen_deg) t.push_back((double)x); vf("lid_.groups_[].pave_regen_deg", t); }
+  { std::vector<double> t; for (auto x : e118.next_regen_day) t.push_back((double)x); vf("lid_.groups_[].next_regen_day", t); }
+  { std::vector<double> t; for (auto x : e118.drainmat_thick) t.push_back((double)x); vf("lid_.groups_[].drainmat_thick", t); }
+  { std::vector<double> t; for (auto x : e118.drainmat_void) t.push_back((double)x); vf("lid_.groups_[].drainmat_void", t); }
+  { std::vector<double> t; for (auto x : e118.drainmat_rough) t.push_back((double)x); vf("lid_.groups_[].drainmat_rough", t); }
+  { std::vector<double> t; for (auto x : e118.surf_void_frac) t.push_back((double)x); vf("lid_.groups_[].surf_void_frac", t); }
+  { std::vector<double> t; for (auto x : e118.surf_alpha) t.push_back((double)x); vf("lid_.groups_[].surf_alpha", t); }
+  { std::vector<double> t; for (auto x : e118.surf_side_slope) t.push_back((double)x); vf("lid_.groups_[].surf_side_slope", t); }
+  { std::vector<double> t; for (auto x : e118.full_width) t.push_back((double)x); vf("lid_.groups_[].full_width", t); }
+  { std::vector<double> t; for (auto x : e118.unit_area) t.push_back((double)x); vf("lid_.groups_[].unit_area", t); }
+  { std::vector<double> t; for (auto x : e118.unit_width) t.push_back((double)x); vf("lid_.groups_[].unit_width", t); }
+  { std::vector<double> t; for (auto x : e118.dry_time) t.push_back((double)x); vf("lid_.groups_[].dry_time", t); }
+  { std::vector<double> t; for (auto x : e118.surf_depth) t.push_back((double)x); vf("lid_.groups_[].surf_depth", t); }
+  { std::vector<double> t; for (auto x : e118.soil_moist) t.push_back((double)x); vf("lid_.groups_[].soil_moist", t); }
+  { std::vector<double> t; for (auto x : e118.stor_depth) t.push_back((double)x); vf("lid_.groups_[].stor_depth", t); }
+  { std::vector<double> t; for (auto x : e118.pave_depth) t.push_back((double)x); vf("lid_.groups_[].pave_depth", t); }
+  pi("lid_.groups_[].soil_infil.n", (long long)(e118.soil_infil).size());
+  for (const auto& e119 : e118.soil_infil) {
+  pf("lid_.groups_[].soil_infil[].S", (double)(e119.S));
+  pf("lid_.groups_[].soil_infil[].Ks", (double)(e119.Ks));
+  pf("lid_.groups_[].soil_infil[].IMDmax", (double)(e119.IMDmax));
+  pf("lid_.groups_[].soil_infil[].IMD", (double)(e119.IMD));
+  pf("lid_.groups_[].soil_infil[].F", (double)(e119.F));
+  pf("lid_.groups_[].soil_infil[].Fu", (double)(e119.Fu));
+  pf("lid_.groups_[].soil_infil[].Fumax", (double)(e119.Fumax));
+  pf("lid_.groups_[].soil_infil[].Lu", (double)(e119.Lu));
+  pf("lid_.groups_[].soil_infil[].T", (double)(e119.T));
+  pi("lid_.groups_[].soil_infil[].saturated", (long long)(e119.saturated));
   }
-  { std::vector<double> t; for (auto x : e115.old_drain_flow) t.push_back((double)x); vf("lid_.groups_[].old_drain_flow", t); }
-  { std::vector<long long> t; for (auto x : e115.is_wet) t.push_back((long long)x); vi("lid_.groups_[].is_wet", t); }
-  { std::vector<long long> t; for (auto x : e115.can_overflow) t.push_back((long long)x); vi("lid_.groups_[].can_overflow", t); }
-  { std::vector<double> t; for (auto x : e115.drainmat_alpha) t.push_back((double)x); vf("lid_.groups_[].drainmat_alpha", t); }
-  { std::vector<double> t; for (auto x : e115.surface_runoff) t.push_back((double)x); vf("lid_.groups_[].surface_runoff", t); }
-  { std::vector<double> t; for (auto x : e115.drain_flow) t.push_back((double)x); vf("lid_.groups_[].drain_flow", t); }
-  { std::vector<double> t; for (auto x : e115.evap_loss) t.push_back((double)x); vf("lid_.groups_[].evap_loss", t); }
-  { std::vector<double> t; for (auto x : e115.infil_loss) t.push_back((double)x); vf("lid_.groups_[].infil_loss", t); }
-  { std::vector<double> t; for (auto x : e115.drain_rmvl) t.push_back((double)x); vf("lid_.groups_[].drain_rmvl", t); }
-  pi("lid_.groups_[].n_pollutants", (long long)(e115.n_pollutants));
-  { std::vector<double> t; for (auto x : e115.in_surf) t.push_back((double)x); vf("lid_.groups_[].in_surf", t); }
-  { std::vector<double> t; for (auto x : e115.in_pave) t.push_back((double)x); vf("lid_.groups_[].in_pave", t); }
-  { std::vector<double> t; for (auto x : e115.in_soil) t.push_back((double)x); vf("lid_.groups_[].in_soil", t); }
-  { std::vector<double> t; for (auto x : e115.in_stor) t.push_back((double)x); vf("lid_.groups_[].in_stor", t); }
-  { std::vector<double> t; for (auto x : e115.evap_surf) t.push_back((double)x); vf("lid_.groups_[].evap_surf", t); }
-  { std::vector<double> t; for (auto x : e115.evap_pave) t.push_back((double)x); vf("lid_.groups_[].evap_pave", t); }
-  { std::vector<double> t; for (auto x : e115.evap_soil) t.push_back((double)x); vf("lid_.groups_[].evap_soil", t); }
-  { std::vector<double> t; for (auto x : e115.evap_stor) t.push_back((double)x); vf("lid_.groups_[].evap_stor", t); }
-  { std::vector<double> t; for (auto x : e115.f_old_surf) t.push_back((double)x); vf("lid_.groups_[].f_old_surf", t); }
-  { std::vector<double> t; for (auto x : e115.f_old_soil) t.push_back((double)x); vf("lid_.groups_[].f_old_soil", t); }
-  { std::vector<double> t; for (auto x : e115.f_old_stor) t.push_back((double)x); vf("lid_.groups_[].f_old_stor", t); }
-  { std::vector<double> t; for (auto x : e115.f_old_pave) t.push_back((double)x); vf("lid_.groups_[].f_old_pave", t); }
-  { std::vector<double> t; for (auto x : e115.wb_inflow) t.push_back((double)x); vf("lid_.groups_[].wb_inflow", t); }
-  { std::vector<double> t; for (auto x : e115.wb_evap) t.push_back((double)x); vf("lid_.groups_[].wb_evap", t); }
-  { std::vector<double> t; for (auto x : e115.spatial_infil_loss) t.push_back((double)x); vf("lid_.groups_[].spatial_infil_loss", t); }
-  { std::vector<double> t; for (auto x : e115.wb_spatial_infil) t.push_back((double)x); vf("lid_.groups_[].wb_spatial_infil", t); }
-  { std::vector<double> t; for (auto x : e115.wb_infil) t.push_back((double)x); vf("lid_.groups_[].wb_infil", t); }
-  { std::vector<double> t; for (auto x : e115.wb_surf_flow) t.push_back((double)x); vf("lid_.groups_[].wb_surf_flow", t); }
-  { std::vector<double> t; for (auto x : e115.wb_drain_flow) t.push_back((double)x); vf("lid_.groups_[].wb_drain_flow", t); }
-  { std::vector<double> t; for (auto x : e115.wb_init_vol) t.push_back((double)x); vf("lid_.groups_[].wb_init_vol", t); }
-  { std::vector<double> t; for (auto x : e115.wb_final_vol) t.push_back((double)x); vf("lid_.groups_[].wb_final_vol", t); }
-  { std::vector<double> t; for (auto x : e115.vol_treated) t.push_back((double)x); vf("lid_.groups_[].vol_treated", t); }
+  { std::vector<double> t; for (auto x : e118.old_drain_flow) t.push_back((double)x); vf("lid_.groups_[].old_drain_flow", t); }
+  { std::vector<long long> t; for (auto x : e118.is_wet) t.push_back((long long)x); vi("lid_.groups_[].is_wet", t); }
+  { std::vector<long long> t; for (auto x : e118.can_overflow) t.push_back((long long)x); vi("lid_.groups_[].can_overflow", t); }
+  { std::vector<double> t; for (auto x : e118.drainmat_alpha) t.push_back((double)x); vf("lid_.groups_[].drainmat_alpha", t); }
+  { std::vector<double> t; for (auto x : e118.surface_runoff) t.push_back((double)x); vf("lid_.groups_[].surface_runoff", t); }
+  { std::vector<double> t; for (auto x : e118.drain_flow) t.push_back((double)x); vf("lid_.groups_[].drain_flow", t); }
+  { std::vector<double> t; for (auto x : e118.evap_loss) t.push_back((double)x); vf("lid_.groups_[].evap_loss", t); }
+  { std::vector<double> t; for (auto x : e118.infil_loss) t.push_back((double)x); vf("lid_.groups_[].infil_loss", t); }
+  { std::vector<double> t; for (auto x : e118.drain_rmvl) t.push_back((double)x); vf("lid_.groups_[].drain_rmvl", t); }
+  pi("lid_.groups_[].n_pollutants", (long long)(e118.n_pollutants));
+  { std::vector<double> t; for (auto x : e118.in_surf) t.push_back((double)x); vf("lid_.groups_[].in_surf", t); }
+  { std::vector<double> t; for (auto x : e118.in_pave) t.push_back((double)x); vf("lid_.groups_[].in_pave", t); }
+  { std::vector<double> t; for (auto x : e118.in_soil) t.push_back((double)x); vf("lid_.groups_[].in_soil", t); }
+  { std::vector<double> t; for (auto x : e118.in_stor) t.push_back((double)x); vf("lid_.groups_[].in_stor", t); }
+  { std::vector<double> t; for (auto x : e118.evap_surf) t.push_back((double)x); vf("lid_.groups_[].evap_surf", t); }
+  { std::vector<double> t; for (auto x : e118.evap_pave) t.push_back((double)x); vf("lid_.groups_[].evap_pave", t); }
+  { std::vector<double> t; for (auto x : e118.evap_soil) t.push_back((double)x); vf("lid_.groups_[].evap_soil", t); }
+  { std::vector<double> t; for (auto x : e118.evap_stor) t.push_back((double)x); vf("lid_.groups_[].evap_stor", t); }
+  { std::vector<double> t; for (auto x : e118.f_old_surf) t.push_back((double)x); vf("lid_.groups_[].f_old_surf", t); }
+  { std::vector<double> t; for (auto x : e118.f_old_soil) t.push_back((double)x); vf("lid_.groups_[].f_old_soil", t); }
+  { std::vector<double> t; for (auto x : e118.f_old_stor) t.push_back((double)x); vf("lid_.groups_[].f_old_stor", t); }
+  { std::vector<double> t; for (auto x : e118.f_old_pave) t.push_back((double)x); vf("lid_.groups_[].f_old_pave", t); }
+  { std::vector<double> t; for (auto x : e118.wb_inflow) t.push_back((double)x); vf("lid_.groups_[].wb_inflow", t); }
+  { std::vector<double> t; for (auto x : e118.wb_evap) t.push_back((double)x); vf("lid_.groups_[].wb_evap", t); }
+  { std::vector<double> t; for (auto x : e118.spatial_infil_loss) t.push_back((double)x); vf("lid_.groups_[].spatial_infil_loss", t); }
+  { std::vector<double> t; for (auto x : e118.wb_spatial_infil) t.push_back((double)x); vf("lid_.groups_[].wb_spatial_infil", t); }
+  { std::vector<double> t; for (auto x : e118.wb_infil) t.push_back((double)x); vf("lid_.groups_[].wb_infil", t); }
+  { std::vector<double> t; for (auto x : e118.wb_surf_flow) t.push_back((double)x); vf("lid_.groups_[].wb_surf_flow", t); }
+  { std::vector<double> t; for (auto x : e118.wb_drain_flow) t.push_back((double)x); vf("lid_.groups_[].wb_drain_flow", t); }
+  { std::vector<double> t; for (auto x : e118.wb_init_vol) t.push_back((double)x); vf("lid_.groups_[].wb_init_vol", t); }
+  { std::vector<double> t; for (auto x : e118.wb_final_vol) t.push_back((double)x); vf("lid_.groups_[].wb_final_vol", t); }
+  { std::vector<double> t; for (auto x : e118.vol_treated) t.push_back((double)x); vf("lid_.groups_[].vol_treated", t); }
   }
   pi("lid_.usage_order_.n", (long long)(e.lid_.usage_order_).size());
-  for (const auto& e117 : e.lid_.usage_order_) {
-  pi("lid_.usage_order_[].first", (long long)(e117.first));
-  pi("lid_.usage_order_[].second", (long long)(e117.second));
+  for (const auto& e120 : e.lid_.usage_order_) {
+  pi("lid_.usage_order_[].first", (long long)(e120.first));
+  pi("lid_.usage_order_[].second", (long long)(e120.second));
   }
   pf("lid_.old_runoff_sec_", (double)(e.lid_.old_runoff_sec_));
   sk("lid_.rpt_files_");
@@ -311,19 +311,19 @@ inline void hydrodump(openswmm::SWMMEngine& e) {
   { std::vector<double> t; for (auto x : e.lid_.infil_factor_) t.push_back((double)x); vf("lid_.infil_factor_", t); }
   sk("rdii_.uh_params");
   pi("rdii_.decay_params.n", (long long)(e.rdii_.decay_params).size());
-  for (const auto& e118 : e.rdii_.decay_params) {
-  pi("rdii_.decay_params[].n", (long long)(e118).size());
-  for (const auto& e119 : e118) {
-  pi("rdii_.decay_params[][].active", (long long)(e119.active));
-  pf("rdii_.decay_params[][].k_dep", (double)(e119.k_dep));
-  pf("rdii_.decay_params[][].k_0", (double)(e119.k_0));
-  pf("rdii_.decay_params[][].k_T", (double)(e119.k_T));
-  pf("rdii_.decay_params[][].T_ref", (double)(e119.T_ref));
-  pf("rdii_.decay_params[][].theta_rec", (double)(e119.theta_rec));
-  pf("rdii_.decay_params[][].T_freeze", (double)(e119.T_freeze));
-  pi("rdii_.decay_params[][].snow_on", (long long)(e119.snow_on));
-  pf("rdii_.decay_params[][].snow_T", (double)(e119.snow_T));
-  pf("rdii_.decay_params[][].snow_ddf", (double)(e119.snow_ddf));
+  for (const auto& e121 : e.rdii_.decay_params) {
+  pi("rdii_.decay_params[].n", (long long)(e121).size());
+  for (const auto& e122 : e121) {
+  pi("rdii_.decay_params[][].active", (long long)(e122.active));
+  pf("rdii_.decay_params[][].k_dep", (double)(e122.k_dep));
+  pf("rdii_.decay_params[][].k_0", (double)(e122.k_0));
+  pf("rdii_.decay_params[][].k_T", (double)(e122.k_T));
+  pf("rdii_.decay_params[][].T_ref", (double)(e122.T_ref));
+  pf("rdii_.decay_params[][].theta_rec", (double)(e122.theta_rec));
+  pf("rdii_.decay_params[][].T_freeze", (double)(e122.T_freeze));
+  pi("rdii_.decay_params[][].snow_on", (long long)(e122.snow_on));
+  pf("rdii_.decay_params[][].snow_T", (double)(e122.snow_T));
+  pf("rdii_.decay_params[][].snow_ddf", (double)(e122.snow_ddf));
   }
   }
   pi("rdii_.groups_.count", (long long)(e.rdii_.groups_.count));
@@ -332,22 +332,22 @@ inline void hydrodump(openswmm::SWMMEngine& e) {
   { std::vector<long long> t; for (auto x : e.rdii_.groups_.gage_idx) t.push_back((long long)x); vi("rdii_.groups_.gage_idx", t); }
   { std::vector<double> t; for (auto x : e.rdii_.groups_.area) t.push_back((double)x); vf("rdii_.groups_.area", t); }
   pi("rdii_.groups_.uh_data.n", (long long)(e.rdii_.groups_.uh_data).size());
-  for (const auto& e120 : e.rdii_.groups_.uh_data) {
-  { std::vector<double> t; for (auto x : e120.past_rain) t.push_back((double)x); vf("rdii_.groups_.uh_data[].past_rain", t); }
-  { std::vector<long long> t; for (auto x : e120.past_month) t.push_back((long long)x); vi("rdii_.groups_.uh_data[].past_month", t); }
-  pi("rdii_.groups_.uh_data[].period", (long long)(e120.period));
-  pi("rdii_.groups_.uh_data[].max_periods", (long long)(e120.max_periods));
-  pi("rdii_.groups_.uh_data[].has_past_rain", (long long)(e120.has_past_rain));
-  pf("rdii_.groups_.uh_data[].ia_used", (double)(e120.ia_used));
-  pf("rdii_.groups_.uh_data[].swe", (double)(e120.swe));
-  pi("rdii_.groups_.uh_data[].dry_seconds", (long long)(e120.dry_seconds));
+  for (const auto& e123 : e.rdii_.groups_.uh_data) {
+  { std::vector<double> t; for (auto x : e123.past_rain) t.push_back((double)x); vf("rdii_.groups_.uh_data[].past_rain", t); }
+  { std::vector<long long> t; for (auto x : e123.past_month) t.push_back((long long)x); vi("rdii_.groups_.uh_data[].past_month", t); }
+  pi("rdii_.groups_.uh_data[].period", (long long)(e123.period));
+  pi("rdii_.groups_.uh_data[].max_periods", (long long)(e123.max_periods));
+  pi("rdii_.groups_.uh_data[].has_past_rain", (long long)(e123.has_past_rain));
+  pf("rdii_.groups_.uh_data[].ia_used", (double)(e123.ia_used));
+  pf("rdii_.groups_.uh_data[].swe", (double)(e123.swe));
+  pi("rdii_.groups_.uh_data[].dry_seconds", (long long)(e123.dry_seconds));
   }
   { std::vector<long long> t; for (auto x : e.rdii_.groups_.rain_interval) t.push_back((long long)x); vi("rdii_.groups_.rain_interval", t); }
   { std::vector<double> t; for (auto x : e.rdii_.groups_.gage_elapsed) t.push_back((double)x); vf("rdii_.groups_.gage_elapsed", t); }
   { std::vector<double> t; for (auto x : e.rdii_.groups_.rate_recorded_until) t.push_back((double)x); vf("rdii_.groups_.rate_recorded_until", t); }
   pi("rdii_.groups_.pending_rates.n", (long long)(e.rdii_.groups_.pending_rates).size());
-  for (const auto& e121 : e.rdii_.groups_.pending_rates) {
-  { std::vector<double> t; for (auto x : e121) t.push_back((double)x); vf("rdii_.groups_.pending_rates[]", t); }
+  for (const auto& e124 : e.rdii_.groups_.pending_rates) {
+  { std::vector<double> t; for (auto x : e124) t.push_back((double)x); vf("rdii_.groups_.pending_rates[]", t); }
   }
   sk("rdii_.uh_name_to_idx_");
   { std::vector<double> t; for (auto x : e.rdii_.node_rdii_flow_) t.push_back((double)x); vf("rdii_.node_rdii_flow_", t); }
@@ -360,23 +360,23 @@ inline void hydrodump(openswmm::SWMMEngine& e) {
   pi("lid_.rpt_files_.size", (long long)e.lid_.rpt_files_.size());
   for (auto& kv : e.lid_.rpt_files_) { pi("lid_.rpt_files_.key.first", kv.first.first); pi("lid_.rpt_files_.key.second", kv.first.second); }
   pi("gage_states_.n", (long long)(e.gage_states_).size());
-  for (const auto& e122 : e.gage_states_) {
-  pf("gage_states_[].rainfall", (double)(e122.rainfall));
-  pf("gage_states_[].snowfall", (double)(e122.snowfall));
-  pf("gage_states_[].total_precip", (double)(e122.total_precip));
-  pf("gage_states_[].rain_accum", (double)(e122.rain_accum));
-  pf("gage_states_[].api_rainfall", (double)(e122.api_rainfall));
-  pf("gage_states_[].snow_factor", (double)(e122.snow_factor));
-  pf("gage_states_[].scale_factor", (double)(e122.scale_factor));
-  pf("gage_states_[].units_factor", (double)(e122.units_factor));
-  pf("gage_states_[].adjust_factor", (double)(e122.adjust_factor));
-  pf("gage_states_[].rain_interval", (double)(e122.rain_interval));
-  pi("gage_states_[].rain_type", (long long)(e122.rain_type));
-  for (int q = 0; q < (int)(sizeof(e122.past_rain)/sizeof(e122.past_rain[0])); ++q) {
-  pf("gage_states_[].past_rain[]", (double)(e122.past_rain[q]));
+  for (const auto& e125 : e.gage_states_) {
+  pf("gage_states_[].rainfall", (double)(e125.rainfall));
+  pf("gage_states_[].snowfall", (double)(e125.snowfall));
+  pf("gage_states_[].total_precip", (double)(e125.total_precip));
+  pf("gage_states_[].rain_accum", (double)(e125.rain_accum));
+  pf("gage_states_[].api_rainfall", (double)(e125.api_rainfall));
+  pf("gage_states_[].snow_factor", (double)(e125.snow_factor));
+  pf("gage_states_[].scale_factor", (double)(e125.scale_factor));
+  pf("gage_states_[].units_factor", (double)(e125.units_factor));
+  pf("gage_states_[].adjust_factor", (double)(e125.adjust_factor));
+  pf("gage_states_[].rain_interval", (double)(e125.rain_interval));
+  pi("gage_states_[].rain_type", (long long)(e125.rain_type));
+  for (int q = 0; q < (int)(sizeof(e125.past_rain)/sizeof(e125.past_rain[0])); ++q) {
+  pf("gage_states_[].past_rain[]", (double)(e125.past_rain[q]));
   }
-  pf("gage_states_[].past_rain_accum", (double)(e122.past_rain_accum));
-  pf("gage_states_[].past_rain_interval", (double)(e122.past_rain_interval));
+  pf("gage_states_[].past_rain_accum", (double)(e125.past_rain_accum));
+  pf("gage_states_[].past_rain_interval", (double)(e125.past_rain_interval));
   }
   pi("last_melt_doy_", e.last_melt_doy_);
   vf("gw_frac_perv_", e.gw_frac_perv_);

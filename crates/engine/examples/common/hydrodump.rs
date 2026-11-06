@@ -45,59 +45,59 @@ pub fn hydrodump(e: &mut SwmmEngine) -> Vec<u8> {
     vf(o, "runoff_.soa_.perv_runoff_cfs", &(e.runoff_solver().soa_.perv_runoff_cfs).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "runoff_.soa_.outflow_vol", &(e.runoff_solver().soa_.outflow_vol).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     pi(o, "runoff_.soa_.completed.n", (e.runoff_solver().soa_.completed).len() as i64);
-    for e106 in (e.runoff_solver().soa_.completed).iter() {
-    pi(o, "runoff_.soa_.completed[].n", ((*e106)).len() as i64);
-    for e107 in ((*e106)).iter() {
-    pf(o, "runoff_.soa_.completed[][].area", ((*e107).area) as f64);
-    pf(o, "runoff_.soa_.completed[][].opening", ((*e107).opening) as f64);
-    pf(o, "runoff_.soa_.completed[][].rain", ((*e107).rain) as f64);
-    pf(o, "runoff_.soa_.completed[][].runon", ((*e107).runon) as f64);
-    pf(o, "runoff_.soa_.completed[][].evaporation", ((*e107).evaporation) as f64);
-    pf(o, "runoff_.soa_.completed[][].infiltration", ((*e107).infiltration) as f64);
-    pf(o, "runoff_.soa_.completed[][].spatial_infiltration", ((*e107).spatial_infiltration) as f64);
-    pf(o, "runoff_.soa_.completed[][].outflow", ((*e107).outflow) as f64);
-    pf(o, "runoff_.soa_.completed[][].outlet", ((*e107).outlet) as f64);
-    pf(o, "runoff_.soa_.completed[][].closing", ((*e107).closing) as f64);
+    for e109 in (e.runoff_solver().soa_.completed).iter() {
+    pi(o, "runoff_.soa_.completed[].n", ((*e109)).len() as i64);
+    for e110 in ((*e109)).iter() {
+    pf(o, "runoff_.soa_.completed[][].area", ((*e110).area) as f64);
+    pf(o, "runoff_.soa_.completed[][].opening", ((*e110).opening) as f64);
+    pf(o, "runoff_.soa_.completed[][].rain", ((*e110).rain) as f64);
+    pf(o, "runoff_.soa_.completed[][].runon", ((*e110).runon) as f64);
+    pf(o, "runoff_.soa_.completed[][].evaporation", ((*e110).evaporation) as f64);
+    pf(o, "runoff_.soa_.completed[][].infiltration", ((*e110).infiltration) as f64);
+    pf(o, "runoff_.soa_.completed[][].spatial_infiltration", ((*e110).spatial_infiltration) as f64);
+    pf(o, "runoff_.soa_.completed[][].outflow", ((*e110).outflow) as f64);
+    pf(o, "runoff_.soa_.completed[][].outlet", ((*e110).outlet) as f64);
+    pf(o, "runoff_.soa_.completed[][].closing", ((*e110).closing) as f64);
     }
     }
     vf(o, "runoff_.spatial_full_area_ft2_", &(e.runoff_solver().spatial_full_area_ft2_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vi(o, "runoff_.infil_bank_.methods_", &(e.runoff_solver().infil_bank_.methods_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     vi(o, "runoff_.infil_bank_.owners_", &(e.runoff_solver().infil_bank_.owners_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     pi(o, "runoff_.infil_bank_.horton_.n", (e.runoff_solver().infil_bank_.horton_).len() as i64);
-    for e108 in (e.runoff_solver().infil_bank_.horton_).iter() {
-    pf(o, "runoff_.infil_bank_.horton_[].f0", ((*e108).f0) as f64);
-    pf(o, "runoff_.infil_bank_.horton_[].fmin", ((*e108).fmin) as f64);
-    pf(o, "runoff_.infil_bank_.horton_[].decay", ((*e108).decay) as f64);
-    pf(o, "runoff_.infil_bank_.horton_[].regen", ((*e108).regen) as f64);
-    pf(o, "runoff_.infil_bank_.horton_[].Fmax", ((*e108).Fmax) as f64);
-    pf(o, "runoff_.infil_bank_.horton_[].tp", ((*e108).tp) as f64);
-    pf(o, "runoff_.infil_bank_.horton_[].Fe", ((*e108).Fe) as f64);
-    pf(o, "runoff_.infil_bank_.horton_[].Fmh", ((*e108).Fmh) as f64);
+    for e111 in (e.runoff_solver().infil_bank_.horton_).iter() {
+    pf(o, "runoff_.infil_bank_.horton_[].f0", ((*e111).f0) as f64);
+    pf(o, "runoff_.infil_bank_.horton_[].fmin", ((*e111).fmin) as f64);
+    pf(o, "runoff_.infil_bank_.horton_[].decay", ((*e111).decay) as f64);
+    pf(o, "runoff_.infil_bank_.horton_[].regen", ((*e111).regen) as f64);
+    pf(o, "runoff_.infil_bank_.horton_[].Fmax", ((*e111).Fmax) as f64);
+    pf(o, "runoff_.infil_bank_.horton_[].tp", ((*e111).tp) as f64);
+    pf(o, "runoff_.infil_bank_.horton_[].Fe", ((*e111).Fe) as f64);
+    pf(o, "runoff_.infil_bank_.horton_[].Fmh", ((*e111).Fmh) as f64);
     }
     pi(o, "runoff_.infil_bank_.grnampt_.n", (e.runoff_solver().infil_bank_.grnampt_).len() as i64);
-    for e109 in (e.runoff_solver().infil_bank_.grnampt_).iter() {
-    pf(o, "runoff_.infil_bank_.grnampt_[].S", ((*e109).S) as f64);
-    pf(o, "runoff_.infil_bank_.grnampt_[].Ks", ((*e109).Ks) as f64);
-    pf(o, "runoff_.infil_bank_.grnampt_[].IMDmax", ((*e109).IMDmax) as f64);
-    pf(o, "runoff_.infil_bank_.grnampt_[].IMD", ((*e109).IMD) as f64);
-    pf(o, "runoff_.infil_bank_.grnampt_[].F", ((*e109).F) as f64);
-    pf(o, "runoff_.infil_bank_.grnampt_[].Fu", ((*e109).Fu) as f64);
-    pf(o, "runoff_.infil_bank_.grnampt_[].Fumax", ((*e109).Fumax) as f64);
-    pf(o, "runoff_.infil_bank_.grnampt_[].Lu", ((*e109).Lu) as f64);
-    pf(o, "runoff_.infil_bank_.grnampt_[].T", ((*e109).T) as f64);
-    pi(o, "runoff_.infil_bank_.grnampt_[].saturated", ((*e109).saturated) as i64);
+    for e112 in (e.runoff_solver().infil_bank_.grnampt_).iter() {
+    pf(o, "runoff_.infil_bank_.grnampt_[].S", ((*e112).S) as f64);
+    pf(o, "runoff_.infil_bank_.grnampt_[].Ks", ((*e112).Ks) as f64);
+    pf(o, "runoff_.infil_bank_.grnampt_[].IMDmax", ((*e112).IMDmax) as f64);
+    pf(o, "runoff_.infil_bank_.grnampt_[].IMD", ((*e112).IMD) as f64);
+    pf(o, "runoff_.infil_bank_.grnampt_[].F", ((*e112).F) as f64);
+    pf(o, "runoff_.infil_bank_.grnampt_[].Fu", ((*e112).Fu) as f64);
+    pf(o, "runoff_.infil_bank_.grnampt_[].Fumax", ((*e112).Fumax) as f64);
+    pf(o, "runoff_.infil_bank_.grnampt_[].Lu", ((*e112).Lu) as f64);
+    pf(o, "runoff_.infil_bank_.grnampt_[].T", ((*e112).T) as f64);
+    pi(o, "runoff_.infil_bank_.grnampt_[].saturated", ((*e112).saturated) as i64);
     }
     pi(o, "runoff_.infil_bank_.curvenum_.n", (e.runoff_solver().infil_bank_.curvenum_).len() as i64);
-    for e110 in (e.runoff_solver().infil_bank_.curvenum_).iter() {
-    pf(o, "runoff_.infil_bank_.curvenum_[].Smax", ((*e110).Smax) as f64);
-    pf(o, "runoff_.infil_bank_.curvenum_[].S", ((*e110).S) as f64);
-    pf(o, "runoff_.infil_bank_.curvenum_[].Se", ((*e110).Se) as f64);
-    pf(o, "runoff_.infil_bank_.curvenum_[].P", ((*e110).P) as f64);
-    pf(o, "runoff_.infil_bank_.curvenum_[].F", ((*e110).F) as f64);
-    pf(o, "runoff_.infil_bank_.curvenum_[].f", ((*e110).f) as f64);
-    pf(o, "runoff_.infil_bank_.curvenum_[].regen", ((*e110).regen) as f64);
-    pf(o, "runoff_.infil_bank_.curvenum_[].T", ((*e110).T) as f64);
-    pf(o, "runoff_.infil_bank_.curvenum_[].Tmax", ((*e110).Tmax) as f64);
+    for e113 in (e.runoff_solver().infil_bank_.curvenum_).iter() {
+    pf(o, "runoff_.infil_bank_.curvenum_[].Smax", ((*e113).Smax) as f64);
+    pf(o, "runoff_.infil_bank_.curvenum_[].S", ((*e113).S) as f64);
+    pf(o, "runoff_.infil_bank_.curvenum_[].Se", ((*e113).Se) as f64);
+    pf(o, "runoff_.infil_bank_.curvenum_[].P", ((*e113).P) as f64);
+    pf(o, "runoff_.infil_bank_.curvenum_[].F", ((*e113).F) as f64);
+    pf(o, "runoff_.infil_bank_.curvenum_[].f", ((*e113).f) as f64);
+    pf(o, "runoff_.infil_bank_.curvenum_[].regen", ((*e113).regen) as f64);
+    pf(o, "runoff_.infil_bank_.curvenum_[].T", ((*e113).T) as f64);
+    pf(o, "runoff_.infil_bank_.curvenum_[].Tmax", ((*e113).Tmax) as f64);
     }
     vf(o, "runoff_.infil_bank_.constant_", &(e.runoff_solver().infil_bank_.constant_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "runoff_.infil_bank_.cumulative_", &(e.runoff_solver().infil_bank_.cumulative_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
@@ -174,142 +174,142 @@ pub fn hydrodump(e: &mut SwmmEngine) -> Vec<u8> {
     vf(o, "groundwater_.soa_.deep_loss", &(e.groundwater_solver().soa_.deep_loss).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "groundwater_.soa_.max_infil_vol", &(e.groundwater_solver().soa_.max_infil_vol).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     pi(o, "groundwater_.soa_.lateral_expr.n", (e.groundwater_solver().soa_.lateral_expr).len() as i64);
-    for e111 in (e.groundwater_solver().soa_.lateral_expr).iter() {
-    pi(o, "groundwater_.soa_.lateral_expr[].postfix.n", ((*e111).postfix).len() as i64);
-    for e112 in ((*e111).postfix).iter() {
-    pi(o, "groundwater_.soa_.lateral_expr[].postfix[].type", ((*e112).type_) as i64);
-    pf(o, "groundwater_.soa_.lateral_expr[].postfix[].value", ((*e112).value) as f64);
-    pi(o, "groundwater_.soa_.lateral_expr[].postfix[].var_idx", ((*e112).var_idx) as i64);
-    ps(o, "groundwater_.soa_.lateral_expr[].postfix[].var_name", &(*e112).var_name);
+    for e114 in (e.groundwater_solver().soa_.lateral_expr).iter() {
+    pi(o, "groundwater_.soa_.lateral_expr[].postfix.n", ((*e114).postfix).len() as i64);
+    for e115 in ((*e114).postfix).iter() {
+    pi(o, "groundwater_.soa_.lateral_expr[].postfix[].type", ((*e115).type_) as i64);
+    pf(o, "groundwater_.soa_.lateral_expr[].postfix[].value", ((*e115).value) as f64);
+    pi(o, "groundwater_.soa_.lateral_expr[].postfix[].var_idx", ((*e115).var_idx) as i64);
+    ps(o, "groundwater_.soa_.lateral_expr[].postfix[].var_name", &(*e115).var_name);
     }
-    pi(o, "groundwater_.soa_.lateral_expr[].valid", ((*e111).valid) as i64);
+    pi(o, "groundwater_.soa_.lateral_expr[].valid", ((*e114).valid) as i64);
     }
     pi(o, "groundwater_.soa_.deep_expr.n", (e.groundwater_solver().soa_.deep_expr).len() as i64);
-    for e113 in (e.groundwater_solver().soa_.deep_expr).iter() {
-    pi(o, "groundwater_.soa_.deep_expr[].postfix.n", ((*e113).postfix).len() as i64);
-    for e114 in ((*e113).postfix).iter() {
-    pi(o, "groundwater_.soa_.deep_expr[].postfix[].type", ((*e114).type_) as i64);
-    pf(o, "groundwater_.soa_.deep_expr[].postfix[].value", ((*e114).value) as f64);
-    pi(o, "groundwater_.soa_.deep_expr[].postfix[].var_idx", ((*e114).var_idx) as i64);
-    ps(o, "groundwater_.soa_.deep_expr[].postfix[].var_name", &(*e114).var_name);
+    for e116 in (e.groundwater_solver().soa_.deep_expr).iter() {
+    pi(o, "groundwater_.soa_.deep_expr[].postfix.n", ((*e116).postfix).len() as i64);
+    for e117 in ((*e116).postfix).iter() {
+    pi(o, "groundwater_.soa_.deep_expr[].postfix[].type", ((*e117).type_) as i64);
+    pf(o, "groundwater_.soa_.deep_expr[].postfix[].value", ((*e117).value) as f64);
+    pi(o, "groundwater_.soa_.deep_expr[].postfix[].var_idx", ((*e117).var_idx) as i64);
+    ps(o, "groundwater_.soa_.deep_expr[].postfix[].var_name", &(*e117).var_name);
     }
-    pi(o, "groundwater_.soa_.deep_expr[].valid", ((*e113).valid) as i64);
+    pi(o, "groundwater_.soa_.deep_expr[].valid", ((*e116).valid) as i64);
     }
     pi(o, "lid_.groups_.n", (e.lid_solver().groups_).len() as i64);
-    for e115 in (e.lid_solver().groups_).iter() {
-    pi(o, "lid_.groups_[].type", ((*e115).type_) as i64);
-    pi(o, "lid_.groups_[].count", ((*e115).count) as i64);
-    pf(o, "lid_.groups_[].ucf_raindepth", ((*e115).ucf_raindepth) as f64);
-    pf(o, "lid_.groups_[].ucf_rainfall", ((*e115).ucf_rainfall) as f64);
-    vi(o, "lid_.groups_[].subcatch_idx", &((*e115).subcatch_idx).iter().map(|x| *x as i64).collect::<Vec<i64>>());
-    vi(o, "lid_.groups_[].control_idx", &((*e115).control_idx).iter().map(|x| *x as i64).collect::<Vec<i64>>());
-    vf(o, "lid_.groups_[].area", &((*e115).area).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].from_imperv", &((*e115).from_imperv).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].from_perv", &((*e115).from_perv).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vi(o, "lid_.groups_[].to_perv", &((*e115).to_perv).iter().map(|x| *x as i64).collect::<Vec<i64>>());
-    vi(o, "lid_.groups_[].drain_node", &((*e115).drain_node).iter().map(|x| *x as i64).collect::<Vec<i64>>());
-    vi(o, "lid_.groups_[].drain_subcatch", &((*e115).drain_subcatch).iter().map(|x| *x as i64).collect::<Vec<i64>>());
-    vf(o, "lid_.groups_[].inflow", &((*e115).inflow).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].evap_rate_unit", &((*e115).evap_rate_unit).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].subcatch_rain", &((*e115).subcatch_rain).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vs(o, "lid_.groups_[].rpt_path", &(*e115).rpt_path);
-    vf(o, "lid_.groups_[].rpt_surf_infil", &((*e115).rpt_surf_infil).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].rpt_pave_perc", &((*e115).rpt_pave_perc).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].rpt_soil_perc", &((*e115).rpt_soil_perc).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].surf_store", &((*e115).surf_store).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].surf_rough", &((*e115).surf_rough).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].surf_slope", &((*e115).surf_slope).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].soil_thick", &((*e115).soil_thick).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].soil_poros", &((*e115).soil_poros).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].soil_fc", &((*e115).soil_fc).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].soil_wp", &((*e115).soil_wp).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].soil_ksat", &((*e115).soil_ksat).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].soil_kslope", &((*e115).soil_kslope).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].soil_suction", &((*e115).soil_suction).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].stor_thick", &((*e115).stor_thick).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].stor_void", &((*e115).stor_void).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].stor_ksat", &((*e115).stor_ksat).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].stor_clog", &((*e115).stor_clog).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vi(o, "lid_.groups_[].stor_covered", &((*e115).stor_covered).iter().map(|x| *x as i64).collect::<Vec<i64>>());
-    vf(o, "lid_.groups_[].drain_coeff", &((*e115).drain_coeff).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].drain_expon", &((*e115).drain_expon).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].drain_offset", &((*e115).drain_offset).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].drain_delay", &((*e115).drain_delay).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].drain_hopen", &((*e115).drain_hopen).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].drain_hclose", &((*e115).drain_hclose).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vi(o, "lid_.groups_[].drain_open", &((*e115).drain_open).iter().map(|x| *x as i64).collect::<Vec<i64>>());
-    vf(o, "lid_.groups_[].pave_thick", &((*e115).pave_thick).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].pave_void", &((*e115).pave_void).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].pave_imperv_frac", &((*e115).pave_imperv_frac).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].pave_ksat", &((*e115).pave_ksat).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].pave_clog_factor", &((*e115).pave_clog_factor).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].pave_regen_days", &((*e115).pave_regen_days).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].pave_regen_deg", &((*e115).pave_regen_deg).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].next_regen_day", &((*e115).next_regen_day).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].drainmat_thick", &((*e115).drainmat_thick).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].drainmat_void", &((*e115).drainmat_void).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].drainmat_rough", &((*e115).drainmat_rough).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].surf_void_frac", &((*e115).surf_void_frac).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].surf_alpha", &((*e115).surf_alpha).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].surf_side_slope", &((*e115).surf_side_slope).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].full_width", &((*e115).full_width).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].unit_area", &((*e115).unit_area).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].unit_width", &((*e115).unit_width).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].dry_time", &((*e115).dry_time).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].surf_depth", &((*e115).surf_depth).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].soil_moist", &((*e115).soil_moist).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].stor_depth", &((*e115).stor_depth).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].pave_depth", &((*e115).pave_depth).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    pi(o, "lid_.groups_[].soil_infil.n", ((*e115).soil_infil).len() as i64);
-    for e116 in ((*e115).soil_infil).iter() {
-    pf(o, "lid_.groups_[].soil_infil[].S", ((*e116).S) as f64);
-    pf(o, "lid_.groups_[].soil_infil[].Ks", ((*e116).Ks) as f64);
-    pf(o, "lid_.groups_[].soil_infil[].IMDmax", ((*e116).IMDmax) as f64);
-    pf(o, "lid_.groups_[].soil_infil[].IMD", ((*e116).IMD) as f64);
-    pf(o, "lid_.groups_[].soil_infil[].F", ((*e116).F) as f64);
-    pf(o, "lid_.groups_[].soil_infil[].Fu", ((*e116).Fu) as f64);
-    pf(o, "lid_.groups_[].soil_infil[].Fumax", ((*e116).Fumax) as f64);
-    pf(o, "lid_.groups_[].soil_infil[].Lu", ((*e116).Lu) as f64);
-    pf(o, "lid_.groups_[].soil_infil[].T", ((*e116).T) as f64);
-    pi(o, "lid_.groups_[].soil_infil[].saturated", ((*e116).saturated) as i64);
+    for e118 in (e.lid_solver().groups_).iter() {
+    pi(o, "lid_.groups_[].type", ((*e118).type_) as i64);
+    pi(o, "lid_.groups_[].count", ((*e118).count) as i64);
+    pf(o, "lid_.groups_[].ucf_raindepth", ((*e118).ucf_raindepth) as f64);
+    pf(o, "lid_.groups_[].ucf_rainfall", ((*e118).ucf_rainfall) as f64);
+    vi(o, "lid_.groups_[].subcatch_idx", &((*e118).subcatch_idx).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "lid_.groups_[].control_idx", &((*e118).control_idx).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "lid_.groups_[].area", &((*e118).area).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].from_imperv", &((*e118).from_imperv).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].from_perv", &((*e118).from_perv).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vi(o, "lid_.groups_[].to_perv", &((*e118).to_perv).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "lid_.groups_[].drain_node", &((*e118).drain_node).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "lid_.groups_[].drain_subcatch", &((*e118).drain_subcatch).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "lid_.groups_[].inflow", &((*e118).inflow).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].evap_rate_unit", &((*e118).evap_rate_unit).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].subcatch_rain", &((*e118).subcatch_rain).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vs(o, "lid_.groups_[].rpt_path", &(*e118).rpt_path);
+    vf(o, "lid_.groups_[].rpt_surf_infil", &((*e118).rpt_surf_infil).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].rpt_pave_perc", &((*e118).rpt_pave_perc).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].rpt_soil_perc", &((*e118).rpt_soil_perc).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].surf_store", &((*e118).surf_store).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].surf_rough", &((*e118).surf_rough).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].surf_slope", &((*e118).surf_slope).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].soil_thick", &((*e118).soil_thick).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].soil_poros", &((*e118).soil_poros).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].soil_fc", &((*e118).soil_fc).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].soil_wp", &((*e118).soil_wp).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].soil_ksat", &((*e118).soil_ksat).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].soil_kslope", &((*e118).soil_kslope).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].soil_suction", &((*e118).soil_suction).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].stor_thick", &((*e118).stor_thick).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].stor_void", &((*e118).stor_void).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].stor_ksat", &((*e118).stor_ksat).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].stor_clog", &((*e118).stor_clog).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vi(o, "lid_.groups_[].stor_covered", &((*e118).stor_covered).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "lid_.groups_[].drain_coeff", &((*e118).drain_coeff).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].drain_expon", &((*e118).drain_expon).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].drain_offset", &((*e118).drain_offset).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].drain_delay", &((*e118).drain_delay).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].drain_hopen", &((*e118).drain_hopen).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].drain_hclose", &((*e118).drain_hclose).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vi(o, "lid_.groups_[].drain_open", &((*e118).drain_open).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "lid_.groups_[].pave_thick", &((*e118).pave_thick).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].pave_void", &((*e118).pave_void).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].pave_imperv_frac", &((*e118).pave_imperv_frac).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].pave_ksat", &((*e118).pave_ksat).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].pave_clog_factor", &((*e118).pave_clog_factor).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].pave_regen_days", &((*e118).pave_regen_days).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].pave_regen_deg", &((*e118).pave_regen_deg).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].next_regen_day", &((*e118).next_regen_day).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].drainmat_thick", &((*e118).drainmat_thick).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].drainmat_void", &((*e118).drainmat_void).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].drainmat_rough", &((*e118).drainmat_rough).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].surf_void_frac", &((*e118).surf_void_frac).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].surf_alpha", &((*e118).surf_alpha).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].surf_side_slope", &((*e118).surf_side_slope).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].full_width", &((*e118).full_width).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].unit_area", &((*e118).unit_area).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].unit_width", &((*e118).unit_width).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].dry_time", &((*e118).dry_time).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].surf_depth", &((*e118).surf_depth).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].soil_moist", &((*e118).soil_moist).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].stor_depth", &((*e118).stor_depth).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].pave_depth", &((*e118).pave_depth).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pi(o, "lid_.groups_[].soil_infil.n", ((*e118).soil_infil).len() as i64);
+    for e119 in ((*e118).soil_infil).iter() {
+    pf(o, "lid_.groups_[].soil_infil[].S", ((*e119).S) as f64);
+    pf(o, "lid_.groups_[].soil_infil[].Ks", ((*e119).Ks) as f64);
+    pf(o, "lid_.groups_[].soil_infil[].IMDmax", ((*e119).IMDmax) as f64);
+    pf(o, "lid_.groups_[].soil_infil[].IMD", ((*e119).IMD) as f64);
+    pf(o, "lid_.groups_[].soil_infil[].F", ((*e119).F) as f64);
+    pf(o, "lid_.groups_[].soil_infil[].Fu", ((*e119).Fu) as f64);
+    pf(o, "lid_.groups_[].soil_infil[].Fumax", ((*e119).Fumax) as f64);
+    pf(o, "lid_.groups_[].soil_infil[].Lu", ((*e119).Lu) as f64);
+    pf(o, "lid_.groups_[].soil_infil[].T", ((*e119).T) as f64);
+    pi(o, "lid_.groups_[].soil_infil[].saturated", ((*e119).saturated) as i64);
     }
-    vf(o, "lid_.groups_[].old_drain_flow", &((*e115).old_drain_flow).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vi(o, "lid_.groups_[].is_wet", &((*e115).is_wet).iter().map(|x| *x as i64).collect::<Vec<i64>>());
-    vi(o, "lid_.groups_[].can_overflow", &((*e115).can_overflow).iter().map(|x| *x as i64).collect::<Vec<i64>>());
-    vf(o, "lid_.groups_[].drainmat_alpha", &((*e115).drainmat_alpha).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].surface_runoff", &((*e115).surface_runoff).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].drain_flow", &((*e115).drain_flow).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].evap_loss", &((*e115).evap_loss).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].infil_loss", &((*e115).infil_loss).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].drain_rmvl", &((*e115).drain_rmvl).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    pi(o, "lid_.groups_[].n_pollutants", ((*e115).n_pollutants) as i64);
-    vf(o, "lid_.groups_[].in_surf", &((*e115).in_surf).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].in_pave", &((*e115).in_pave).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].in_soil", &((*e115).in_soil).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].in_stor", &((*e115).in_stor).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].evap_surf", &((*e115).evap_surf).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].evap_pave", &((*e115).evap_pave).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].evap_soil", &((*e115).evap_soil).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].evap_stor", &((*e115).evap_stor).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].f_old_surf", &((*e115).f_old_surf).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].f_old_soil", &((*e115).f_old_soil).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].f_old_stor", &((*e115).f_old_stor).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].f_old_pave", &((*e115).f_old_pave).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].wb_inflow", &((*e115).wb_inflow).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].wb_evap", &((*e115).wb_evap).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].spatial_infil_loss", &((*e115).spatial_infil_loss).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].wb_spatial_infil", &((*e115).wb_spatial_infil).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].wb_infil", &((*e115).wb_infil).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].wb_surf_flow", &((*e115).wb_surf_flow).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].wb_drain_flow", &((*e115).wb_drain_flow).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].wb_init_vol", &((*e115).wb_init_vol).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].wb_final_vol", &((*e115).wb_final_vol).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "lid_.groups_[].vol_treated", &((*e115).vol_treated).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].old_drain_flow", &((*e118).old_drain_flow).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vi(o, "lid_.groups_[].is_wet", &((*e118).is_wet).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "lid_.groups_[].can_overflow", &((*e118).can_overflow).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "lid_.groups_[].drainmat_alpha", &((*e118).drainmat_alpha).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].surface_runoff", &((*e118).surface_runoff).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].drain_flow", &((*e118).drain_flow).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].evap_loss", &((*e118).evap_loss).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].infil_loss", &((*e118).infil_loss).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].drain_rmvl", &((*e118).drain_rmvl).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pi(o, "lid_.groups_[].n_pollutants", ((*e118).n_pollutants) as i64);
+    vf(o, "lid_.groups_[].in_surf", &((*e118).in_surf).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].in_pave", &((*e118).in_pave).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].in_soil", &((*e118).in_soil).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].in_stor", &((*e118).in_stor).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].evap_surf", &((*e118).evap_surf).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].evap_pave", &((*e118).evap_pave).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].evap_soil", &((*e118).evap_soil).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].evap_stor", &((*e118).evap_stor).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].f_old_surf", &((*e118).f_old_surf).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].f_old_soil", &((*e118).f_old_soil).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].f_old_stor", &((*e118).f_old_stor).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].f_old_pave", &((*e118).f_old_pave).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].wb_inflow", &((*e118).wb_inflow).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].wb_evap", &((*e118).wb_evap).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].spatial_infil_loss", &((*e118).spatial_infil_loss).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].wb_spatial_infil", &((*e118).wb_spatial_infil).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].wb_infil", &((*e118).wb_infil).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].wb_surf_flow", &((*e118).wb_surf_flow).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].wb_drain_flow", &((*e118).wb_drain_flow).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].wb_init_vol", &((*e118).wb_init_vol).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].wb_final_vol", &((*e118).wb_final_vol).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lid_.groups_[].vol_treated", &((*e118).vol_treated).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     }
     pi(o, "lid_.usage_order_.n", (e.lid_solver().usage_order_).len() as i64);
-    for e117 in (e.lid_solver().usage_order_).iter() {
-    pi(o, "lid_.usage_order_[].first", ((*e117).0) as i64);
-    pi(o, "lid_.usage_order_[].second", ((*e117).1) as i64);
+    for e120 in (e.lid_solver().usage_order_).iter() {
+    pi(o, "lid_.usage_order_[].first", ((*e120).0) as i64);
+    pi(o, "lid_.usage_order_[].second", ((*e120).1) as i64);
     }
     pf(o, "lid_.old_runoff_sec_", (e.lid_solver().old_runoff_sec_) as f64);
     sk(o, "lid_.rpt_files_");
@@ -319,19 +319,19 @@ pub fn hydrodump(e: &mut SwmmEngine) -> Vec<u8> {
     vf(o, "lid_.infil_factor_", &(e.lid_solver().infil_factor_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     sk(o, "rdii_.uh_params");
     pi(o, "rdii_.decay_params.n", (e.rdii_solver().decay_params).len() as i64);
-    for e118 in (e.rdii_solver().decay_params).iter() {
-    pi(o, "rdii_.decay_params[].n", ((*e118)).len() as i64);
-    for e119 in ((*e118)).iter() {
-    pi(o, "rdii_.decay_params[][].active", ((*e119).active) as i64);
-    pf(o, "rdii_.decay_params[][].k_dep", ((*e119).k_dep) as f64);
-    pf(o, "rdii_.decay_params[][].k_0", ((*e119).k_0) as f64);
-    pf(o, "rdii_.decay_params[][].k_T", ((*e119).k_T) as f64);
-    pf(o, "rdii_.decay_params[][].T_ref", ((*e119).T_ref) as f64);
-    pf(o, "rdii_.decay_params[][].theta_rec", ((*e119).theta_rec) as f64);
-    pf(o, "rdii_.decay_params[][].T_freeze", ((*e119).T_freeze) as f64);
-    pi(o, "rdii_.decay_params[][].snow_on", ((*e119).snow_on) as i64);
-    pf(o, "rdii_.decay_params[][].snow_T", ((*e119).snow_T) as f64);
-    pf(o, "rdii_.decay_params[][].snow_ddf", ((*e119).snow_ddf) as f64);
+    for e121 in (e.rdii_solver().decay_params).iter() {
+    pi(o, "rdii_.decay_params[].n", ((*e121)).len() as i64);
+    for e122 in ((*e121)).iter() {
+    pi(o, "rdii_.decay_params[][].active", ((*e122).active) as i64);
+    pf(o, "rdii_.decay_params[][].k_dep", ((*e122).k_dep) as f64);
+    pf(o, "rdii_.decay_params[][].k_0", ((*e122).k_0) as f64);
+    pf(o, "rdii_.decay_params[][].k_T", ((*e122).k_T) as f64);
+    pf(o, "rdii_.decay_params[][].T_ref", ((*e122).T_ref) as f64);
+    pf(o, "rdii_.decay_params[][].theta_rec", ((*e122).theta_rec) as f64);
+    pf(o, "rdii_.decay_params[][].T_freeze", ((*e122).T_freeze) as f64);
+    pi(o, "rdii_.decay_params[][].snow_on", ((*e122).snow_on) as i64);
+    pf(o, "rdii_.decay_params[][].snow_T", ((*e122).snow_T) as f64);
+    pf(o, "rdii_.decay_params[][].snow_ddf", ((*e122).snow_ddf) as f64);
     }
     }
     pi(o, "rdii_.groups_.count", (e.rdii_solver().groups_.count) as i64);
@@ -340,22 +340,22 @@ pub fn hydrodump(e: &mut SwmmEngine) -> Vec<u8> {
     vi(o, "rdii_.groups_.gage_idx", &(e.rdii_solver().groups_.gage_idx).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     vf(o, "rdii_.groups_.area", &(e.rdii_solver().groups_.area).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     pi(o, "rdii_.groups_.uh_data.n", (e.rdii_solver().groups_.uh_data).len() as i64);
-    for e120 in (e.rdii_solver().groups_.uh_data).iter() {
-    vf(o, "rdii_.groups_.uh_data[].past_rain", &((*e120).past_rain).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vi(o, "rdii_.groups_.uh_data[].past_month", &((*e120).past_month).iter().map(|x| *x as i64).collect::<Vec<i64>>());
-    pi(o, "rdii_.groups_.uh_data[].period", ((*e120).period) as i64);
-    pi(o, "rdii_.groups_.uh_data[].max_periods", ((*e120).max_periods) as i64);
-    pi(o, "rdii_.groups_.uh_data[].has_past_rain", ((*e120).has_past_rain) as i64);
-    pf(o, "rdii_.groups_.uh_data[].ia_used", ((*e120).ia_used) as f64);
-    pf(o, "rdii_.groups_.uh_data[].swe", ((*e120).swe) as f64);
-    pi(o, "rdii_.groups_.uh_data[].dry_seconds", ((*e120).dry_seconds) as i64);
+    for e123 in (e.rdii_solver().groups_.uh_data).iter() {
+    vf(o, "rdii_.groups_.uh_data[].past_rain", &((*e123).past_rain).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vi(o, "rdii_.groups_.uh_data[].past_month", &((*e123).past_month).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    pi(o, "rdii_.groups_.uh_data[].period", ((*e123).period) as i64);
+    pi(o, "rdii_.groups_.uh_data[].max_periods", ((*e123).max_periods) as i64);
+    pi(o, "rdii_.groups_.uh_data[].has_past_rain", ((*e123).has_past_rain) as i64);
+    pf(o, "rdii_.groups_.uh_data[].ia_used", ((*e123).ia_used) as f64);
+    pf(o, "rdii_.groups_.uh_data[].swe", ((*e123).swe) as f64);
+    pi(o, "rdii_.groups_.uh_data[].dry_seconds", ((*e123).dry_seconds) as i64);
     }
     vi(o, "rdii_.groups_.rain_interval", &(e.rdii_solver().groups_.rain_interval).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     vf(o, "rdii_.groups_.gage_elapsed", &(e.rdii_solver().groups_.gage_elapsed).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "rdii_.groups_.rate_recorded_until", &(e.rdii_solver().groups_.rate_recorded_until).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     pi(o, "rdii_.groups_.pending_rates.n", (e.rdii_solver().groups_.pending_rates).len() as i64);
-    for e121 in (e.rdii_solver().groups_.pending_rates).iter() {
-    vf(o, "rdii_.groups_.pending_rates[]", &((*e121)).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    for e124 in (e.rdii_solver().groups_.pending_rates).iter() {
+    vf(o, "rdii_.groups_.pending_rates[]", &((*e124)).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     }
     sk(o, "rdii_.uh_name_to_idx_");
     vf(o, "rdii_.node_rdii_flow_", &(e.rdii_solver().node_rdii_flow_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
@@ -368,23 +368,23 @@ pub fn hydrodump(e: &mut SwmmEngine) -> Vec<u8> {
     pi(o, "lid_.rpt_files_.size", e.lid_solver().rpt_files_.len() as i64);
     for (k, v) in e.lid_solver().rpt_files_.iter() { pi(o, "lid_.rpt_files_.key.first", k.0 as i64); pi(o, "lid_.rpt_files_.key.second", k.1 as i64); let _ = v; }
     pi(o, "gage_states_.n", (e.gage_states()).len() as i64);
-    for e122 in (e.gage_states()).iter() {
-    pf(o, "gage_states_[].rainfall", ((*e122).rainfall) as f64);
-    pf(o, "gage_states_[].snowfall", ((*e122).snowfall) as f64);
-    pf(o, "gage_states_[].total_precip", ((*e122).total_precip) as f64);
-    pf(o, "gage_states_[].rain_accum", ((*e122).rain_accum) as f64);
-    pf(o, "gage_states_[].api_rainfall", ((*e122).api_rainfall) as f64);
-    pf(o, "gage_states_[].snow_factor", ((*e122).snow_factor) as f64);
-    pf(o, "gage_states_[].scale_factor", ((*e122).scale_factor) as f64);
-    pf(o, "gage_states_[].units_factor", ((*e122).units_factor) as f64);
-    pf(o, "gage_states_[].adjust_factor", ((*e122).adjust_factor) as f64);
-    pf(o, "gage_states_[].rain_interval", ((*e122).rain_interval) as f64);
-    pi(o, "gage_states_[].rain_type", ((*e122).rain_type) as i64);
-    for q in 0..((*e122).past_rain).len() {
-    pf(o, "gage_states_[].past_rain[]", ((*e122).past_rain[q]) as f64);
+    for e125 in (e.gage_states()).iter() {
+    pf(o, "gage_states_[].rainfall", ((*e125).rainfall) as f64);
+    pf(o, "gage_states_[].snowfall", ((*e125).snowfall) as f64);
+    pf(o, "gage_states_[].total_precip", ((*e125).total_precip) as f64);
+    pf(o, "gage_states_[].rain_accum", ((*e125).rain_accum) as f64);
+    pf(o, "gage_states_[].api_rainfall", ((*e125).api_rainfall) as f64);
+    pf(o, "gage_states_[].snow_factor", ((*e125).snow_factor) as f64);
+    pf(o, "gage_states_[].scale_factor", ((*e125).scale_factor) as f64);
+    pf(o, "gage_states_[].units_factor", ((*e125).units_factor) as f64);
+    pf(o, "gage_states_[].adjust_factor", ((*e125).adjust_factor) as f64);
+    pf(o, "gage_states_[].rain_interval", ((*e125).rain_interval) as f64);
+    pi(o, "gage_states_[].rain_type", ((*e125).rain_type) as i64);
+    for q in 0..((*e125).past_rain).len() {
+    pf(o, "gage_states_[].past_rain[]", ((*e125).past_rain[q]) as f64);
     }
-    pf(o, "gage_states_[].past_rain_accum", ((*e122).past_rain_accum) as f64);
-    pf(o, "gage_states_[].past_rain_interval", ((*e122).past_rain_interval) as f64);
+    pf(o, "gage_states_[].past_rain_accum", ((*e125).past_rain_accum) as f64);
+    pf(o, "gage_states_[].past_rain_interval", ((*e125).past_rain_interval) as f64);
     }
     pi(o, "last_melt_doy_", e.last_melt_doy() as i64);
     { let v = e.hydrology_vectors();

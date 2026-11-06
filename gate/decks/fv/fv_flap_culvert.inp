@@ -1,0 +1,55 @@
+[TITLE]
+FV synthetic gate deck: a culvert with inlet control upstream, a gated outfall whose stage rises
+above the pipe so the flap gate closes, and a storage unit that ponds (swmm6-rust, 6 Nov 2026).
+
+[OPTIONS]
+FLOW_UNITS           CFS
+FLOW_ROUTING         FV
+ALLOW_PONDING        YES
+START_DATE           01/01/2026
+START_TIME           00:00:00
+END_DATE             01/01/2026
+END_TIME             03:00:00
+REPORT_STEP          00:05:00
+ROUTING_STEP         2
+LENGTHENING_STEP     0
+
+[JUNCTIONS]
+J0     100.0  8.0  0  0  0
+J1      99.0  6.0  0  0  200
+
+[STORAGE]
+S1      98.0  5.0  0  FUNCTIONAL 0 0 400  0  0
+
+[OUTFALLS]
+OF      96.0  TIMESERIES TIDE YES
+
+[CONDUITS]
+C1     J0   J1  300  0.013 0 0 0 0
+C2     J1   S1  200  0.013 0 0 0 0
+C3     S1   OF  250  0.013 0 0 0 0
+
+[XSECTIONS]
+C1     CIRCULAR 1.5 0 0 0 1 4
+C2     CIRCULAR 2.0 0 0 0 1
+C3     CIRCULAR 2.0 0 0 0 1
+
+[INFLOWS]
+J0     FLOW HYD FLOW 1.0 1.0 0.5
+
+[TIMESERIES]
+HYD    0:00  0.0
+HYD    0:30  30.0
+HYD    1:00  60.0
+HYD    1:30  10.0
+HYD    3:00  0.0
+TIDE   0:00  96.5
+TIDE   1:00  101.0
+TIDE   2:00  97.0
+TIDE   3:00  96.0
+
+[REPORT]
+CONTINUITY YES
+FLOWSTATS YES
+NODES ALL
+LINKS ALL

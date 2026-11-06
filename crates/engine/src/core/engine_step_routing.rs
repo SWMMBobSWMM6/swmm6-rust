@@ -24,7 +24,9 @@
 // NOT YET TRANSLATED (StepError::NotTranslated, returned before the step changes anything:
 // step_routing_not_translated): the reaction solvers ROS2 and BDF2, EQUIL species, booster sources and
 // reaction-species LID controls (msxlid), the heat flux modules (surface, radiative and
-// bed exchange), engine checkpointing, the FV router (and FV quality transport),
+// bed exchange), engine checkpointing, FV quality transport of reaction species, heat
+// or bed exchange, the FV solver options
+// Router::fv_not_translated names,
 // node LID Richards columns, and what the solvers report as not translated (DYNAMIC_SLOT,
 // TPA, physical junction areas, control-rule expression premises, checkpoint sessions).
 
@@ -70,7 +72,9 @@ impl SwmmEngine {
             return Some("engine checkpointing");
         }
         if ctx.options.routing_model == RoutingModel::Fv {
-            return Some("FV routing");
+            if let Some(w) = self.router_.fv_not_translated(ctx) {
+                return Some(w);
+            }
         }
         if lidnode::unsupported(ctx) {
             return Some("Richards node LID columns");
@@ -79,6 +83,9 @@ impl SwmmEngine {
         if (ctx.n_pollutants() > 0 || legacy_reactions_active(ctx) || ctx.options.water_age || ctx.options.heat_transport) && !ctx.options.ignore_quality {
             if let Some(w) = crate::transport::reaction_legacy_step::reactions_not_translated(ctx) {
                 return Some(w);
+            }
+            if ctx.options.routing_model == RoutingModel::Fv && ctx.options.quality_solver == QualitySolverKind::Legacy && (ctx.reactions.n_species() > 0 || ctx.options.heat_transport || legacy_reactions_active(ctx) || crate::transport::heat_legacy::bed_exchange_enabled(ctx)) {
+                return Some("FV quality transport of reaction species, heat or bed exchange");
             }
         }
         None
@@ -189,6 +196,15 @@ impl SwmmEngine {
         self.ctx_.save_hyd_state();
 
         // B3. Hydraulic routing, with the non-conduit flows computed inside the Picard loop
+        // dw.nodeNewSurfAreaDataMut(): null for the DW solver's empty arrays (FV routing,
+        // where that solver is never initialized).
+        fn surf_buf(v: &mut Vec<f64>) -> Option<&mut [f64]> {
+            if v.is_empty() {
+                None
+            } else {
+                Some(&mut v[..])
+            }
+        }
         let mut non_conduit_fn = |ctx: &mut SimulationContext, dt: f64, step: i32, dw: &mut NcView, hydstruct: &mut StructureSolver| -> Result<(), crate::core::engine_step_routing::StepError> {
             for k in 0..hydstruct.nc_indices_.len() {
                 let j = hydstruct.nc_indices_[k];
@@ -214,7 +230,7 @@ impl SwmmEngine {
                         ctx.nodes.head[ub] = ctx.nodes.invert_elev[ub] + ctx.nodes.depth[ub];
                         ctx.nodes.old_volume[ua] += lidnode::held_volume(ctx, a);
                         ctx.nodes.old_volume[ub] += lidnode::held_volume(ctx, b);
-                        hydstruct.compute_non_conduit_flow_one(ctx, dt, Some(&mut dw.new_surf_area[..]), j);
+                        hydstruct.compute_non_conduit_flow_one(ctx, dt, surf_buf(&mut dw.new_surf_area), j);
                         ctx.nodes.depth[ua] = da;
                         ctx.nodes.depth[ub] = db;
                         ctx.nodes.head[ua] = ha;
@@ -222,7 +238,7 @@ impl SwmmEngine {
                         ctx.nodes.old_volume[ua] = va;
                         ctx.nodes.old_volume[ub] = vb;
                     } else {
-                        hydstruct.compute_non_conduit_flow_one(ctx, dt, Some(&mut dw.new_surf_area[..]), j);
+                        hydstruct.compute_non_conduit_flow_one(ctx, dt, surf_buf(&mut dw.new_surf_area), j);
                     }
 
                     let mut q_new = ctx.links.flow[uj];
@@ -234,7 +250,7 @@ impl SwmmEngine {
                     }
                     ctx.links.flow[uj] = q_new;
                 } else {
-                    hydstruct.scatter_held_surf_area(ctx, Some(&mut dw.new_surf_area[..]), j);
+                    hydstruct.scatter_held_surf_area(ctx, surf_buf(&mut dw.new_surf_area), j);
                 }
 
                 let before_surface = ctx.links.flow[uj];
@@ -284,6 +300,9 @@ impl SwmmEngine {
 
         let evap_rate = self.ctx_.climate_state.evap_rate;
         let iters = self.router_.step(&mut self.ctx_, dt_routing, evap_rate, &mut self.hydstruct_, Some(&mut non_conduit_fn))?;
+        if self.ctx_.options.routing_model == RoutingModel::Fv && self.ctx_.options.quality_solver == QualitySolverKind::Legacy {
+            self.router_.accepted_quality_water(&self.ctx_, dt_routing, &mut self.quality_.fv_transport_.water);
+        }
         lidnode::finish_step(&mut self.ctx_)?;
         let converged = self.router_.last_step_converged();
         self.ctx_.routing_stats.update_iterations(iters, converged);

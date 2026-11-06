@@ -21,9 +21,8 @@
 // applyNodeTreatment; NegativeSources.hpp's bookNegativeSourceClamp.
 //
 // Differences of form:
-//   * ConservativeMixing's `fv::NativeGmres gmres_` workspace is not carried: it is a
-//     run-time solver workspace (hydraulics/fv/NativeGmres.hpp) that nothing reads before the
-//     first FV quality step, and it comes with the FV solver. NOT YET TRANSLATED.
+//   * ConservativeMixing's `fv::NativeGmres gmres_` workspace (hydraulics/fv/native_gmres.rs)
+//     holds nothing between solves that a solve reads, so the gate dumps leave it out.
 //   * ConservativeMixing::Result is a nested struct upstream; here it is
 //     ConservativeMixingResult.
 //   * execute returns Err(StepError) where upstream would throw (std::stod inside a node-LID
@@ -140,12 +139,151 @@ pub struct ConservativeMixing {
     pub image_: Vec<f64>,
     pub correction_: Vec<f64>,
     pub guess_: Vec<f64>,
-    // gmres_: fv::NativeGmres — NOT YET TRANSLATED (see the file notes).
+    pub gmres_: crate::hydraulics::fv::native_gmres::NativeGmres,
     pub candidate_: MixedScalar,
     pub incoming_: Vec<f64>,
     pub outgoing_: Vec<f64>,
     pub prepared_: bool,
     pub water_residual_: f64,
+}
+
+impl ConservativeMixing {
+    /// prepare(water, tolerance): check the accepted-water graph closes and build the
+    /// complete-mix diagonal.
+    pub fn prepare(&mut self, water: &MixingWater, tolerance: f64) -> bool {
+        self.prepared_ = false;
+        let n = water.old_volume.len();
+        if n == 0 || water.new_volume.len() != n || water.source_volume.len() != n || water.exported.len() != n || water.seeped.len() != n || water.evaporated.len() != n || !tolerance.is_finite() || tolerance < 0.0 {
+            return false;
+        }
+        for v in [&water.old_volume, &water.new_volume, &water.source_volume, &water.exported, &water.seeped, &water.evaporated] {
+            for &x in v.iter() {
+                if !x.is_finite() || x < 0.0 {
+                    return false;
+                }
+            }
+        }
+        self.water_ = water.clone();
+        self.diagonal_.resize(n, 0.0);
+        self.rhs_.resize(n, 0.0);
+        self.image_.resize(n, 0.0);
+        self.guess_.resize(n, 0.0);
+        self.incoming_ = water.source_volume.clone();
+        self.outgoing_.resize(n, 0.0);
+        for i in 0..n {
+            self.incoming_[i] += water.old_volume[i];
+            self.outgoing_[i] = water.new_volume[i] + water.exported[i] + water.seeped[i] + water.evaporated[i];
+            self.diagonal_[i] = water.new_volume[i] + water.exported[i] + water.seeped[i];
+        }
+        for t in water.transfers.iter() {
+            if t.donor >= n || t.receiver >= n || !t.volume.is_finite() || t.volume < 0.0 {
+                return false;
+            }
+            self.outgoing_[t.donor] += t.volume;
+            self.incoming_[t.receiver] += t.volume;
+            self.diagonal_[t.donor] += t.volume;
+        }
+        self.water_residual_ = 0.0;
+        for i in 0..n {
+            let residual = (self.incoming_[i] - self.outgoing_[i]).abs();
+            // std::max({1.0, incoming, outgoing}): the first of the largest
+            let den = cmax(cmax(1.0, self.incoming_[i]), self.outgoing_[i]);
+            self.water_residual_ = cmax(self.water_residual_, residual / den);
+            if residual > tolerance * den {
+                return false;
+            }
+        }
+        self.prepared_ = true;
+        true
+    }
+
+    /// solve(scalar, output)
+    pub fn solve(&mut self, scalar: &MixingScalar, output: &mut MixedScalar) -> ConservativeMixingResult {
+        let mut result = ConservativeMixingResult { max_water_residual: self.water_residual_, ..Default::default() };
+        let n = self.diagonal_.len();
+        if !self.prepared_ || scalar.old_concentration.len() != n || scalar.source_mass.len() != n || (!scalar.held_dry_mass.is_empty() && scalar.held_dry_mass.len() != n) {
+            return result;
+        }
+        let accepted = &mut self.candidate_;
+        accepted.held_dry_mass.clear();
+        accepted.held_dry_mass.resize(n, 0.0);
+        for i in 0..n {
+            let held = if scalar.held_dry_mass.is_empty() { 0.0 } else { scalar.held_dry_mass[i] };
+            if !scalar.old_concentration[i].is_finite() || !scalar.source_mass[i].is_finite() || !held.is_finite() {
+                return result;
+            }
+            let mass = self.water_.old_volume[i] * scalar.old_concentration[i] + scalar.source_mass[i] + held;
+            if self.diagonal_[i] == 0.0 {
+                accepted.held_dry_mass[i] = mass;
+                self.rhs_[i] = 0.0;
+                self.guess_[i] = 0.0;
+            } else {
+                self.rhs_[i] = mass / self.diagonal_[i];
+                self.guess_[i] = scalar.old_concentration[i];
+            }
+        }
+        let water = &self.water_;
+        let diagonal = &self.diagonal_;
+        let mut matrix = |x: &[f64], y: &mut [f64]| -> bool {
+            y[..n].copy_from_slice(&x[..n]);
+            for t in water.transfers.iter() {
+                if t.volume > 0.0 && diagonal[t.receiver] > 0.0 {
+                    y[t.receiver] -= t.volume / diagonal[t.receiver] * x[t.donor];
+                }
+            }
+            true
+        };
+        matrix(&self.guess_, &mut self.image_);
+        for i in 0..n {
+            self.rhs_[i] -= self.image_[i];
+        }
+        let controls = crate::hydraulics::fv::native_gmres::GmresControls { relative_tolerance: 1e-13, absolute_tolerance: 1e-14, max_iterations: cmax(200, cmin(n * 2, 2000) as i32), ..Default::default() };
+        let linear = self.gmres_.solve(&self.rhs_, &mut matrix, None, &controls, &mut self.correction_);
+        result.iterations = linear.iterations;
+        if !linear.converged() {
+            return result;
+        }
+        let accepted = &mut self.candidate_;
+        accepted.concentration.resize(n, 0.0);
+        accepted.exported_mass.resize(n, 0.0);
+        accepted.seeped_mass.resize(n, 0.0);
+        let scale_init = 1.0;
+        let mut scale = scale_init;
+        let mut initial = 0.0;
+        let mut fin = 0.0;
+        for i in 0..n {
+            let c = self.guess_[i] + self.correction_[i];
+            let held = if scalar.held_dry_mass.is_empty() { 0.0 } else { scalar.held_dry_mass[i] };
+            if !c.is_finite() || (scalar.nonnegative && (c < -1e-12 * cmax(1.0, self.guess_[i].abs()) || accepted.held_dry_mass[i] < 0.0)) {
+                return result;
+            }
+            accepted.concentration[i] = if scalar.nonnegative { cmax(0.0, c) } else { c };
+            accepted.exported_mass[i] = self.water_.exported[i] * accepted.concentration[i];
+            accepted.seeped_mass[i] = self.water_.seeped[i] * accepted.concentration[i];
+            let before = self.water_.old_volume[i] * scalar.old_concentration[i];
+            initial += before + scalar.source_mass[i] + held;
+            scale += before.abs() + scalar.source_mass[i].abs() + held.abs();
+        }
+        accepted.transfer_mass.clear();
+        accepted.transfer_mass.reserve(self.water_.transfers.len());
+        for t in self.water_.transfers.iter() {
+            let mass = t.volume * accepted.concentration[t.donor];
+            accepted.transfer_mass.push(mass);
+            if self.diagonal_[t.receiver] == 0.0 {
+                accepted.held_dry_mass[t.receiver] += mass;
+            }
+        }
+        for i in 0..n {
+            fin += self.water_.new_volume[i] * accepted.concentration[i] + accepted.held_dry_mass[i] + accepted.exported_mass[i] + accepted.seeped_mass[i];
+        }
+        result.mass_residual = (initial - fin) / scale;
+        if result.mass_residual.abs() > 1e-9 {
+            return result;
+        }
+        result.converged = true;
+        std::mem::swap(output, accepted);
+        result
+    }
 }
 
 // ============================================================================
@@ -185,6 +323,201 @@ pub struct FvQualityTransport {
 }
 
 impl FvQualityTransport {
+    /// execute(ctx, dt): conservative complete-mix transport of every scalar row on the FV
+    /// step's accepted water. Returns false (the LEGACY path runs instead) when the water is not
+    /// ready or treatment, LID or booster ports are present. Reaction species and heat rows are
+    /// refused before the step (SwmmEngine::step_routing_not_translated).
+    pub fn execute(&mut self, ctx: &mut SimulationContext, dt: f64) -> Result<bool, StepError> {
+        self.accepted_ = false;
+        if !self.water.ready || !(dt > 0.0) {
+            return Ok(false);
+        }
+        let mut advanced = ctx.treatment.has_any();
+        for s in ctx.node_subtypes.storages.lid_state.iter() {
+            advanced |= !s.cells.is_empty();
+        }
+        for s in ctx.reactions.sources.iter() {
+            advanced |= s.booster > 0;
+        }
+        if advanced {
+            let warning: &[u8] = b"FV conservative transport: treatment, LID or booster ports still use the existing quality path; inspect continuity.";
+            if !ctx.warnings.iter().any(|w| w.as_slice() == warning) {
+                ctx.warnings.push(warning.to_vec());
+            }
+            return Ok(false);
+        }
+        let nn = ctx.n_nodes() as usize;
+        let nl = ctx.n_links() as usize;
+        let n = nn + nl;
+        let np = ctx.n_pollutants() as usize;
+        let ns = ctx.reactions.n_species() as usize;
+        if ns > 0 || ctx.options.heat_transport {
+            return Err(StepError::NotTranslated("FV quality transport of reaction species or heat"));
+        }
+        if self.water.water.old_volume.len() != n {
+            return Err(StepError::Exception("FV quality water graph has the wrong extent."));
+        }
+        for i in 0..nn {
+            self.water.water.source_volume[i] += ctx.nodes.qual_vol_in[i];
+            if ctx.nodes.type_[i] == NodeType::Outfall {
+                self.water.water.exported[i] += ctx.nodes.qual_vol_in[i];
+            }
+        }
+        if !self.solute_mixer_.prepare(&self.water.water, 1e-9) {
+            // (OPENSWMM_FV_WATER_GRAPH_TRACE prints the graph; left out)
+            return Err(StepError::Exception("FV quality accepted-water graph does not close."));
+        }
+        self.thermal_water_ = self.water.water.clone();
+        for i in 0..n {
+            self.thermal_water_.exported[i] += self.thermal_water_.evaporated[i];
+            self.thermal_water_.evaporated[i] = 0.0;
+        }
+        if !self.thermal_mixer_.prepare(&self.thermal_water_, 1e-9) {
+            return Err(StepError::Exception("FV thermal accepted-water graph does not close."));
+        }
+        let rows = np + ns + if ctx.options.water_age { 1 } else { 0 } + if ctx.options.heat_transport { 1 } else { 0 };
+        self.held_.resize(rows, Vec::new());
+        for h in self.held_.iter_mut() {
+            if h.len() != n {
+                h.clear();
+                h.resize(n, 0.0);
+            }
+        }
+        self.results_.resize(rows, MixedScalar::default());
+        self.inputs_.resize(rows, MixingScalar::default());
+        for row in 0..rows {
+            let input = &mut self.inputs_[row];
+            input.old_concentration.clear();
+            input.old_concentration.resize(n, 0.0);
+            input.source_mass.clear();
+            input.source_mass.resize(n, 0.0);
+            input.held_dry_mass = self.held_[row].clone();
+        }
+        for p in 0..np {
+            for i in 0..nn {
+                let oc = ctx.nodes.conc_old[i * np + p];
+                self.inputs_[p].old_concentration[i] = oc;
+                self.inputs_[p].source_mass[i] = ctx.nodes.qual_mass_in[i * np + p] * dt;
+                let available = self.water.water.old_volume[i] * oc + self.held_[p][i];
+                if self.inputs_[p].source_mass[i] < -available {
+                    let short = -available - self.inputs_[p].source_mass[i];
+                    book_negative_source_clamp(ctx, i as i32, p as i32, short);
+                    self.inputs_[p].source_mass[i] = -available;
+                }
+            }
+            for j in 0..nl {
+                self.inputs_[p].old_concentration[nn + j] = ctx.links.conc_old[j * np + p];
+            }
+            for bi in self.water.boundary_imports.iter() {
+                let c = if ctx.options.outfall_backflow_zero { 0.0 } else { ctx.nodes.conc_old[bi.node * np + p] };
+                self.inputs_[p].source_mass[bi.receiver] += bi.volume * c;
+            }
+        }
+        let age = np + ns;
+        if ctx.options.water_age {
+            if ctx.water_age_state.node_age.len() != nn {
+                let (a, b, c) = (ctx.n_nodes(), ctx.n_links(), ctx.n_subcatches());
+                ctx.water_age_state.resize(a, b, c);
+            }
+            if !ctx.water_age_state.legacy_seeded {
+                let a0 = ctx.water_age_config.global_age[crate::data::water_age::WaterAgeSource::InitialState as usize];
+                ctx.water_age_state.node_age.iter_mut().for_each(|x| *x = a0);
+                ctx.water_age_state.link_age.iter_mut().for_each(|x| *x = a0);
+                crate::transport::water_age_legacy::apply_initial_age_overrides(ctx);
+                ctx.water_age_state.legacy_seeded = true;
+            }
+            let state = &ctx.water_age_state;
+            let input = &mut self.inputs_[age];
+            for i in 0..nn {
+                input.old_concentration[i] = state.node_age[i];
+            }
+            for j in 0..nl {
+                input.old_concentration[nn + j] = state.link_age[j];
+            }
+            for i in 0..n {
+                input.source_mass[i] = dt * self.water.water.new_volume[i];
+            }
+            for i in 0..nn {
+                input.source_mass[i] += state.node_age_vol_in[i] * dt;
+            }
+            for bi in self.water.boundary_imports.iter() {
+                input.source_mass[bi.receiver] += bi.volume * if ctx.options.outfall_backflow_zero { 0.0 } else { state.node_age[bi.node] };
+            }
+        }
+        for row in 0..rows {
+            // (species rows of wall species are skipped upstream; no species here)
+            let r = if row >= np + ns { self.thermal_mixer_.solve(&self.inputs_[row], &mut self.results_[row]) } else { self.solute_mixer_.solve(&self.inputs_[row], &mut self.results_[row]) };
+            if !r.converged {
+                return Err(StepError::Exception("FV conservative scalar transfer did not converge; no scalar rows published."));
+            }
+        }
+        let dry_delta = |res: &MixedScalar, held: &Vec<f64>| -> f64 { res.held_dry_mass.iter().fold(0.0, |a, &x| a + x) - held.iter().fold(0.0, |a, &x| a + x) };
+        for p in 0..np {
+            let r = &self.results_[p];
+            for i in 0..nn {
+                ctx.nodes.conc[i * np + p] = r.concentration[i];
+            }
+            for j in 0..nl {
+                ctx.links.conc[j * np + p] = r.concentration[nn + j];
+            }
+            for i in 0..n {
+                let flood = if i < nn { self.water.flooding[i] * r.concentration[i] } else { 0.0 };
+                ctx.mass_balance.qual_routing_flood[p] += flood;
+                ctx.mass_balance.qual_routing_outflow[p] += r.exported_mass[i] - flood;
+                ctx.mass_balance.qual_routing_seep[p] += r.seeped_mass[i];
+            }
+            for bi in self.water.boundary_imports.iter() {
+                ctx.mass_balance.qual_routing_ex_in[p] += bi.volume * if ctx.options.outfall_backflow_zero { 0.0 } else { self.inputs_[p].old_concentration[bi.node] };
+            }
+            ctx.mass_balance.qual_routing_final_dry[p] += dry_delta(r, &self.held_[p]);
+            self.held_[p] = r.held_dry_mass.clone();
+        }
+        if ctx.options.water_age {
+            let r = &self.results_[age];
+            for i in 0..nn {
+                ctx.water_age_state.node_age[i] = r.concentration[i];
+            }
+            for j in 0..nl {
+                ctx.water_age_state.link_age[j] = r.concentration[nn + j];
+            }
+            self.held_[age] = r.held_dry_mass.clone();
+        }
+        for j in 0..nl {
+            if ctx.links.type_[j] != LinkType::Conduit || ctx.links.xsect_shape[j] == crate::data::link::XsectShape::Dummy {
+                let up = if ctx.links.flow[j] >= 0.0 { ctx.links.node1[j] } else { ctx.links.node2[j] };
+                if up < 0 {
+                    continue;
+                }
+                let up = up as usize;
+                for p in 0..np {
+                    ctx.links.conc[j * np + p] = ctx.nodes.conc[up * np + p];
+                }
+                if ctx.options.water_age {
+                    ctx.water_age_state.link_age[j] = ctx.water_age_state.node_age[up];
+                }
+            }
+        }
+        self.accepted_ = true;
+        Ok(true)
+    }
+
+    /// applyPollutantDecay(ctx, dt)
+    pub fn apply_pollutant_decay(&self, ctx: &mut SimulationContext, dt: f64) {
+        let nn = ctx.n_nodes() as usize;
+        let nl = ctx.n_links() as usize;
+        let np = ctx.n_pollutants() as usize;
+        for p in 0..np {
+            let factor = (-ctx.pollutants.k_decay[p] * dt).exp(); // LIBM
+            for i in 0..nn + nl {
+                let c = if i < nn { &mut ctx.nodes.conc[i * np + p] } else { &mut ctx.links.conc[(i - nn) * np + p] };
+                let before = *c;
+                *c *= factor;
+                let after = *c;
+                ctx.mass_balance.qual_routing_reacted[p] += (before - after) * self.water.water.new_volume[i];
+            }
+        }
+    }
+
     /// retainedPollutantMass: per pollutant, the sum (std::accumulate from 0.0, in order) of
     /// the held dry inventory row; zero for rows not held.
     pub fn retained_pollutant_mass(&self, n_pollutants: i32) -> Vec<f64> {
@@ -657,9 +990,20 @@ impl QualitySolver {
         }
 
         self.assemble_external_loads(ctx, dt);
-        if ctx.options.routing_model == RoutingModel::Fv {
-            // fv_transport_.execute(ctx, dt) and what follows it
-            return Err(nt("FV quality transport (FvQualityTransport::execute)"));
+        if ctx.options.routing_model == RoutingModel::Fv && self.fv_transport_.execute(ctx, dt)? {
+            update_untreated_storage_hrt(ctx, dt);
+            if legacy_reactions_active(ctx) {
+                // (reactLegacyNodes / reactLegacyLinks: reaction species under FV are refused
+                // before the step)
+                return Err(nt("FV quality transport of reaction species"));
+            } else {
+                self.fv_transport_.apply_pollutant_decay(ctx, dt);
+            }
+            apply_link_quality_forcing(ctx, self.n_pollutants_, dt);
+            if crate::transport::heat_legacy::bed_exchange_enabled(ctx) {
+                return Err(nt("heat::applyBedSoluteExchange"));
+            }
+            return Ok(());
         }
         lidq::prepare_quality(ctx, dt)?;
         {
