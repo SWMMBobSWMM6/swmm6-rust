@@ -8,7 +8,8 @@
 // InterfaceFile.cpp (InterfaceManager::writeOutfallResults), src/engine/hydraulics/Inlet.cpp
 // (InletSolver::gatherStats), src/engine/quality/NegativeSources.hpp
 // (summarizeNegativeSourceClamps) and src/engine/core/openswmm_snow_impl.cpp
-// (swmm_snow_get_ueb_ledger) (HydroCouple/openswmm.engine, branch swmm6_rel, commit 88329d6),
+// (swmm_snow_get_ueb_ledger), src/engine/hydrology/surface/NativeSnow.cpp
+// (nativeSnowResults) and UebSnow.cpp (bulkTemperature) (HydroCouple/openswmm.engine, branch swmm6_rel, commit 88329d6),
 // Copyright 2026 Caleb Buahin, licensed under the Apache License, Version 2.0.
 // Modified: translated from C++ to Rust, 5 November 2026, by Claude (Anthropic) at the
 // request of Robert Dickinson. Not an OpenSWMM release.
@@ -25,11 +26,8 @@
 //   * The perf:: timers and the OPENSWMM_PERF stderr line only time the run; left out.
 //   * The FV solver's run statistics (end()) and the FV router are not translated: a deck
 //     with ROUTING FV stops in stepRouting before end() is reached.
-//   * NOT YET TRANSLATED, each an Err(stub) where it is met: surface::nativeSnowResults (the
-//     snow-process columns of a UEB-snow deck), a NATIVE SAVE HOTSTART row
-//     (HotStartManager::save and the engine checkpoint), and the snow-ledger rows of a UEB
-//     deck's report (swmm_snow_get_ueb_ledger is translated; ueb::bulkTemperature, which
-//     nativeSnowResults needs, is not).
+//   * NOT YET TRANSLATED, an Err(stub) where it is met: a NATIVE SAVE HOTSTART row
+//     (HotStartManager::save and the engine checkpoint).
 
 use crate::core::context::{EngineState, HotstartFormat, HotstartSaveEntry, SimulationContext};
 use crate::core::datetime;
@@ -307,6 +305,58 @@ fn summarize_negative_source_clamps(ctx: &mut SimulationContext) {
     ctx.warnings.push(m);
 }
 
+/// ueb::bulkTemperature (hydrology/surface/UebSnow.cpp): the snow/active-soil bulk
+/// temperature of a point state.
+fn ueb_bulk_temperature(s: &crate::hydrology::ueb_types::State, p: &crate::hydrology::ueb_types::Parameters) -> f64 {
+    const WATER_DENSITY: f64 = 1000.0;
+    const LATENT_HEAT: f64 = 333.5;
+    const ICE_HEAT: f64 = 2.09;
+    let capacity = WATER_DENSITY * s.water * ICE_HEAT + p.soil_density * p.active_soil_depth * p.soil_heat_capacity;
+    if s.energy <= 0.0 {
+        s.energy / capacity
+    } else {
+        crate::core::cmath::cmax(0.0, s.energy - s.water * WATER_DENSITY * LATENT_HEAT) / capacity
+    }
+}
+
+/// surface::nativeSnowResults (hydrology/surface/NativeSnow.cpp): one subcatchment's ten
+/// snow-process columns, NaN where it has no UEB column.
+fn native_snow_results(c: &SimulationContext, s: &crate::hydrology::snow::SnowSoA, sc: i32) -> [f64; 10] {
+    let mut out = [f64::NAN; 10];
+    let rt = &c.snowpacks.runtime;
+    if sc < 0 || sc >= s.n_subcatch || !s.external[sc as usize] || (sc + 1) * 3 > rt.columns.len() as i32 {
+        return out;
+    }
+    out = [0.0; 10];
+    let mut advanced = false;
+    for k in 0..3 {
+        let i = (sc * 3 + k) as usize;
+        let a = s.fArea[i];
+        if a <= 0.0 {
+            continue;
+        }
+        let l = &rt.columns[i].accepted;
+        let p = &l.point;
+        let f = &rt.last[i];
+        out[9] = crate::core::cmath::cmax(out[9], rt.sample_end[i]);
+        advanced = advanced || rt.sample_seconds[i] > 0.0;
+        out[0] += a * l.water;
+        out[1] += a * (if l.cover > 0.0 { l.cover } else { 1.0 }) * p.energy;
+        let bulk = ueb_bulk_temperature(p, &c.snowpacks.config.parameters);
+        out[2] += a * (if p.history.is_empty() { crate::core::cmath::cmin(0.0, bulk) } else { p.history.last().unwrap().surface });
+        out[3] += a * bulk;
+        out[4] += a * f.point.albedo;
+        out[5] += a * l.cover;
+        out[6] += a * s.imelt[i] * 0.3048;
+        out[7] += a * s.external_net[i] * 0.3048;
+        out[8] += a * (if rt.sample_seconds[i] > 0.0 { f.sublimation / rt.sample_seconds[i] } else { 0.0 });
+    }
+    if !advanced {
+        out[4] = f64::NAN;
+    }
+    out
+}
+
 /// SWMM_SnowLedger
 #[derive(Debug, Clone, Copy, Default)]
 struct SnowLedger {
@@ -573,9 +623,16 @@ impl SwmmEngine {
                 }
             }
 
-            // Snow-process columns of a UEB-snow deck
+            // Snow-process columns of a UEB-snow deck, on the snow's own accepted clock
             if crate::hydrology::native_snow::has_ueb_snow(&self.ctx_) {
-                return Err(stub("surface::nativeSnowResults (the .out snow-process columns of a UEB snow deck)"));
+                let n_s = self.ctx_.n_subcatches() as usize;
+                snap.subcatch.snow_process.clear();
+                snap.subcatch.snow_process.resize(n_s * crate::core::output_plugin::SNOW_PROCESS_COUNT, 0.0);
+                let snow = self.snow_.state();
+                for sc in 0..n_s {
+                    let row = native_snow_results(&self.ctx_, snow, sc as i32);
+                    snap.subcatch.snow_process[sc * row.len()..sc * row.len() + row.len()].copy_from_slice(&row);
+                }
             }
 
             // Reported runoff, time-interpolated on the runoff clock (subcatch.c:865)

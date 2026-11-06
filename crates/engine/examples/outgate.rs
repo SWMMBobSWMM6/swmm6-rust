@@ -106,6 +106,15 @@ fn load_outside(r: &mut ctxload::Rd, e: &mut SwmmEngine) {
         g.total_depth = r.vf("groundwater_.total_depth");
         g.porosity = r.vf("groundwater_.porosity");
     }
+    {
+        let sn = &mut h.snow_.soa_;
+        sn.n_subcatch = r.pi("snow_.n_subcatch") as i32;
+        sn.external = r.vi("snow_.external").into_iter().map(|x| x != 0).collect();
+        sn.external_net = r.vf("snow_.external_net");
+        sn.imelt = r.vf("snow_.imelt");
+        sn.fArea = r.vf("snow_.fArea");
+        sn.enabled = r.vi("snow_.enabled").into_iter().map(|x| x as u8).collect();
+    }
     let ng = r.pi("lid_.groups.n") as usize;
     if ng != h.lid_.groups_.len() {
         finish(format!("loaddiff lid_.groups.n {} against {}", ng, h.lid_.groups_.len()));

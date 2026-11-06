@@ -7,7 +7,7 @@
 //       stop after start(): on success flush every stream and _Exit (the .rpt holds the
 //       preamble, the .out the header, as after start()); on a failure take the CLI's own
 //       failure path (close, destroy). Prints "rc <code>" and exits with it.
-//   outgate deck.inp rpt out run K0 K1 [STRIDE]
+//   outgate deck.inp rpt out run K0 K1 [STRIDE]   (STRIDE -n: about n periods, spread evenly)
 //       the whole run. This harness defines SWMMEngine::postOutputSnapshot (the library's
 //       step() calls it through its PLT; link with -Wl,-E): for each call that writes a
 //       report period (output due and the report date not before REPORT_START), counted
@@ -131,6 +131,17 @@ static void outside(openswmm::SWMMEngine& e) {
         vf("groundwater_.total_depth", g.total_depth);
         vf("groundwater_.porosity", g.porosity);
     }
+    {
+        const auto& sn = e.snow_.state();
+        pi("snow_.n_subcatch", sn.n_subcatch);
+        std::vector<long long> ex(sn.external.begin(), sn.external.end());
+        vi("snow_.external", ex);
+        vf("snow_.external_net", sn.external_net);
+        vf("snow_.imelt", sn.imelt);
+        vf("snow_.fArea", sn.fArea);
+        std::vector<long long> en(sn.enabled.begin(), sn.enabled.end());
+        vi("snow_.enabled", en);
+    }
     pi("lid_.groups.n", e.lid_.numGroups());
     for (int t = 0; t < e.lid_.numGroups(); ++t) {
         const auto& g = e.lid_.group(t);
@@ -196,7 +207,7 @@ int main(int argc, char** argv) {
     if (g_run) {
         g_k0 = argc > 5 ? std::atoi(argv[5]) : 1;
         g_k1 = argc > 6 ? std::atoi(argv[6]) : 0;
-        g_stride = argc > 7 ? std::max(1, std::atoi(argv[7])) : 1;
+        g_stride = argc > 7 ? std::atoi(argv[7]) : 1;
     }
     SWMM_Engine engine = swmm_engine_create();
     int err = swmm_engine_open(engine, inp, rpt, out, nullptr);
@@ -218,6 +229,13 @@ int main(int argc, char** argv) {
         swmm_engine_destroy(engine);
         std::printf("rc %d\n", err);
         return err;
+    }
+    if (g_run && g_stride <= 0) {
+        // STRIDE -n: about n periods, evenly spread over the run (the first one included)
+        const int target = g_stride < 0 ? -g_stride : 100;
+        const auto& o = static_cast<openswmm::SWMMEngine*>(engine)->context().options;
+        const double n_est = (o.end_date - o.start_date) * 86400.0 / std::max(o.report_step, 1.0);
+        g_stride = std::max(1, static_cast<int>(std::ceil(n_est / target)));
     }
     if (!g_run) {
         std::printf("rc 0\n");

@@ -98,6 +98,7 @@
 #       "start"), noresult, panic. Files a deck SAVEs to are backed up and restored.
 #
 # DECKLIST=file runs the decks listed in it (one path per line) instead of the default set.
+# CTXGATE_OUTGATE=file runs that build of gate/diff/outgate in the out modes.
 # CTXGATE_EXAMPLES=dir runs the Rust harnesses from dir (default target/release/examples), so a
 # gate can run while the next build goes to another CARGO_TARGET_DIR.
 # CTXGATE_KEEP=file keeps the list of differing decks; CTXGATE_SHOW=n shows the first n.
@@ -133,8 +134,10 @@ if [ "${1:-}" = route ]; then
 fi
 
 if [ "${1:-}" = out ]; then
-  M=${2:-start}; C_BIN="$H/gate/diff/outgate"; R_BIN="$E/outgate"; K0=${3:-1}; K1=${4:-0}; ST=${5:-1}
+  M=${2:-start}; C_BIN="${CTXGATE_OUTGATE:-$H/gate/diff/outgate}"; R_BIN="$E/outgate"; K0=${3:-1}; K1=${4:-0}; ST=${5:-1}
   : > "$W/res.txt"; mkdir -p "$W/bak" "$W/c" "$W/r"
+  # run copies of the two harnesses, so the next build can replace them while this runs
+  cp "$C_BIN" "$W/outgate-c"; cp "$R_BIN" "$W/outgate-r"; C_BIN="$W/outgate-c"; R_BIN="$W/outgate-r"
   while IFS= read -r d; do
     python3 "$H/gate/savefiles.py" "$d" > "$W/saves.txt" 2>/dev/null; k=0
     while IFS= read -r f; do k=$((k+1)); rm -f "$W/bak/$k"; [ -f "$f" ] && cp -p "$f" "$W/bak/$k"; done < "$W/saves.txt"
