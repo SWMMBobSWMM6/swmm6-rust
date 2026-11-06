@@ -22,13 +22,12 @@
 //   * OPENSWMM_HAS_2D is off in the reference build; its blocks are absent here too.
 //
 // NOT YET TRANSLATED (StepError::NotTranslated, returned before the step changes anything:
-// step_routing_not_translated): the reaction solvers ROS2 and BDF2, EQUIL species, booster sources and
-// reaction-species LID controls (msxlid), the heat flux modules (surface, radiative and
-// bed exchange), engine checkpointing, FV quality transport of reaction species, heat
-// or bed exchange, the FV solver options
-// Router::fv_not_translated names,
-// and what the solvers report as not translated (DYNAMIC_SLOT,
-// TPA, physical junction areas, control-rule expression premises, checkpoint sessions).
+// step_routing_not_translated): the reaction solvers ROS2 and BDF2, EQUIL species, booster
+// sources, engine checkpointing, FV quality transport of reaction species, heat or bed
+// exchange, the FV solver options Router::fv_not_translated names, and what the solvers
+// report as not translated (DYNAMIC_SLOT, TPA, physical junction areas, 2D-coupled ponds,
+// control-rule expression premises, checkpoint sessions, heat::updateSolarForcing from the
+// snow configuration).
 
 use crate::core::context::SimulationContext;
 use crate::core::datetime;
