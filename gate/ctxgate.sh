@@ -42,10 +42,13 @@
 #       calls K0..K1 (context, rtdump, qualdump, stepdump). examples/routestep then, for each
 #       call, opens the deck, runs the translated init legs, loads upstream's BEFORE dump
 #       (ctxload: load, load_rt, load_qual), runs the translated step_routing with upstream's
-#       dt and dumps. gate/routecmp.py compares: first the loader's round trip (load, dump,
-#       cmp with the BEFORE block), then every AFTER block. Results: identical, differ (first
-#       call and label), loaddiff, nottranslated (the translation stops on a path it does not
-#       translate yet), nostart (upstream's open/initialize/start failed), nosteps.
+#       dt and dumps, comparing as it goes (upstream's output is piped in, never written to
+#       disk): first the loader's round trip (load, dump, cmp with the BEFORE block), then the
+#       AFTER block; it stops at the first difference. Results: identical N, differ (first
+#       call, label, element), loaddiff, nottranslated (the translation stops on a path it
+#       does not translate yet), nostart (upstream's open/initialize/start failed), nosteps,
+#       panic, noresult. (examples/routestep deck file [step|load] and gate/routecmp.py
+#       compare saved streams by hand.)
 #       "hyd" runs each dumped call with options.ignore_quality set on both sides (the
 #       hydraulic step of a deck with pollutants, while quality routing is not translated).
 #       CTXGATE_LOG=file appends one line per deck.
@@ -61,15 +64,16 @@ if [ "${1:-}" = route ]; then
   K1=${2:-300}; K0=${3:-1}; HYD=${4:-}; C_BIN="$H/gate/diff/routestep"; R_BIN="$E/routestep"
   : > "$W/res.txt"
   while IFS= read -r d; do
-    ( cd "$(dirname "$d")" && timeout 600 "$C_BIN" "$d" "$K0" "$K1" $HYD > "$W/c.txt" 2>/dev/null
-      timeout 1200 "$R_BIN" "$d" "$W/c.txt" load > "$W/l.txt" 2> "$W/err.txt"
-      timeout 1200 "$R_BIN" "$d" "$W/c.txt" > "$W/r.txt" 2>> "$W/err.txt" ) 2>/dev/null
-    res=$(python3 "$H/gate/routecmp.py" "$W/c.txt" "$W/r.txt" "$W/l.txt" 2>&1 | head -1)
-    [ -s "$W/err.txt" ] && grep -q panicked "$W/err.txt" && res="panic $(grep -m1 -A1 panicked "$W/err.txt" | tail -1 | head -c 160)"
+    # upstream's dumps are piped straight into the translation (no file: a big deck's 300
+    # dumped calls run to gigabytes); examples/routestep stream prints one result line
+    ( cd "$(dirname "$d")" && timeout 3600 "$C_BIN" "$d" "$K0" "$K1" $HYD 2>/dev/null | timeout 3600 "$R_BIN" "$d" stream > "$W/r.txt" 2> "$W/err.txt" ) 2>/dev/null
+    res=$(head -1 "$W/r.txt")
+    if grep -q panicked "$W/err.txt"; then res="panic $(grep -m1 -A1 panicked "$W/err.txt" | tail -1 | head -c 160)"
+    elif [ -z "$res" ]; then res="noresult"; fi
     echo "$res $d" >> "$W/res.txt"
     [ -n "$CTXGATE_LOG" ] && echo "$res $d" >> "$CTXGATE_LOG"
   done < "$W/decks.txt"
-  for k in identical differ loaddiff nottranslated nostart nosteps panic; do
+  for k in identical differ loaddiff nottranslated nostart nosteps panic noresult; do
     printf '%s %s\n' "$k" "$(grep -c "^$k " "$W/res.txt")"
   done | tr '\n' ' '; echo "(route calls $K0..$K1 $HYD)"
   grep -v '^identical \|^nostart \|^nosteps ' "$W/res.txt" | head -${CTXGATE_SHOW:-5}

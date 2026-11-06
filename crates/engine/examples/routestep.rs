@@ -10,6 +10,7 @@
 // upstream's AFTER blocks (gate/ctxgate.sh route).
 //
 // Usage: routestep deck.inp stream.txt [step|load]
+//        routestep deck.inp stream|streamfresh     (upstream's output on stdin; see stream())
 //   step  (default) as above
 //   load  print the loaded state without stepping (the loader's round trip: the output must
 //         equal upstream's BEFORE blocks)
@@ -100,6 +101,164 @@ fn dumpall(e: &SwmmEngine, out: &mut Vec<u8>) {
     out.extend_from_slice(&stepdump(e));
 }
 
+/// A fresh translated engine for the deck: open, then the init legs that build the solvers'
+/// structure (the loaded dump then overwrites every member it covers).
+fn build_engine(deck: &str) -> SwmmEngine {
+    let mut e = SwmmEngine::new();
+    let rc = e.open(Some(deck.as_bytes()), Some(b"/dev/null"), Some(b"/dev/null"), None, false);
+    if rc != 0 {
+        panic!("routestep: the translated open failed ({})", rc);
+    }
+    if e.gate_init_hydraulics().is_err() || e.gate_init_quality().is_err() {
+        panic!("routestep: a translated init leg terminated");
+    }
+    e
+}
+
+/// Load one BEFORE dump into `e` (context first reset).
+fn load_into(e: &mut SwmmEngine, body: &[u8]) {
+    *e.context_mut() = SimulationContext::default();
+    let mut r = ctxload::Rd::new(body);
+    ctxload::load(&mut r, e.context_mut());
+    ctxload::load_rt(&mut r, e);
+    ctxload::load_qual(&mut r, e);
+    load_stepdump(&mut r, e);
+    r.finish();
+}
+
+/// Run the translated stepRouting and dump the result (or the line upstream's harness prints
+/// for a throw).
+fn step_and_dump(e: &mut SwmmEngine, dt: f64, out: &mut Vec<u8>) {
+    match e.step_routing(dt) {
+        Ok(()) => dumpall(e, out),
+        Err(t) if t.exception == THROWN_RUNTIME_ERROR => {
+            out.extend_from_slice(format!("throw {}\n", t.what).as_bytes());
+        }
+        Err(t) if t.exception == STUB_EXCEPTION => {
+            out.extend_from_slice(format!("nottranslated {}\n", t.what).as_bytes());
+        }
+        Err(t) => {
+            out.extend_from_slice(format!("terminate {} {}\n", t.exception, t.what).as_bytes());
+        }
+    }
+}
+
+/// The first differing line of two dumps: (label, element index or -1). A vector line's label
+/// is the header line above it.
+fn first_diff(a: &[u8], b: &[u8]) -> Option<(String, i64)> {
+    let la: Vec<&[u8]> = a.split(|&c| c == b'\n').collect();
+    let lb: Vec<&[u8]> = b.split(|&c| c == b'\n').collect();
+    let mut last: &[u8] = b"?";
+    for i in 0..la.len().max(lb.len()) {
+        let x: &[u8] = if i < la.len() { la[i] } else { b"<end>" };
+        let y: &[u8] = if i < lb.len() { lb[i] } else { b"<end>" };
+        if !x.starts_with(b" ") {
+            last = x.split(|&c| c == b' ').next().unwrap_or(b"?");
+        }
+        if x != y {
+            if x.starts_with(b" ") && y.starts_with(b" ") {
+                let xs: Vec<&[u8]> = x.split(|&c| c == b' ').filter(|t| !t.is_empty()).collect();
+                let ys: Vec<&[u8]> = y.split(|&c| c == b' ').filter(|t| !t.is_empty()).collect();
+                let k = (0..xs.len().max(ys.len())).find(|&k| k >= xs.len() || k >= ys.len() || xs[k] != ys[k]).map(|k| k as i64).unwrap_or(-1);
+                return Some((String::from_utf8_lossy(last).into_owned(), k));
+            }
+            return Some((String::from_utf8_lossy(last).into_owned(), -1));
+        }
+    }
+    None
+}
+
+fn finish(msg: String) -> ! {
+    println!("{}", msg);
+    std::process::exit(0);
+}
+
+/// `stream` mode: read gate/diff/routestep's output from stdin call by call, load each BEFORE
+/// block, check the loader's round trip, step, compare with the AFTER block, and print ONE
+/// line: identical N | loaddiff c label k | differ c label k | nottranslated c what |
+/// nostart rc | nosteps. Nothing is written to disk; the run stops at the first difference.
+/// One translated engine is built and reloaded for every call ("fresh" builds one per call).
+fn stream(deck: &str, fresh: bool) {
+    use std::io::BufRead;
+    let stdin = std::io::stdin();
+    let mut rd = std::io::BufReader::with_capacity(1 << 20, stdin.lock());
+    let mut line: Vec<u8> = Vec::new();
+    let mut before: Vec<u8> = Vec::new();
+    let mut after: Vec<u8> = Vec::new();
+    let mut state = 0; // 0 none, 1 in BEFORE, 2 in AFTER
+    let mut call = 0i64;
+    let mut dt = 0.0f64;
+    let mut n_ok = 0i64;
+    let mut eng: Option<SwmmEngine> = None;
+    let mut ours: Vec<u8> = Vec::new();
+    loop {
+        line.clear();
+        let n = rd.read_until(b'\n', &mut line).expect("routestep: read error");
+        let eof = n == 0;
+        let is_before = line.starts_with(b"BEFORE ");
+        let is_end = line.starts_with(b"END ") || line.starts_with(b"NOSTART");
+        if state == 2 && (eof || is_before || is_end) {
+            if fresh || eng.is_none() {
+                eng = Some(build_engine(deck));
+            }
+            let e = eng.as_mut().unwrap();
+            load_into(e, &before);
+            ours.clear();
+            dumpall(e, &mut ours);
+            if ours != before {
+                let (lab, k) = first_diff(&before, &ours).unwrap_or(("?".into(), -1));
+                finish(format!("loaddiff {} {} {}", call, lab, k));
+            }
+            ours.clear();
+            step_and_dump(e, dt, &mut ours);
+            if ours.starts_with(b"nottranslated ") {
+                let w = String::from_utf8_lossy(&ours[14..ours.len() - 1]).into_owned();
+                finish(format!("nottranslated {} {}", call, w));
+            }
+            if ours != after {
+                let (lab, k) = first_diff(&after, &ours).unwrap_or(("?".into(), -1));
+                finish(format!("differ {} {} {}", call, lab, k));
+            }
+            n_ok += 1;
+            state = 0;
+        }
+        if eof {
+            break;
+        }
+        if line.starts_with(b"NOSTART") {
+            finish(format!("nostart {}", String::from_utf8_lossy(&line[8..]).trim_end()));
+        }
+        if is_end {
+            break;
+        }
+        match state {
+            0 => {
+                if is_before {
+                    let t = String::from_utf8_lossy(&line).into_owned();
+                    let w: Vec<&str> = t.split_whitespace().collect();
+                    call = w[1].parse().unwrap();
+                    dt = f64::from_bits(u64::from_str_radix(w[2], 16).unwrap());
+                    before.clear();
+                    state = 1;
+                }
+            }
+            1 => {
+                if line.starts_with(b"AFTER ") && String::from_utf8_lossy(&line).trim_end() == format!("AFTER {}", call) {
+                    after.clear();
+                    state = 2;
+                } else {
+                    before.extend_from_slice(&line);
+                }
+            }
+            _ => after.extend_from_slice(&line),
+        }
+    }
+    if n_ok == 0 {
+        finish("nosteps".to_string());
+    }
+    finish(format!("identical {}", n_ok));
+}
+
 fn find(hay: &[u8], needle: &[u8], from: usize) -> Option<usize> {
     if needle.len() > hay.len() {
         return None;
@@ -111,6 +270,10 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 3 {
         std::process::exit(2);
+    }
+    if args[2] == "stream" || args[2] == "streamfresh" {
+        stream(&args[1], args[2] == "streamfresh");
+        return;
     }
     let mode = if args.len() > 3 { args[3].as_str() } else { "step" };
     let text = std::fs::read(&args[2]).expect("routestep: cannot read the stream");
