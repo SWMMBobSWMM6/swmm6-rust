@@ -419,6 +419,18 @@ pub fn book_negative_source_clamp(ctx: &mut SimulationContext, node: i32, p: i32
     }
 }
 
+/// NegativeSources.hpp bookNegativeCellSourceClamp: count an ARD cell-source extraction clamp
+/// (counted only; no ledger row).
+pub fn book_negative_cell_source_clamp(ctx: &mut SimulationContext, conduit: i32, shortfall: f64) {
+    let st = &mut ctx.negsrc;
+    st.clamp_events += 1;
+    st.shortfall_mass += shortfall;
+    if !st.first_clamp_recorded {
+        st.first_clamp_recorded = true;
+        st.first_node = conduit;
+    }
+}
+
 /// A run-time path not translated yet (see the file notes).
 fn nt(what: &'static str) -> StepError {
     StepError::NotTranslated(what)

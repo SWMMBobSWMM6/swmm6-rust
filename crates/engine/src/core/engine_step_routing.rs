@@ -22,8 +22,7 @@
 //   * OPENSWMM_HAS_2D is off in the reference build; its blocks are absent here too.
 //
 // NOT YET TRANSLATED (StepError::NotTranslated, returned before the step changes anything:
-// step_routing_not_translated): the EULERIAN_ARD and LAGRANGIAN quality engines (ArdEngine,
-// LagrangianSolver), the reaction solvers ROS2 and BDF2, EQUIL species, booster sources and
+// step_routing_not_translated): the reaction solvers ROS2 and BDF2, EQUIL species, booster sources and
 // reaction-species LID controls (msxlid), the heat flux modules (surface, radiative and
 // bed exchange), engine checkpointing, the FV router (and FV quality transport),
 // node LID Richards columns, and what the solvers report as not translated (DYNAMIC_SLOT,
@@ -78,11 +77,6 @@ impl SwmmEngine {
         }
         // B5's gate: the quality stage runs this step
         if (ctx.n_pollutants() > 0 || legacy_reactions_active(ctx) || ctx.options.water_age || ctx.options.heat_transport) && !ctx.options.ignore_quality {
-            match ctx.options.quality_solver {
-                QualitySolverKind::EulerianArd => return Some("EULERIAN_ARD quality engine"),
-                QualitySolverKind::Lagrangian => return Some("LAGRANGIAN quality engine"),
-                _ => {}
-            }
             if let Some(w) = crate::transport::reaction_legacy_step::reactions_not_translated(ctx) {
                 return Some(w);
             }
@@ -307,8 +301,42 @@ impl SwmmEngine {
         if (self.ctx_.n_pollutants() > 0 || legacy_reactions_active(&self.ctx_) || self.ctx_.options.water_age || self.ctx_.options.heat_transport) && !self.ctx_.options.ignore_quality {
             match self.ctx_.options.quality_solver {
                 // refused in step_routing_not_translated
-                QualitySolverKind::EulerianArd => return Err(StepError::NotTranslated("EULERIAN_ARD quality engine")),
-                QualitySolverKind::Lagrangian => return Err(StepError::NotTranslated("LAGRANGIAN quality engine")),
+                QualitySolverKind::EulerianArd => {
+                    // Lazy first-step init (the transport mesh needs Router::init's geometry);
+                    // an init failure falls back to LEGACY with a warning.
+                    if !self.ard_init_attempted_ {
+                        self.ard_init_attempted_ = true;
+                        let ok = self.ard_.init(&mut self.ctx_);
+                        for w in self.ard_.warnings() {
+                            self.ctx_.warnings.push(w.clone());
+                        }
+                        if !ok {
+                            let mut m = "QUALITY_SOLVER EULERIAN_ARD: transport mesh unavailable \u{2014} falling back to LEGACY quality routing.".as_bytes().to_vec();
+                            if self.ctx_.ard_config.any_dispersion() {
+                                m.extend_from_slice(b" The transport.ard dispersion configuration does not apply under the LEGACY engine.");
+                            }
+                            self.ctx_.warnings.push(m);
+                        }
+                    }
+                    if self.ard_.initialized() {
+                        self.quality_.assemble_external_loads(&mut self.ctx_, dt_routing);
+                        self.ard_.step(&mut self.ctx_, dt_routing)?;
+                        // E5b treatment interop: the legacy evaluator on the published node
+                        // concentrations, then absorbed back into the node stores
+                        if self.ctx_.treatment.has_any() {
+                            self.quality_.apply_treatment(&mut self.ctx_, dt_routing, false);
+                            self.ard_.absorb_treated_node_conc(&self.ctx_);
+                        }
+                    } else {
+                        self.quality_.execute(&mut self.ctx_, dt_routing)?;
+                    }
+                }
+                QualitySolverKind::Lagrangian => {
+                    // X2: LTD segment transport over the shared external loads; [TREATMENT]
+                    // applies inside the solver's MIX
+                    self.quality_.assemble_external_loads(&mut self.ctx_, dt_routing);
+                    self.lard_.step(&mut self.ctx_, dt_routing)?;
+                }
                 _ => self.quality_.execute(&mut self.ctx_, dt_routing)?,
             }
         }

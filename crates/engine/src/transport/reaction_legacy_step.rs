@@ -214,13 +214,13 @@ fn finite_all(v: &[f64]) -> bool {
 }
 
 /// RxStepReport (the fields the legacy binding reads).
-struct StepReport {
-    ok: bool,
-    error: Bytes,
+pub(crate) struct StepReport {
+    pub(crate) ok: bool,
+    pub(crate) error: Bytes,
 }
 
 /// The integrator's per-call workspace (RxWorkspace, the members the RATE path uses).
-struct Ws {
+pub(crate) struct Ws {
     term_needed: Vec<u8>,
     terms: Vec<f64>,
     y: Vec<f64>,
@@ -234,7 +234,7 @@ struct Ws {
 
 impl Ws {
     /// RxWorkspace::init
-    fn new(rx: &ReactionData) -> Ws {
+    pub(crate) fn new(rx: &ReactionData) -> Ws {
         let un = rx.n_species() as usize;
         Ws {
             term_needed: vec![0; rx.term_expr.len()],
@@ -302,7 +302,7 @@ impl Rhs<'_> {
 /// ReactionIntegrator::step (one context): RATE species by the explicit solvers (EUL, RK5),
 /// then FORMULA species in declaration order.
 #[allow(clippy::too_many_arguments)]
-fn integrator_step(rx: &ReactionData, forms: &[ReactionExprForm], spans: &[RxExprSpan], dt: f64, species: &mut [f64], hydvar: &mut [f64], ws: &mut Ws, pollutants: Option<&[f64]>, kinetic_scale: Option<&[f64]>, coefficients: &[f64]) -> Result<StepReport, StepError> {
+pub(crate) fn integrator_step(rx: &ReactionData, forms: &[ReactionExprForm], spans: &[RxExprSpan], dt: f64, species: &mut [f64], hydvar: &mut [f64], ws: &mut Ws, pollutants: Option<&[f64]>, kinetic_scale: Option<&[f64]>, coefficients: &[f64]) -> Result<StepReport, StepError> {
     let mut rep = StepReport { ok: true, error: Vec::new() };
     let n = rx.n_species();
     if !rx.compiled || n == 0 || dt <= 0.0 {
@@ -571,7 +571,7 @@ fn reaction_wall_area(c: &SimulationContext, link_element: bool, e: i32, referen
     area / radius * length * (cmax(1, conduits.barrels[ur]) as f64) * reaction_area_factor(c.reactions.area_units)
 }
 
-fn reaction_area_volume(c: &SimulationContext, link_element: bool, e: i32, volume: f64) -> f64 {
+pub(crate) fn reaction_area_volume(c: &SimulationContext, link_element: bool, e: i32, volume: f64) -> f64 {
     if volume > 0.0353147 {
         reaction_wall_area(c, link_element, e, false) / (volume * 28.317)
     } else {
@@ -595,7 +595,7 @@ fn reaction_wall_scales(c: &SimulationContext, link_element: bool, e: i32, volum
 // ReactionLegacyBinding.cpp
 // ---------------------------------------------------------------------------
 
-fn note_negative_clamp(ctx: &mut SimulationContext, where_: &[u8]) {
+pub(crate) fn note_negative_clamp(ctx: &mut SimulationContext, where_: &[u8]) {
     let rx = &mut ctx.reactions;
     if rx.warned_negative_clamp {
         return;
@@ -608,7 +608,7 @@ fn note_negative_clamp(ctx: &mut SimulationContext, where_: &[u8]) {
 }
 
 /// clampRateSpecies: zero negative RATE species; returns (and lists) what was added.
-fn clamp_rate_species(rx: &ReactionData, tank: bool, block: &mut [f64], added: Option<&mut [f64]>) -> f64 {
+pub(crate) fn clamp_rate_species(rx: &ReactionData, tank: bool, block: &mut [f64], added: Option<&mut [f64]>) -> f64 {
     let forms = if tank { &rx.tank_form } else { &rx.pipe_form };
     let mut total = 0.0;
     let ns = rx.n_species();
@@ -853,7 +853,7 @@ fn msxlid_receive(c: &mut SimulationContext, node: i32, link: i32, water: f64, s
 // ---------------------------------------------------------------------------
 
 /// reactionBoosterMass: the booster sources' added mass (none without a booster row).
-fn reaction_booster_mass(ctx: &SimulationContext, node: i32, species: i32, mixed_volume: f64, arriving_volume: f64) -> Result<f64, StepError> {
+pub(crate) fn reaction_booster_mass(ctx: &SimulationContext, node: i32, species: i32, mixed_volume: f64, arriving_volume: f64) -> Result<f64, StepError> {
     if !(mixed_volume > 1e-12) || !(arriving_volume > 1e-12) {
         return Ok(0.0);
     }

@@ -287,6 +287,10 @@ pub struct SwmmEngine {
     pub routing_prev_rates_: [f64; 11],
     /// lazy EULERIAN_ARD init after Router::init (read and set by stepRouting)
     pub ard_init_attempted_: bool,
+    /// QUALITY_SOLVER EULERIAN_ARD engine
+    pub(crate) ard_: crate::transport::ard_engine::ArdEngine,
+    /// QUALITY_SOLVER LAGRANGIAN engine
+    pub(crate) lard_: crate::quality::lard::lagrangian_solver::LagrangianSolver,
 }
 
 impl Default for SwmmEngine {
@@ -388,6 +392,8 @@ impl SwmmEngine {
             last_step_steady_: false,
             routing_prev_rates_: [0.0; 11],
             ard_init_attempted_: false,
+            ard_: crate::transport::ard_engine::ArdEngine::new(),
+            lard_: Default::default(),
         };
         e.ctx_.state = EngineState::Created;
         e
@@ -470,6 +476,14 @@ impl SwmmEngine {
     /// surfaceQuality()
     pub fn surface_quality(&self) -> &SurfaceQualitySoA {
         &self.surface_quality_
+    }
+    /// The EULERIAN_ARD engine (QUALITY_SOLVER EULERIAN_ARD), for the gate dumpers.
+    pub fn ard_engine(&self) -> &crate::transport::ard_engine::ArdEngine {
+        &self.ard_
+    }
+    /// The LAGRANGIAN engine (QUALITY_SOLVER LAGRANGIAN), for the gate dumpers.
+    pub fn lard_solver(&self) -> &crate::quality::lard::lagrangian_solver::LagrangianSolver {
+        &self.lard_
     }
     /// The three init legs of core/engine_init_quality.rs, for the gate (examples/initqual.rs).
     pub fn gate_init_quality(&mut self) -> Result<(), crate::core::engine_init_hydraulics::Terminated> {
@@ -973,6 +987,8 @@ pub struct GateQuality<'a> {
     pub quality_: &'a mut QualitySolver,
     pub landuse_solver_: &'a mut LanduseSolver,
     pub surface_quality_: &'a mut SurfaceQualitySoA,
+    pub ard_: &'a mut crate::transport::ard_engine::ArdEngine,
+    pub lard_: &'a mut crate::quality::lard::lagrangian_solver::LagrangianSolver,
 }
 
 #[cfg(feature = "gate")]
@@ -1023,6 +1039,8 @@ impl SwmmEngine {
             quality_: &mut self.quality_,
             landuse_solver_: &mut self.landuse_solver_,
             surface_quality_: &mut self.surface_quality_,
+            ard_: &mut self.ard_,
+            lard_: &mut self.lard_,
         }
     }
     pub fn gate_hydrology(&mut self) -> GateHydrology<'_> {

@@ -470,6 +470,12 @@ def walk_rt():
     Q = ['    *q.hotstart_deferred_ = FromI64::from_i64(r.pi("engine.hotstart_deferred_"));']
     for header, cls, pc, pr, label in D.QUALITY_MEMBERS:
         load_struct(header, cls, 'q.' + pc.split('.')[1], label, Q)
+    saved = dict(D.STRUCTS); cnt = CNT[0]
+    D.STRUCTS.update(D.RT_STRUCTS); D.STRUCTS.update(D.QUALITY_RT_STRUCTS)
+    for header, cls, pc, pr, label in D.QUALITY_RT_MEMBERS:
+        load_rt_struct(header, cls, 'q.' + pc.split('.')[1], label, Q)
+    D.STRUCTS.clear(); D.STRUCTS.update(saved)
+    CNT[0] = cnt  # the hydrology loader's generated names stay as they were
     return L, Q
 
 def fn_body(lines, header):

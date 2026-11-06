@@ -66,6 +66,31 @@ fn is_geometric(g: &StorageGeom) -> bool {
     storage_shape_is_geometric(g.shape)
 }
 
+/// node::storeVolume (Node.cpp): the water the continuity equation attributes to a node
+/// (legacy's convention: 0 for a junction below its rim; storage and outfalls their volume).
+pub fn store_volume_at(nodes: &NodeData, idx: i32, depth: f64, volume: f64) -> f64 {
+    let ui = idx as usize;
+    let v = cmax(volume, 0.0);
+    if nodes.type_[ui] == NodeType::Storage || nodes.type_[ui] == NodeType::Outfall {
+        return v;
+    }
+    let fd = nodes.full_depth[ui];
+    if !(fd > 0.0) {
+        return v;
+    }
+    let mut store = nodes.full_volume[ui] * (crate::core::cmath::cmin(depth, fd) / fd);
+    if depth > fd {
+        store += v;
+    }
+    store
+}
+
+/// node::storeVolume(nodes, idx): at the node's current depth and volume.
+pub fn store_volume(nodes: &NodeData, idx: i32) -> f64 {
+    let ui = idx as usize;
+    store_volume_at(nodes, idx, nodes.depth[ui], nodes.volume[ui])
+}
+
 /// node::getVolume(nodes, idx, depth, tables, unit_sys, subs): volume (ft3) at `depth`.
 pub fn get_volume(nodes: &NodeData, idx: i32, depth: f64, tables: Option<&TableData>, unit_sys: i32, subs: Option<&NodeSubtypes>) -> f64 {
     if depth <= 0.0 {

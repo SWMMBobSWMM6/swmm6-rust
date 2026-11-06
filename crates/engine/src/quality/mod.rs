@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 pub mod landuse;
+pub mod lard;
 pub mod msx_lid;
 pub mod quality_routing;
 pub mod surface_species_kernel;

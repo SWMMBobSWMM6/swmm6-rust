@@ -883,6 +883,20 @@ QUALITY_MEMBERS = [
     ('quality/Landuse.hpp', 'SurfaceQualitySoA', 'e.surface_quality_', 'e.surface_quality()', 'surface_quality'),
 ]
 
+# The EULERIAN_ARD and LAGRANGIAN engines' own state (SWMMEngine::ard_, lard_), dumped after
+# the QUALITY_MEMBERS by rt_dump_struct (the transport mesh is the FV router's mesh type) with
+# QUALITY_RT_STRUCTS added to STRUCTS for the walk. (header, class, C++ path, Rust path, label)
+QUALITY_RT_MEMBERS = [
+    ('transport/components/EulerianArdComponent/ArdEngine.hpp', 'ArdEngine', 'e.ard_', 'e.ard_engine()', 'ard'),
+    ('quality/lard/LagrangianSolver.hpp', 'LagrangianSolver', 'e.lard_', 'e.lard_solver()', 'lard'),
+]
+QUALITY_RT_STRUCTS = {
+    'fv::kernels::FaceState': ('hydraulics/fv/FvKernels.hpp', 'FaceState'),
+    'fv::kernels::FaceFlux': ('hydraulics/fv/FvKernels.hpp', 'FaceFlux'),
+    'SegmentStore': ('quality/lard/SegmentStore.hpp', 'SegmentStore'),
+    'RwptDispersion': ('quality/lard/RwptDispersion.hpp', 'RwptDispersion'),
+}
+
 def quality_dumper():
     C = ['#ifdef CTXDUMP_QUALITY', 'namespace ctxdump {', 'inline void qualdump(openswmm::SWMMEngine& e) {']
     R = ['pub fn qualdump(e: &SwmmEngine) -> Vec<u8> {', '    let mut o: Vec<u8> = Vec::new();', '    let o = &mut o;']
@@ -890,6 +904,12 @@ def quality_dumper():
     R.append('    pi(o, "engine.hotstart_deferred_", e.hotstart_deferred() as i64);')
     for header, cls, pc, pr, label in QUALITY_MEMBERS:
         dump_struct(header, cls, pc, pr, label, C, R)
+    saved = dict(STRUCTS); cnt = CNT[0]
+    STRUCTS.update(RT_STRUCTS); STRUCTS.update(QUALITY_RT_STRUCTS)
+    for header, cls, pc, pr, label in QUALITY_RT_MEMBERS:
+        rt_dump_struct(header, cls, pc, pr, label, C, R)
+    STRUCTS.clear(); STRUCTS.update(saved)
+    CNT[0] = cnt  # the generated names of the dumpers after this one stay as they were
     C += ['}', '} // namespace ctxdump', '#endif // CTXDUMP_QUALITY']
     R += ['    std::mem::take(o)', '}']
     return C, R

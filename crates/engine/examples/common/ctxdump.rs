@@ -2413,5 +2413,238 @@ pub fn qualdump(e: &SwmmEngine) -> Vec<u8> {
     pi(o, "surface_quality.n_pollutants", (e.surface_quality().n_pollutants) as i64);
     vf(o, "surface_quality.buildup", &(e.surface_quality().buildup).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "surface_quality.washoff_conc", &(e.surface_quality().washoff_conc).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vi(o, "ard.mesh_.cell_geom", &(e.ard_engine().mesh_.cell_geom).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.mesh_.cell_conduit", &(e.ard_engine().mesh_.cell_conduit).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "ard.mesh_.cell_dx", &(e.ard_engine().mesh_.cell_dx).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.mesh_.cell_zb", &(e.ard_engine().mesh_.cell_zb).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.mesh_.cell_dzdx", &(e.ard_engine().mesh_.cell_dzdx).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vi(o, "ard.mesh_.cell_face0", &(e.ard_engine().mesh_.cell_face0).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.mesh_.cell_face1", &(e.ard_engine().mesh_.cell_face1).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.mesh_.cell_side0", &(e.ard_engine().mesh_.cell_side0).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.mesh_.cell_side1", &(e.ard_engine().mesh_.cell_side1).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.mesh_.face_cl", &(e.ard_engine().mesh_.face_cl).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.mesh_.face_cr", &(e.ard_engine().mesh_.face_cr).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.mesh_.face_node", &(e.ard_engine().mesh_.face_node).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.mesh_.face_geom", &(e.ard_engine().mesh_.face_geom).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.mesh_.face_gate", &(e.ard_engine().mesh_.face_gate).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.mesh_.face_culvert", &(e.ard_engine().mesh_.face_culvert).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "ard.mesh_.face_zb", &(e.ard_engine().mesh_.face_zb).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.mesh_.face_dx", &(e.ard_engine().mesh_.face_dx).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vi(o, "ard.mesh_.face_dir_l", &(e.ard_engine().mesh_.face_dir_l).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.mesh_.face_dir_r", &(e.ard_engine().mesh_.face_dir_r).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.mesh_.face_virtual", &(e.ard_engine().mesh_.face_virtual).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.mesh_.face_vj_node", &(e.ard_engine().mesh_.face_vj_node).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.mesh_.node_vj_face", &(e.ard_engine().mesh_.node_vj_face).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.mesh_.conduit_cell_begin", &(e.ard_engine().mesh_.conduit_cell_begin).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.mesh_.conduit_cell_count", &(e.ard_engine().mesh_.conduit_cell_count).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.mesh_.conduit_link", &(e.ard_engine().mesh_.conduit_link).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.mesh_.conduit_section", &(e.ard_engine().mesh_.conduit_section).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "ard.mesh_.conduit_roughness", &(e.ard_engine().mesh_.conduit_roughness).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.mesh_.conduit_rough_factor", &(e.ard_engine().mesh_.conduit_rough_factor).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.mesh_.conduit_loss_inlet", &(e.ard_engine().mesh_.conduit_loss_inlet).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.mesh_.conduit_loss_outlet", &(e.ard_engine().mesh_.conduit_loss_outlet).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.mesh_.conduit_slope", &(e.ard_engine().mesh_.conduit_slope).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vi(o, "ard.mesh_.conduit_culvert_code", &(e.ard_engine().mesh_.conduit_culvert_code).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    pi(o, "ard.mesh_.conduit_culvert_curve.n", (e.ard_engine().mesh_.conduit_culvert_curve).len() as i64);
+    for el in (e.ard_engine().mesh_.conduit_culvert_curve).iter() {
+    pf(o, "ard.mesh_.conduit_culvert_curve[].K", ((*el).K) as f64);
+    pf(o, "ard.mesh_.conduit_culvert_curve[].M", ((*el).M) as f64);
+    pf(o, "ard.mesh_.conduit_culvert_curve[].C", ((*el).C) as f64);
+    pf(o, "ard.mesh_.conduit_culvert_curve[].Y", ((*el).Y) as f64);
+    }
+    vi(o, "ard.mesh_.conduit_culvert_mitered", &(e.ard_engine().mesh_.conduit_culvert_mitered).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.mesh_.chain_ptr", &(e.ard_engine().mesh_.chain_ptr).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.mesh_.chain_cells", &(e.ard_engine().mesh_.chain_cells).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.mesh_.chain_dir", &(e.ard_engine().mesh_.chain_dir).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.mesh_.cell_chain", &(e.ard_engine().mesh_.cell_chain).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.mesh_.cell_chain_pos", &(e.ard_engine().mesh_.cell_chain_pos).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.mesh_.struct_link", &(e.ard_engine().mesh_.struct_link).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.mesh_.struct_n1", &(e.ard_engine().mesh_.struct_n1).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.mesh_.struct_n2", &(e.ard_engine().mesh_.struct_n2).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.mesh_.struct_is_dummy", &(e.ard_engine().mesh_.struct_is_dummy).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.mesh_.node_dummy_drain", &(e.ard_engine().mesh_.node_dummy_drain).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.mesh_.node_face_ptr", &(e.ard_engine().mesh_.node_face_ptr).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.mesh_.node_face_idx", &(e.ard_engine().mesh_.node_face_idx).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "ard.mesh_.node_face_sign", &(e.ard_engine().mesh_.node_face_sign).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.mesh_.node_face_zb", &(e.ard_engine().mesh_.node_face_zb).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.mesh_.node_invert", &(e.ard_engine().mesh_.node_invert).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.mesh_.node_full_depth", &(e.ard_engine().mesh_.node_full_depth).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.mesh_.node_ponded_area", &(e.ard_engine().mesh_.node_ponded_area).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.mesh_.node_sur_depth", &(e.ard_engine().mesh_.node_sur_depth).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vi(o, "ard.mesh_.node_can_pond", &(e.ard_engine().mesh_.node_can_pond).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.mesh_.node_kind", &(e.ard_engine().mesh_.node_kind).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "ard.mesh_.node_area", &(e.ard_engine().mesh_.node_area).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vi(o, "ard.mesh_.node_vol_off", &(e.ard_engine().mesh_.node_vol_off).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "ard.mesh_.node_vol_dmax", &(e.ard_engine().mesh_.node_vol_dmax).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.mesh_.node_vol_atop", &(e.ard_engine().mesh_.node_vol_atop).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.mesh_.node_vol_tbl", &(e.ard_engine().mesh_.node_vol_tbl).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pi(o, "ard.mesh_.geom.n", (e.ard_engine().mesh_.geom).len() as i64);
+    for el in (e.ard_engine().mesh_.geom).iter() {
+    pi(o, "ard.mesh_.geom[].xs.type", ((*el).xs.type_) as i64);
+    pi(o, "ard.mesh_.geom[].xs.culvert_code", ((*el).xs.culvert_code) as i64);
+    pi(o, "ard.mesh_.geom[].xs.transect", ((*el).xs.transect) as i64);
+    pf(o, "ard.mesh_.geom[].xs.y_full", ((*el).xs.y_full) as f64);
+    pf(o, "ard.mesh_.geom[].xs.w_max", ((*el).xs.w_max) as f64);
+    pf(o, "ard.mesh_.geom[].xs.yw_max", ((*el).xs.yw_max) as f64);
+    pf(o, "ard.mesh_.geom[].xs.a_full", ((*el).xs.a_full) as f64);
+    pf(o, "ard.mesh_.geom[].xs.r_full", ((*el).xs.r_full) as f64);
+    pf(o, "ard.mesh_.geom[].xs.s_full", ((*el).xs.s_full) as f64);
+    pf(o, "ard.mesh_.geom[].xs.s_max", ((*el).xs.s_max) as f64);
+    pf(o, "ard.mesh_.geom[].xs.y_bot", ((*el).xs.y_bot) as f64);
+    pf(o, "ard.mesh_.geom[].xs.a_bot", ((*el).xs.a_bot) as f64);
+    pf(o, "ard.mesh_.geom[].xs.s_bot", ((*el).xs.s_bot) as f64);
+    pf(o, "ard.mesh_.geom[].xs.r_bot", ((*el).xs.r_bot) as f64);
+    pi(o, "ard.mesh_.geom[].xs.transect_tbl_size", ((*el).xs.transect_tbl_size) as i64);
+    pf(o, "ard.mesh_.geom[].y_full", ((*el).y_full) as f64);
+    pf(o, "ard.mesh_.geom[].a_full", ((*el).a_full) as f64);
+    pf(o, "ard.mesh_.geom[].w_max", ((*el).w_max) as f64);
+    pf(o, "ard.mesh_.geom[].r_full", ((*el).r_full) as f64);
+    pf(o, "ard.mesh_.geom[].barrel_scale", ((*el).barrel_scale) as f64);
+    pf(o, "ard.mesh_.geom[].y_crown", ((*el).y_crown) as f64);
+    pf(o, "ard.mesh_.geom[].t_slot", ((*el).t_slot) as f64);
+    pf(o, "ard.mesh_.geom[].a_crown", ((*el).a_crown) as f64);
+    pf(o, "ard.mesh_.geom[].i1_crown", ((*el).i1_crown) as f64);
+    pi(o, "ard.mesh_.geom[].is_open", ((*el).is_open) as i64);
+    pi(o, "ard.mesh_.geom[].barrels", ((*el).barrels) as i64);
+    pf(o, "ard.mesh_.geom[].closure_tbl.y_full", ((*el).closure_tbl.y_full) as f64);
+    pf(o, "ard.mesh_.geom[].closure_tbl.dh", ((*el).closure_tbl.dh) as f64);
+    pf(o, "ard.mesh_.geom[].closure_tbl.inv_dh", ((*el).closure_tbl.inv_dh) as f64);
+    pf(o, "ard.mesh_.geom[].closure_tbl.a_crown", ((*el).closure_tbl.a_crown) as f64);
+    pf(o, "ard.mesh_.geom[].closure_tbl.t_slot", ((*el).closure_tbl.t_slot) as f64);
+    pf(o, "ard.mesh_.geom[].closure_tbl.i1_crown", ((*el).closure_tbl.i1_crown) as f64);
+    pf(o, "ard.mesh_.geom[].closure_tbl.r_full", ((*el).closure_tbl.r_full) as f64);
+    pf(o, "ard.mesh_.geom[].closure_tbl.inv_a_crown_n", ((*el).closure_tbl.inv_a_crown_n) as f64);
+    pf(o, "ard.mesh_.geom[].closure_tbl.c2", ((*el).closure_tbl.c2) as f64);
+    pf(o, "ard.mesh_.geom[].closure_tbl.c1", ((*el).closure_tbl.c1) as f64);
+    pf(o, "ard.mesh_.geom[].closure_tbl.p0", ((*el).closure_tbl.p0) as f64);
+    pf(o, "ard.mesh_.geom[].closure_tbl.p1", ((*el).closure_tbl.p1) as f64);
+    pi(o, "ard.mesh_.geom[].closure_tbl.kind", ((*el).closure_tbl.kind) as i64);
+    for q in 0..((*el).closure_tbl.A).len() {
+    pf(o, "ard.mesh_.geom[].closure_tbl.A[]", ((*el).closure_tbl.A[q]) as f64);
+    }
+    for q in 0..((*el).closure_tbl.M).len() {
+    pf(o, "ard.mesh_.geom[].closure_tbl.M[]", ((*el).closure_tbl.M[q]) as f64);
+    }
+    for q in 0..((*el).closure_tbl.I1).len() {
+    pf(o, "ard.mesh_.geom[].closure_tbl.I1[]", ((*el).closure_tbl.I1[q]) as f64);
+    }
+    for q in 0..((*el).closure_tbl.R).len() {
+    pf(o, "ard.mesh_.geom[].closure_tbl.R[]", ((*el).closure_tbl.R[q]) as f64);
+    }
+    for q in 0..((*el).closure_tbl.j_of_a).len() {
+    pi(o, "ard.mesh_.geom[].closure_tbl.j_of_a[]", ((*el).closure_tbl.j_of_a[q]) as i64);
+    }
+    }
+    vf(o, "ard.state_.cell_a", &(e.ard_engine().state_.cell_a).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.state_.cell_q", &(e.ard_engine().state_.cell_q).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.state_.cell_h", &(e.ard_engine().state_.cell_h).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.state_.node_volume", &(e.ard_engine().state_.node_volume).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.state_.node_head", &(e.ard_engine().state_.node_head).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.state_.node_surf_area", &(e.ard_engine().state_.node_surf_area).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.state_.node_overflow", &(e.ard_engine().state_.node_overflow).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.state_.node_overflow_vol", &(e.ard_engine().state_.node_overflow_vol).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.state_.cell_phi", &(e.ard_engine().state_.cell_phi).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pi(o, "ard.state_.n_species", (e.ard_engine().state_.n_species) as i64);
+    vi(o, "ard.state_.cell_tpa", &(e.ard_engine().state_.cell_tpa).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "ard.face_q_", &(e.ard_engine().face_q_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.node_mass_", &(e.ard_engine().node_mass_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.node_vol_", &(e.ard_engine().node_vol_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.cell_src_vol_", &(e.ard_engine().cell_src_vol_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.cell_src_mass_", &(e.ard_engine().cell_src_mass_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pi(o, "ard.has_vj_src_", (e.ard_engine().has_vj_src_) as i64);
+    vf(o, "ard.f_mass_", &(e.ard_engine().f_mass_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.f_sstar_", &(e.ard_engine().f_sstar_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.f_phi_l_", &(e.ard_engine().f_phi_l_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.f_phi_r_", &(e.ard_engine().f_phi_r_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.f_phi_flux_", &(e.ard_engine().f_phi_flux_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.cell_slope_", &(e.ard_engine().cell_slope_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.lo_flux_", &(e.ard_engine().lo_flux_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.anti_flux_", &(e.ard_engine().anti_flux_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.td_", &(e.ard_engine().td_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.anew_", &(e.ard_engine().anew_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.rplus_", &(e.ard_engine().rplus_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.rminus_", &(e.ard_engine().rminus_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.cell_u_", &(e.ard_engine().cell_u_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pi(o, "ard.f_state_l_.n", (e.ard_engine().f_state_l_).len() as i64);
+    for e99 in (e.ard_engine().f_state_l_).iter() {
+    pf(o, "ard.f_state_l_[].a", ((*e99).a) as f64);
+    pf(o, "ard.f_state_l_[].q", ((*e99).q) as f64);
+    pf(o, "ard.f_state_l_[].u", ((*e99).u) as f64);
+    pf(o, "ard.f_state_l_[].c", ((*e99).c) as f64);
+    pf(o, "ard.f_state_l_[].i1", ((*e99).i1) as f64);
+    pi(o, "ard.f_state_l_[].press", ((*e99).press) as i64);
+    }
+    pi(o, "ard.f_state_r_.n", (e.ard_engine().f_state_r_).len() as i64);
+    for e100 in (e.ard_engine().f_state_r_).iter() {
+    pf(o, "ard.f_state_r_[].a", ((*e100).a) as f64);
+    pf(o, "ard.f_state_r_[].q", ((*e100).q) as f64);
+    pf(o, "ard.f_state_r_[].u", ((*e100).u) as f64);
+    pf(o, "ard.f_state_r_[].c", ((*e100).c) as f64);
+    pf(o, "ard.f_state_r_[].i1", ((*e100).i1) as f64);
+    pi(o, "ard.f_state_r_[].press", ((*e100).press) as i64);
+    }
+    pi(o, "ard.f_flux_.n", (e.ard_engine().f_flux_).len() as i64);
+    for e101 in (e.ard_engine().f_flux_).iter() {
+    pf(o, "ard.f_flux_[].mass", ((*e101).mass) as f64);
+    pf(o, "ard.f_flux_[].mom", ((*e101).mom) as f64);
+    pf(o, "ard.f_flux_[].sstar", ((*e101).sstar) as f64);
+    pf(o, "ard.f_flux_[].sl", ((*e101).sl) as f64);
+    pf(o, "ard.f_flux_[].sr", ((*e101).sr) as f64);
+    }
+    vi(o, "ard.cell_active_", &(e.ard_engine().cell_active_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.active_faces_", &(e.ard_engine().active_faces_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.bc_node_", &(e.ard_engine().bc_node_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.bc_srow_", &(e.ard_engine().bc_srow_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.bc_ts_", &(e.ard_engine().bc_ts_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "ard.bc_value_", &(e.ard_engine().bc_value_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.bc_now_", &(e.ard_engine().bc_now_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vi(o, "ard.src_crow_", &(e.ard_engine().src_crow_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.src_srow_", &(e.ard_engine().src_srow_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "ard.src_ts_", &(e.ard_engine().src_ts_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "ard.src_value_", &(e.ard_engine().src_value_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.src_len_", &(e.ard_engine().src_len_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.src_now_", &(e.ard_engine().src_now_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pi(o, "ard.disp_active_", (e.ard_engine().disp_active_) as i64);
+    pi(o, "ard.disp_mode_", (e.ard_engine().disp_mode_) as i64);
+    pf(o, "ard.disp_global_ft_", (e.ard_engine().disp_global_ft_) as f64);
+    vf(o, "ard.conduit_disp_ft_", &(e.ard_engine().conduit_disp_ft_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "ard.cell_disp_", &(e.ard_engine().cell_disp_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    sk(o, "ard.detail_out_");
+    pi(o, "ard.detail_active_", (e.ard_engine().detail_active_) as i64);
+    pf(o, "ard.detail_time_s_", (e.ard_engine().detail_time_s_) as f64);
+    pi(o, "ard.age_row_", (e.ard_engine().age_row_) as i64);
+    pi(o, "ard.nm_", (e.ard_engine().nm_) as i64);
+    pi(o, "ard.temp_row_", (e.ard_engine().temp_row_) as i64);
+    vs(o, "ard.warnings_", &e.ard_engine().warnings_);
+    pi(o, "ard.initialized_", (e.ard_engine().initialized_) as i64);
+    pi(o, "ard.warned_cfl_clamp_", (e.ard_engine().warned_cfl_clamp_) as i64);
+    pi(o, "lard.store_.nl_", (e.lard_solver().store_.nl_) as i64);
+    pi(o, "lard.store_.ns_", (e.lard_solver().store_.ns_) as i64);
+    pi(o, "lard.store_.cap_", (e.lard_solver().store_.cap_) as i64);
+    vi(o, "lard.store_.head_", &(e.lard_solver().store_.head_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "lard.store_.count_", &(e.lard_solver().store_.count_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "lard.store_.vol_", &(e.lard_solver().store_.vol_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lard.store_.conc_", &(e.lard_solver().store_.conc_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pi(o, "lard.rwpt_.nl_", (e.lard_solver().rwpt_.nl_) as i64);
+    pi(o, "lard.rwpt_.npart_", (e.lard_solver().rwpt_.npart_) as i64);
+    vf(o, "lard.rwpt_.zeta_", &(e.lard_solver().rwpt_.zeta_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lard.rwpt_.eta_", &(e.lard_solver().rwpt_.eta_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vi(o, "lard.rwpt_.seg_idx_", &(e.lard_solver().rwpt_.seg_idx_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "lard.rwpt_.bounds_", &(e.lard_solver().rwpt_.bounds_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lard.release_vol_", &(e.lard_solver().release_vol_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pi(o, "lard.substep_counter_", (e.lard_solver().substep_counter_) as i64);
+    vi(o, "lard.topo_", &(e.lard_solver().topo_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    pi(o, "lard.node_out_links_.n", (e.lard_solver().node_out_links_).len() as i64);
+    for e102 in (e.lard_solver().node_out_links_).iter() {
+    vi(o, "lard.node_out_links_[]", &((*e102)).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    }
+    vi(o, "lard.flow_sign_", &(e.lard_solver().flow_sign_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "lard.node_mass_in_", &(e.lard_solver().node_mass_in_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lard.node_vol_in_", &(e.lard_solver().node_vol_in_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lard.scratch_", &(e.lard_solver().scratch_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lard.treat_cin_", &(e.lard_solver().treat_cin_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lard.msx_block_", &(e.lard_solver().msx_block_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "lard.msx_poll_", &(e.lard_solver().msx_poll_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pi(o, "lard.initialized_", (e.lard_solver().initialized_) as i64);
     std::mem::take(o)
 }

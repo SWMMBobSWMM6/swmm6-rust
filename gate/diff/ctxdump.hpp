@@ -2446,6 +2446,239 @@ inline void qualdump(openswmm::SWMMEngine& e) {
   pi("surface_quality.n_pollutants", (long long)(e.surface_quality_.n_pollutants));
   { std::vector<double> t; for (auto x : e.surface_quality_.buildup) t.push_back((double)x); vf("surface_quality.buildup", t); }
   { std::vector<double> t; for (auto x : e.surface_quality_.washoff_conc) t.push_back((double)x); vf("surface_quality.washoff_conc", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.cell_geom) t.push_back((long long)x); vi("ard.mesh_.cell_geom", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.cell_conduit) t.push_back((long long)x); vi("ard.mesh_.cell_conduit", t); }
+  { std::vector<double> t; for (auto x : e.ard_.mesh_.cell_dx) t.push_back((double)x); vf("ard.mesh_.cell_dx", t); }
+  { std::vector<double> t; for (auto x : e.ard_.mesh_.cell_zb) t.push_back((double)x); vf("ard.mesh_.cell_zb", t); }
+  { std::vector<double> t; for (auto x : e.ard_.mesh_.cell_dzdx) t.push_back((double)x); vf("ard.mesh_.cell_dzdx", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.cell_face0) t.push_back((long long)x); vi("ard.mesh_.cell_face0", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.cell_face1) t.push_back((long long)x); vi("ard.mesh_.cell_face1", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.cell_side0) t.push_back((long long)x); vi("ard.mesh_.cell_side0", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.cell_side1) t.push_back((long long)x); vi("ard.mesh_.cell_side1", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.face_cl) t.push_back((long long)x); vi("ard.mesh_.face_cl", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.face_cr) t.push_back((long long)x); vi("ard.mesh_.face_cr", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.face_node) t.push_back((long long)x); vi("ard.mesh_.face_node", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.face_geom) t.push_back((long long)x); vi("ard.mesh_.face_geom", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.face_gate) t.push_back((long long)x); vi("ard.mesh_.face_gate", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.face_culvert) t.push_back((long long)x); vi("ard.mesh_.face_culvert", t); }
+  { std::vector<double> t; for (auto x : e.ard_.mesh_.face_zb) t.push_back((double)x); vf("ard.mesh_.face_zb", t); }
+  { std::vector<double> t; for (auto x : e.ard_.mesh_.face_dx) t.push_back((double)x); vf("ard.mesh_.face_dx", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.face_dir_l) t.push_back((long long)x); vi("ard.mesh_.face_dir_l", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.face_dir_r) t.push_back((long long)x); vi("ard.mesh_.face_dir_r", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.face_virtual) t.push_back((long long)x); vi("ard.mesh_.face_virtual", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.face_vj_node) t.push_back((long long)x); vi("ard.mesh_.face_vj_node", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.node_vj_face) t.push_back((long long)x); vi("ard.mesh_.node_vj_face", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.conduit_cell_begin) t.push_back((long long)x); vi("ard.mesh_.conduit_cell_begin", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.conduit_cell_count) t.push_back((long long)x); vi("ard.mesh_.conduit_cell_count", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.conduit_link) t.push_back((long long)x); vi("ard.mesh_.conduit_link", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.conduit_section) t.push_back((long long)x); vi("ard.mesh_.conduit_section", t); }
+  { std::vector<double> t; for (auto x : e.ard_.mesh_.conduit_roughness) t.push_back((double)x); vf("ard.mesh_.conduit_roughness", t); }
+  { std::vector<double> t; for (auto x : e.ard_.mesh_.conduit_rough_factor) t.push_back((double)x); vf("ard.mesh_.conduit_rough_factor", t); }
+  { std::vector<double> t; for (auto x : e.ard_.mesh_.conduit_loss_inlet) t.push_back((double)x); vf("ard.mesh_.conduit_loss_inlet", t); }
+  { std::vector<double> t; for (auto x : e.ard_.mesh_.conduit_loss_outlet) t.push_back((double)x); vf("ard.mesh_.conduit_loss_outlet", t); }
+  { std::vector<double> t; for (auto x : e.ard_.mesh_.conduit_slope) t.push_back((double)x); vf("ard.mesh_.conduit_slope", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.conduit_culvert_code) t.push_back((long long)x); vi("ard.mesh_.conduit_culvert_code", t); }
+  pi("ard.mesh_.conduit_culvert_curve.n", (long long)(e.ard_.mesh_.conduit_culvert_curve).size());
+  for (auto& el : e.ard_.mesh_.conduit_culvert_curve) {
+  pf("ard.mesh_.conduit_culvert_curve[].K", (double)(el.K));
+  pf("ard.mesh_.conduit_culvert_curve[].M", (double)(el.M));
+  pf("ard.mesh_.conduit_culvert_curve[].C", (double)(el.C));
+  pf("ard.mesh_.conduit_culvert_curve[].Y", (double)(el.Y));
+  }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.conduit_culvert_mitered) t.push_back((long long)x); vi("ard.mesh_.conduit_culvert_mitered", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.chain_ptr) t.push_back((long long)x); vi("ard.mesh_.chain_ptr", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.chain_cells) t.push_back((long long)x); vi("ard.mesh_.chain_cells", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.chain_dir) t.push_back((long long)x); vi("ard.mesh_.chain_dir", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.cell_chain) t.push_back((long long)x); vi("ard.mesh_.cell_chain", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.cell_chain_pos) t.push_back((long long)x); vi("ard.mesh_.cell_chain_pos", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.struct_link) t.push_back((long long)x); vi("ard.mesh_.struct_link", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.struct_n1) t.push_back((long long)x); vi("ard.mesh_.struct_n1", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.struct_n2) t.push_back((long long)x); vi("ard.mesh_.struct_n2", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.struct_is_dummy) t.push_back((long long)x); vi("ard.mesh_.struct_is_dummy", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.node_dummy_drain) t.push_back((long long)x); vi("ard.mesh_.node_dummy_drain", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.node_face_ptr) t.push_back((long long)x); vi("ard.mesh_.node_face_ptr", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.node_face_idx) t.push_back((long long)x); vi("ard.mesh_.node_face_idx", t); }
+  { std::vector<double> t; for (auto x : e.ard_.mesh_.node_face_sign) t.push_back((double)x); vf("ard.mesh_.node_face_sign", t); }
+  { std::vector<double> t; for (auto x : e.ard_.mesh_.node_face_zb) t.push_back((double)x); vf("ard.mesh_.node_face_zb", t); }
+  { std::vector<double> t; for (auto x : e.ard_.mesh_.node_invert) t.push_back((double)x); vf("ard.mesh_.node_invert", t); }
+  { std::vector<double> t; for (auto x : e.ard_.mesh_.node_full_depth) t.push_back((double)x); vf("ard.mesh_.node_full_depth", t); }
+  { std::vector<double> t; for (auto x : e.ard_.mesh_.node_ponded_area) t.push_back((double)x); vf("ard.mesh_.node_ponded_area", t); }
+  { std::vector<double> t; for (auto x : e.ard_.mesh_.node_sur_depth) t.push_back((double)x); vf("ard.mesh_.node_sur_depth", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.node_can_pond) t.push_back((long long)x); vi("ard.mesh_.node_can_pond", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.node_kind) t.push_back((long long)x); vi("ard.mesh_.node_kind", t); }
+  { std::vector<double> t; for (auto x : e.ard_.mesh_.node_area) t.push_back((double)x); vf("ard.mesh_.node_area", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.mesh_.node_vol_off) t.push_back((long long)x); vi("ard.mesh_.node_vol_off", t); }
+  { std::vector<double> t; for (auto x : e.ard_.mesh_.node_vol_dmax) t.push_back((double)x); vf("ard.mesh_.node_vol_dmax", t); }
+  { std::vector<double> t; for (auto x : e.ard_.mesh_.node_vol_atop) t.push_back((double)x); vf("ard.mesh_.node_vol_atop", t); }
+  { std::vector<double> t; for (auto x : e.ard_.mesh_.node_vol_tbl) t.push_back((double)x); vf("ard.mesh_.node_vol_tbl", t); }
+  pi("ard.mesh_.geom.n", (long long)(e.ard_.mesh_.geom).size());
+  for (auto& el : e.ard_.mesh_.geom) {
+  pi("ard.mesh_.geom[].xs.type", (long long)(el.xs.type));
+  pi("ard.mesh_.geom[].xs.culvert_code", (long long)(el.xs.culvert_code));
+  pi("ard.mesh_.geom[].xs.transect", (long long)(el.xs.transect));
+  pf("ard.mesh_.geom[].xs.y_full", (double)(el.xs.y_full));
+  pf("ard.mesh_.geom[].xs.w_max", (double)(el.xs.w_max));
+  pf("ard.mesh_.geom[].xs.yw_max", (double)(el.xs.yw_max));
+  pf("ard.mesh_.geom[].xs.a_full", (double)(el.xs.a_full));
+  pf("ard.mesh_.geom[].xs.r_full", (double)(el.xs.r_full));
+  pf("ard.mesh_.geom[].xs.s_full", (double)(el.xs.s_full));
+  pf("ard.mesh_.geom[].xs.s_max", (double)(el.xs.s_max));
+  pf("ard.mesh_.geom[].xs.y_bot", (double)(el.xs.y_bot));
+  pf("ard.mesh_.geom[].xs.a_bot", (double)(el.xs.a_bot));
+  pf("ard.mesh_.geom[].xs.s_bot", (double)(el.xs.s_bot));
+  pf("ard.mesh_.geom[].xs.r_bot", (double)(el.xs.r_bot));
+  pi("ard.mesh_.geom[].xs.transect_tbl_size", (long long)(el.xs.transect_tbl_size));
+  pf("ard.mesh_.geom[].y_full", (double)(el.y_full));
+  pf("ard.mesh_.geom[].a_full", (double)(el.a_full));
+  pf("ard.mesh_.geom[].w_max", (double)(el.w_max));
+  pf("ard.mesh_.geom[].r_full", (double)(el.r_full));
+  pf("ard.mesh_.geom[].barrel_scale", (double)(el.barrel_scale));
+  pf("ard.mesh_.geom[].y_crown", (double)(el.y_crown));
+  pf("ard.mesh_.geom[].t_slot", (double)(el.t_slot));
+  pf("ard.mesh_.geom[].a_crown", (double)(el.a_crown));
+  pf("ard.mesh_.geom[].i1_crown", (double)(el.i1_crown));
+  pi("ard.mesh_.geom[].is_open", (long long)(el.is_open));
+  pi("ard.mesh_.geom[].barrels", (long long)(el.barrels));
+  pf("ard.mesh_.geom[].closure_tbl.y_full", (double)(el.closure_tbl.y_full));
+  pf("ard.mesh_.geom[].closure_tbl.dh", (double)(el.closure_tbl.dh));
+  pf("ard.mesh_.geom[].closure_tbl.inv_dh", (double)(el.closure_tbl.inv_dh));
+  pf("ard.mesh_.geom[].closure_tbl.a_crown", (double)(el.closure_tbl.a_crown));
+  pf("ard.mesh_.geom[].closure_tbl.t_slot", (double)(el.closure_tbl.t_slot));
+  pf("ard.mesh_.geom[].closure_tbl.i1_crown", (double)(el.closure_tbl.i1_crown));
+  pf("ard.mesh_.geom[].closure_tbl.r_full", (double)(el.closure_tbl.r_full));
+  pf("ard.mesh_.geom[].closure_tbl.inv_a_crown_n", (double)(el.closure_tbl.inv_a_crown_n));
+  pf("ard.mesh_.geom[].closure_tbl.c2", (double)(el.closure_tbl.c2));
+  pf("ard.mesh_.geom[].closure_tbl.c1", (double)(el.closure_tbl.c1));
+  pf("ard.mesh_.geom[].closure_tbl.p0", (double)(el.closure_tbl.p0));
+  pf("ard.mesh_.geom[].closure_tbl.p1", (double)(el.closure_tbl.p1));
+  pi("ard.mesh_.geom[].closure_tbl.kind", (long long)(el.closure_tbl.kind));
+  for (int q = 0; q < (int)(sizeof(el.closure_tbl.A)/sizeof(el.closure_tbl.A[0])); ++q) {
+  pf("ard.mesh_.geom[].closure_tbl.A[]", (double)(el.closure_tbl.A[q]));
+  }
+  for (int q = 0; q < (int)(sizeof(el.closure_tbl.M)/sizeof(el.closure_tbl.M[0])); ++q) {
+  pf("ard.mesh_.geom[].closure_tbl.M[]", (double)(el.closure_tbl.M[q]));
+  }
+  for (int q = 0; q < (int)(sizeof(el.closure_tbl.I1)/sizeof(el.closure_tbl.I1[0])); ++q) {
+  pf("ard.mesh_.geom[].closure_tbl.I1[]", (double)(el.closure_tbl.I1[q]));
+  }
+  for (int q = 0; q < (int)(sizeof(el.closure_tbl.R)/sizeof(el.closure_tbl.R[0])); ++q) {
+  pf("ard.mesh_.geom[].closure_tbl.R[]", (double)(el.closure_tbl.R[q]));
+  }
+  for (int q = 0; q < (int)(sizeof(el.closure_tbl.j_of_a)/sizeof(el.closure_tbl.j_of_a[0])); ++q) {
+  pi("ard.mesh_.geom[].closure_tbl.j_of_a[]", (long long)(el.closure_tbl.j_of_a[q]));
+  }
+  }
+  { std::vector<double> t; for (auto x : e.ard_.state_.cell_a) t.push_back((double)x); vf("ard.state_.cell_a", t); }
+  { std::vector<double> t; for (auto x : e.ard_.state_.cell_q) t.push_back((double)x); vf("ard.state_.cell_q", t); }
+  { std::vector<double> t; for (auto x : e.ard_.state_.cell_h) t.push_back((double)x); vf("ard.state_.cell_h", t); }
+  { std::vector<double> t; for (auto x : e.ard_.state_.node_volume) t.push_back((double)x); vf("ard.state_.node_volume", t); }
+  { std::vector<double> t; for (auto x : e.ard_.state_.node_head) t.push_back((double)x); vf("ard.state_.node_head", t); }
+  { std::vector<double> t; for (auto x : e.ard_.state_.node_surf_area) t.push_back((double)x); vf("ard.state_.node_surf_area", t); }
+  { std::vector<double> t; for (auto x : e.ard_.state_.node_overflow) t.push_back((double)x); vf("ard.state_.node_overflow", t); }
+  { std::vector<double> t; for (auto x : e.ard_.state_.node_overflow_vol) t.push_back((double)x); vf("ard.state_.node_overflow_vol", t); }
+  { std::vector<double> t; for (auto x : e.ard_.state_.cell_phi) t.push_back((double)x); vf("ard.state_.cell_phi", t); }
+  pi("ard.state_.n_species", (long long)(e.ard_.state_.n_species));
+  { std::vector<long long> t; for (auto x : e.ard_.state_.cell_tpa) t.push_back((long long)x); vi("ard.state_.cell_tpa", t); }
+  { std::vector<double> t; for (auto x : e.ard_.face_q_) t.push_back((double)x); vf("ard.face_q_", t); }
+  { std::vector<double> t; for (auto x : e.ard_.node_mass_) t.push_back((double)x); vf("ard.node_mass_", t); }
+  { std::vector<double> t; for (auto x : e.ard_.node_vol_) t.push_back((double)x); vf("ard.node_vol_", t); }
+  { std::vector<double> t; for (auto x : e.ard_.cell_src_vol_) t.push_back((double)x); vf("ard.cell_src_vol_", t); }
+  { std::vector<double> t; for (auto x : e.ard_.cell_src_mass_) t.push_back((double)x); vf("ard.cell_src_mass_", t); }
+  pi("ard.has_vj_src_", (long long)(e.ard_.has_vj_src_));
+  { std::vector<double> t; for (auto x : e.ard_.f_mass_) t.push_back((double)x); vf("ard.f_mass_", t); }
+  { std::vector<double> t; for (auto x : e.ard_.f_sstar_) t.push_back((double)x); vf("ard.f_sstar_", t); }
+  { std::vector<double> t; for (auto x : e.ard_.f_phi_l_) t.push_back((double)x); vf("ard.f_phi_l_", t); }
+  { std::vector<double> t; for (auto x : e.ard_.f_phi_r_) t.push_back((double)x); vf("ard.f_phi_r_", t); }
+  { std::vector<double> t; for (auto x : e.ard_.f_phi_flux_) t.push_back((double)x); vf("ard.f_phi_flux_", t); }
+  { std::vector<double> t; for (auto x : e.ard_.cell_slope_) t.push_back((double)x); vf("ard.cell_slope_", t); }
+  { std::vector<double> t; for (auto x : e.ard_.lo_flux_) t.push_back((double)x); vf("ard.lo_flux_", t); }
+  { std::vector<double> t; for (auto x : e.ard_.anti_flux_) t.push_back((double)x); vf("ard.anti_flux_", t); }
+  { std::vector<double> t; for (auto x : e.ard_.td_) t.push_back((double)x); vf("ard.td_", t); }
+  { std::vector<double> t; for (auto x : e.ard_.anew_) t.push_back((double)x); vf("ard.anew_", t); }
+  { std::vector<double> t; for (auto x : e.ard_.rplus_) t.push_back((double)x); vf("ard.rplus_", t); }
+  { std::vector<double> t; for (auto x : e.ard_.rminus_) t.push_back((double)x); vf("ard.rminus_", t); }
+  { std::vector<double> t; for (auto x : e.ard_.cell_u_) t.push_back((double)x); vf("ard.cell_u_", t); }
+  pi("ard.f_state_l_.n", (long long)(e.ard_.f_state_l_).size());
+  for (const auto& e99 : e.ard_.f_state_l_) {
+  pf("ard.f_state_l_[].a", (double)(e99.a));
+  pf("ard.f_state_l_[].q", (double)(e99.q));
+  pf("ard.f_state_l_[].u", (double)(e99.u));
+  pf("ard.f_state_l_[].c", (double)(e99.c));
+  pf("ard.f_state_l_[].i1", (double)(e99.i1));
+  pi("ard.f_state_l_[].press", (long long)(e99.press));
+  }
+  pi("ard.f_state_r_.n", (long long)(e.ard_.f_state_r_).size());
+  for (const auto& e100 : e.ard_.f_state_r_) {
+  pf("ard.f_state_r_[].a", (double)(e100.a));
+  pf("ard.f_state_r_[].q", (double)(e100.q));
+  pf("ard.f_state_r_[].u", (double)(e100.u));
+  pf("ard.f_state_r_[].c", (double)(e100.c));
+  pf("ard.f_state_r_[].i1", (double)(e100.i1));
+  pi("ard.f_state_r_[].press", (long long)(e100.press));
+  }
+  pi("ard.f_flux_.n", (long long)(e.ard_.f_flux_).size());
+  for (const auto& e101 : e.ard_.f_flux_) {
+  pf("ard.f_flux_[].mass", (double)(e101.mass));
+  pf("ard.f_flux_[].mom", (double)(e101.mom));
+  pf("ard.f_flux_[].sstar", (double)(e101.sstar));
+  pf("ard.f_flux_[].sl", (double)(e101.sl));
+  pf("ard.f_flux_[].sr", (double)(e101.sr));
+  }
+  { std::vector<long long> t; for (auto x : e.ard_.cell_active_) t.push_back((long long)x); vi("ard.cell_active_", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.active_faces_) t.push_back((long long)x); vi("ard.active_faces_", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.bc_node_) t.push_back((long long)x); vi("ard.bc_node_", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.bc_srow_) t.push_back((long long)x); vi("ard.bc_srow_", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.bc_ts_) t.push_back((long long)x); vi("ard.bc_ts_", t); }
+  { std::vector<double> t; for (auto x : e.ard_.bc_value_) t.push_back((double)x); vf("ard.bc_value_", t); }
+  { std::vector<double> t; for (auto x : e.ard_.bc_now_) t.push_back((double)x); vf("ard.bc_now_", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.src_crow_) t.push_back((long long)x); vi("ard.src_crow_", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.src_srow_) t.push_back((long long)x); vi("ard.src_srow_", t); }
+  { std::vector<long long> t; for (auto x : e.ard_.src_ts_) t.push_back((long long)x); vi("ard.src_ts_", t); }
+  { std::vector<double> t; for (auto x : e.ard_.src_value_) t.push_back((double)x); vf("ard.src_value_", t); }
+  { std::vector<double> t; for (auto x : e.ard_.src_len_) t.push_back((double)x); vf("ard.src_len_", t); }
+  { std::vector<double> t; for (auto x : e.ard_.src_now_) t.push_back((double)x); vf("ard.src_now_", t); }
+  pi("ard.disp_active_", (long long)(e.ard_.disp_active_));
+  pi("ard.disp_mode_", (long long)(e.ard_.disp_mode_));
+  pf("ard.disp_global_ft_", (double)(e.ard_.disp_global_ft_));
+  { std::vector<double> t; for (auto x : e.ard_.conduit_disp_ft_) t.push_back((double)x); vf("ard.conduit_disp_ft_", t); }
+  { std::vector<double> t; for (auto x : e.ard_.cell_disp_) t.push_back((double)x); vf("ard.cell_disp_", t); }
+  sk("ard.detail_out_");
+  pi("ard.detail_active_", (long long)(e.ard_.detail_active_));
+  pf("ard.detail_time_s_", (double)(e.ard_.detail_time_s_));
+  pi("ard.age_row_", (long long)(e.ard_.age_row_));
+  pi("ard.nm_", (long long)(e.ard_.nm_));
+  pi("ard.temp_row_", (long long)(e.ard_.temp_row_));
+  vs("ard.warnings_", e.ard_.warnings_);
+  pi("ard.initialized_", (long long)(e.ard_.initialized_));
+  pi("ard.warned_cfl_clamp_", (long long)(e.ard_.warned_cfl_clamp_));
+  pi("lard.store_.nl_", (long long)(e.lard_.store_.nl_));
+  pi("lard.store_.ns_", (long long)(e.lard_.store_.ns_));
+  pi("lard.store_.cap_", (long long)(e.lard_.store_.cap_));
+  { std::vector<long long> t; for (auto x : e.lard_.store_.head_) t.push_back((long long)x); vi("lard.store_.head_", t); }
+  { std::vector<long long> t; for (auto x : e.lard_.store_.count_) t.push_back((long long)x); vi("lard.store_.count_", t); }
+  { std::vector<double> t; for (auto x : e.lard_.store_.vol_) t.push_back((double)x); vf("lard.store_.vol_", t); }
+  { std::vector<double> t; for (auto x : e.lard_.store_.conc_) t.push_back((double)x); vf("lard.store_.conc_", t); }
+  pi("lard.rwpt_.nl_", (long long)(e.lard_.rwpt_.nl_));
+  pi("lard.rwpt_.npart_", (long long)(e.lard_.rwpt_.npart_));
+  { std::vector<double> t; for (auto x : e.lard_.rwpt_.zeta_) t.push_back((double)x); vf("lard.rwpt_.zeta_", t); }
+  { std::vector<double> t; for (auto x : e.lard_.rwpt_.eta_) t.push_back((double)x); vf("lard.rwpt_.eta_", t); }
+  { std::vector<long long> t; for (auto x : e.lard_.rwpt_.seg_idx_) t.push_back((long long)x); vi("lard.rwpt_.seg_idx_", t); }
+  { std::vector<double> t; for (auto x : e.lard_.rwpt_.bounds_) t.push_back((double)x); vf("lard.rwpt_.bounds_", t); }
+  { std::vector<double> t; for (auto x : e.lard_.release_vol_) t.push_back((double)x); vf("lard.release_vol_", t); }
+  pi("lard.substep_counter_", (long long)(e.lard_.substep_counter_));
+  { std::vector<long long> t; for (auto x : e.lard_.topo_) t.push_back((long long)x); vi("lard.topo_", t); }
+  pi("lard.node_out_links_.n", (long long)(e.lard_.node_out_links_).size());
+  for (const auto& e102 : e.lard_.node_out_links_) {
+  { std::vector<long long> t; for (auto x : e102) t.push_back((long long)x); vi("lard.node_out_links_[]", t); }
+  }
+  { std::vector<long long> t; for (auto x : e.lard_.flow_sign_) t.push_back((long long)x); vi("lard.flow_sign_", t); }
+  { std::vector<double> t; for (auto x : e.lard_.node_mass_in_) t.push_back((double)x); vf("lard.node_mass_in_", t); }
+  { std::vector<double> t; for (auto x : e.lard_.node_vol_in_) t.push_back((double)x); vf("lard.node_vol_in_", t); }
+  { std::vector<double> t; for (auto x : e.lard_.scratch_) t.push_back((double)x); vf("lard.scratch_", t); }
+  { std::vector<double> t; for (auto x : e.lard_.treat_cin_) t.push_back((double)x); vf("lard.treat_cin_", t); }
+  { std::vector<double> t; for (auto x : e.lard_.msx_block_) t.push_back((double)x); vf("lard.msx_block_", t); }
+  { std::vector<double> t; for (auto x : e.lard_.msx_poll_) t.push_back((double)x); vf("lard.msx_poll_", t); }
+  pi("lard.initialized_", (long long)(e.lard_.initialized_));
 }
 } // namespace ctxdump
 #endif // CTXDUMP_QUALITY

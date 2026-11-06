@@ -1,12 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 pub mod ard_config;
+pub mod ard_engine;
+pub mod fv_species_kernels;
 pub mod heat_component;
 pub mod heat_legacy;
 pub mod heat_lid;
 pub mod heat_overrides;
+pub mod initial_quality_seeds;
 pub mod lid_layer_common;
 pub mod msx_initial_quality;
 pub mod msx_surface;
+pub mod reaction_ard_binding;
 pub mod reaction_expression;
 pub mod reaction_legacy_binding;
 pub mod reaction_legacy_step;

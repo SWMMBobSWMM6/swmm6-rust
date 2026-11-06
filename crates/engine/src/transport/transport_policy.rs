@@ -74,6 +74,36 @@ fn reactions_have_wall(ctx: &SimulationContext) -> bool {
     ctx.reactions.species_is_wall.iter().any(|&w| w != 0)
 }
 
+/// ClassEnables: the species rows a 1D or 2D transport owner carries.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ClassEnables {
+    pub n_pollut: i32,
+    pub n_msx: i32,
+    pub age: bool,
+    pub temperature: bool,
+    pub msx_has_wall: bool,
+    pub msx_bulk_only: bool,
+}
+
+impl ClassEnables {
+    pub fn total(&self) -> i32 {
+        self.n_pollut + self.n_msx + (if self.age { 1 } else { 0 }) + (if self.temperature { 1 } else { 0 })
+    }
+}
+
+/// network1DEnables: the 1D network enables (LEGACY, ARD and LARD size from this).
+pub fn network_1d_enables(ctx: &SimulationContext) -> ClassEnables {
+    let q = !ctx.options.ignore_quality;
+    ClassEnables {
+        n_pollut: if q { ctx.n_pollutants() } else { 0 },
+        msx_has_wall: reactions_have_wall(ctx),
+        n_msx: if q && reactions_active(ctx) { ctx.reactions.n_species() } else { 0 },
+        age: q && ctx.options.water_age,
+        temperature: q && ctx.options.heat_transport,
+        msx_bulk_only: false,
+    }
+}
+
 fn enabled(c: &mut Cell, count: i32) {
     c.state = CellState::Enabled;
     c.count = count;
