@@ -10,9 +10,10 @@ Phase 1a (1D) is under way. Done, and identical to upstream on every gate deck:
 
 * reading the `.inp` (every section handler), cross-reference resolution, and `open()` in strict, lenient and metadata modes;
 * the initialize legs: `initHydraulics`, `initHydrology`, `initQuality`, `initGeometry`, `initMassBalance`;
-* the leaf numerics: cross-section geometry and its tables, transects, streets, force mains, the C library functions upstream depends on (`strtod`, `from_chars`, `sscanf`, `%.10g`, `std::sort` and the `unordered_map`/`map` orders).
+* the leaf numerics: cross-section geometry and its tables, transects, streets, force mains, the C library functions upstream depends on (`strtod`, `from_chars`, `sscanf`, `%.10g`, `std::sort` and the `unordered_map`/`map` orders);
+* the run lifecycle: `initialize()` as a whole and `start()` (identical on all 932 gate decks), and `step()` with its own bookkeeping (statistics, routing mass balance, final storage), gated helper by helper.
 
-Not yet translated: `initialize()` as a whole, `start()`, and the time step (`step()`: runoff, routing, quality, statistics, mass balance), nor the `.out` and `.rpt` writers. **It does not run a simulation yet.** [PLAN.md](PLAN.md) has the phases and what comes next. 2D comes after 1D.
+Not yet translated: the solvers the step calls (runoff, routing, quality), nor the `.out` and `.rpt` writers; `step()` calls them through stub files. **It does not run a simulation yet.** [PLAN.md](PLAN.md) has the phases and what comes next. 2D comes after 1D.
 
 ## How it is checked
 
@@ -39,7 +40,7 @@ Where upstream crashes (an exception escaping a `noexcept` function), the Rust f
 | `tools/` | generators for the state dumpers and loader, and a first-pass translator for structure-of-arrays headers |
 | `census/` | OpenSWMM 6 against EPA SWMM 5.2.4 on a corpus of SWMM5 models |
 | `TRANSLATING.md` | the translation rules |
-| `UPSTREAM_NOTES.md` | 66 upstream oddities found along the way, each quoting the code |
+| `UPSTREAM_NOTES.md` | 73 upstream oddities found along the way, each quoting the code |
 
 `cargo build --release` builds the library. The gates also need the reference build of OpenSWMM 6 and the deck corpora; `gate/build.sh` and `gate/ctxgate.sh` say where they expect them.
 

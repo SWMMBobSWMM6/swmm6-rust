@@ -31,5 +31,6 @@ gate/diff/inithyd
 gate/diff/inithydro
 gate/diff/initqual
 gate/diff/umaporder
+gate/diff/ctxstep
 __pycache__/
 *.pyc

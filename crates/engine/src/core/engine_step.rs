@@ -44,6 +44,8 @@
 //     Err(stub) there (forcing is set only through the C API).
 //   * The callbacks (progress, step begin and end) are boxed closures; the C callback's
 //     engine pointer and user data are their captures.
+//   * assembleLateralInflows is assemble_lateral_inflows_sources (every source) followed by
+//     inlet_.compute_all, so the gate can run the first part without the routing step's.
 //   * The OPENSWMM_FV_SLOT_TRACE environment trace in updateStatistics prints to stdout
 //     only; it is left out.
 
@@ -1200,6 +1202,15 @@ impl SwmmEngine {
     /// totals; then the street inlets' capture transfer. stepRouting calls it.
     #[allow(dead_code)] // stepRouting's helper
     pub(crate) fn assemble_lateral_inflows(&mut self, dt_routing: f64) {
+        self.assemble_lateral_inflows_sources(dt_routing);
+        // Street inlet capture / backflow (legacy inlet_findCapturedFlows).
+        self.inlet_.compute_all(&mut self.ctx_, dt_routing);
+    }
+
+    /// assembleLateralInflows up to (not including) its last call, inlet_.computeAll; a
+    /// separate fn only so the gate's helper mode can stop before the routing step's code.
+    #[allow(dead_code)] // stepRouting's helper
+    pub(crate) fn assemble_lateral_inflows_sources(&mut self, dt_routing: f64) {
         let mut sum_dw = 0.0;
         let mut sum_gw = 0.0;
         let mut sum_rdii = 0.0;
@@ -1318,9 +1329,6 @@ impl SwmmEngine {
         mb.step_rdii_inflow = sum_rdii;
         mb.step_ext_inflow = sum_ext;
         mb.step_ext_withdrawal = sum_wd;
-
-        // Street inlet capture / backflow (legacy inlet_findCapturedFlows).
-        self.inlet_.compute_all(&mut self.ctx_, dt_routing);
     }
 
     /// SWMMEngine::isBetweenEvents(current_date) (legacy routing.c).
@@ -1399,4 +1407,105 @@ impl SwmmEngine {
 fn truncate255(mut b: Bytes) -> Bytes {
     b.truncate(255);
     b
+}
+
+/// Gate only (cargo feature `gate`): the engine members step()'s helpers read beyond the
+/// context, as gate/diff/ctxstep's helper mode writes them (SIDE.eng). Not part of the
+/// translation.
+#[cfg(feature = "gate")]
+#[derive(Debug, Default)]
+pub struct GateStepSide {
+    pub next_event_: i32,
+    pub fv_accepted: bool,
+    /// runoff_.soa_: area, imperv_pct, frac_imperv0, frac_imperv1, depth_imperv0,
+    /// depth_imperv1, depth_perv
+    pub runoff: [Vec<f64>; 7],
+    pub snow_enabled: Vec<u8>,
+    pub snow_wsnow: Vec<f64>,
+    pub snow_fw: Vec<f64>,
+    pub snow_farea: Vec<f64>,
+    pub snow_removed: f64,
+    pub buildup: Vec<f64>,
+    pub lid_drain_q_interp_: Vec<f64>,
+    pub wet_q_interp_: Vec<f64>,
+    pub gw_q_interp_: Vec<f64>,
+    pub gw_q_node_: Vec<i32>,
+    pub lid_drain_q_units_: Vec<(i32, f64)>,
+}
+
+#[cfg(feature = "gate")]
+impl SwmmEngine {
+    /// Install the side members (see GateStepSide).
+    pub fn gate_install_step_side(&mut self, s: GateStepSide) {
+        self.next_event_ = s.next_event_;
+        self.quality_.fv_transport_.accepted_ = s.fv_accepted;
+        let [a, ip, f0, f1, d0, d1, dp] = s.runoff;
+        let r = &mut self.runoff_.soa_;
+        r.area = a;
+        r.imperv_pct = ip;
+        r.frac_imperv0 = f0;
+        r.frac_imperv1 = f1;
+        r.depth_imperv0 = d0;
+        r.depth_imperv1 = d1;
+        r.depth_perv = dp;
+        let sn = &mut self.snow_.soa_;
+        sn.enabled = s.snow_enabled;
+        sn.wsnow = s.snow_wsnow;
+        sn.fw = s.snow_fw;
+        sn.fArea = s.snow_farea;
+        sn.removed = s.snow_removed;
+        self.surface_quality_.buildup = s.buildup;
+        self.lid_drain_q_interp_ = s.lid_drain_q_interp_;
+        self.wet_q_interp_ = s.wet_q_interp_;
+        self.gw_q_interp_ = s.gw_q_interp_;
+        self.gw_q_node_ = s.gw_q_node_;
+        self.lid_drain_q_units_ = s.lid_drain_q_units_;
+    }
+
+    /// Call one of step()'s helpers by the name gate/diff/ctxstep's helper mode uses; the
+    /// lines it prints beyond the context dump.
+    pub fn gate_step_helper(&mut self, name: &str, dt: f64) -> Result<Bytes, Terminated> {
+        let mut o = Bytes::new();
+        match name {
+            "stats" => self.update_statistics(dt),
+            "massbal" => self.update_routing_mass_balance(dt),
+            "finalstore" => {
+                if self.lid_.groups_.iter().any(|g| g.count > 0) {
+                    o.extend_from_slice(b"finalstore skipped (LID units)\n");
+                    return Ok(o);
+                }
+                self.compute_final_storage();
+            }
+            "finalqual" => self.compute_final_quality_mass_balance(),
+            "nodetotals" => self.accumulate_node_routing_totals(dt / 2.0),
+            "diverged" => {
+                if self.router_.fv_solver_.is_some() {
+                    o.extend_from_slice(b"diverged skipped (FV)\n");
+                    return Ok(o);
+                }
+                let rc = self.check_routing_diverged()?;
+                o.extend_from_slice(format!("diverged rc {}\n", rc).as_bytes());
+            }
+            "events" => {
+                let b = self.is_between_events(self.ctx_.current_date);
+                let st = self.is_in_steady_state(0);
+                o.extend_from_slice(format!("between {} steady {}\n", b as i32, st as i32).as_bytes());
+            }
+            "lateral" => {
+                if self.inlet_.soa_.count > 0 {
+                    o.extend_from_slice(b"lateral skipped (inlets)\n");
+                    return Ok(o);
+                }
+                // computeAll returns at once without inlets; its stub would panic, so stop
+                // short of it: everything before it is assemble_lateral_inflows' own work
+                self.assemble_lateral_inflows_sources(dt);
+            }
+            "forcings" => {
+                self.reset_step_mass_balance();
+                self.apply_forcings(dt)?;
+            }
+            _ => panic!("unknown helper {}", name),
+        }
+        Ok(o)
+    }
 }

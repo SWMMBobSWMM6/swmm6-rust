@@ -49,6 +49,15 @@
 #       last line) with everything before it identical; otherwise it differs, and with
 #       CTXGATE_DIFFDIR=dir the first differing deck's full dumps at the first differing step
 #       are written there (c.txt, r.txt).
+#   gate/ctxgate.sh helpers [K]
+#       step()'s own helpers against upstream's on a real mid-run state: upstream runs K real
+#       steps (default 10), writes its context and the engine members the helpers read, and
+#       calls each helper (updateStatistics, updateRoutingMassBalance, computeFinalStorage,
+#       computeFinalQualityMassBalance, accumulateNodeRoutingTotals, checkRoutingDiverged,
+#       isBetweenEvents/isInSteadyState, assembleLateralInflows, resetStepMassBalance +
+#       applyForcings) on that state; the translation loads the same state into its own
+#       started engine and calls its translation. The context after each helper is compared
+#       (hashed). Decks a helper does not apply to print "skipped" on both sides.
 #
 # DECKLIST=file runs the decks listed in it (one path per line) instead of the default set.
 # CTXGATE_KEEP=file keeps the list of differing decks; CTXGATE_SHOW=n shows the first n.
@@ -79,10 +88,10 @@ if [ "${1:-}" = loadrt ]; then
   exit 0
 fi
 
-if [ "${1:-}" = init ] || [ "${1:-}" = start ] || [ "${1:-}" = step ]; then
-  M=$1; NS=${2:-1}; C_BIN="$H/gate/diff/ctxstep"; R_BIN="$E/ctxstep"
+if [ "${1:-}" = init ] || [ "${1:-}" = start ] || [ "${1:-}" = step ] || [ "${1:-}" = helpers ]; then
+  M=$1; NS=${2:-1}; [ "$M" = helpers ] && NS=${2:-10}; C_BIN="$H/gate/diff/ctxstep"; R_BIN="$E/ctxstep"
   same=0; diff=0; stubn=0; : > "$W/differ.txt"; : > "$W/stubs.txt"; mkdir -p "$W/bak"
-  if [ "$M" = step ]; then A2=(step "$NS" hash); else A2=("$M"); fi
+  if [ "$M" = step ]; then A2=(step "$NS" hash); elif [ "$M" = helpers ]; then A2=(helper "$NS" all "$W/side"); else A2=("$M"); fi
   while IFS= read -r d; do
     # back up the files the deck SAVEs to; restore them after each side's run
     python3 "$H/gate/savefiles.py" "$d" > "$W/saves.txt" 2>/dev/null; k=0
@@ -111,7 +120,9 @@ if [ "${1:-}" = init ] || [ "${1:-}" = start ] || [ "${1:-}" = step ]; then
       fi
     fi
   done < "$W/decks.txt"
-  if [ "$M" = step ]; then
+  if [ "$M" = helpers ]; then
+    echo "ctxgate helpers $NS: $same identical, $diff differ (stub reached on $stubn)"
+  elif [ "$M" = step ]; then
     echo "ctxgate step $NS: $same identical, $stubn stopped at a stub, $diff differ"
     sed 's/  .*//' "$W/stubs.txt" | sort | uniq -c | sort -rn
   else
