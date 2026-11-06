@@ -3800,7 +3800,19 @@ pub fn load_rt(r: &mut Rd, e: &mut SwmmEngine) {
     g.router_.checkpoint_prepared_ = FromI64::from_i64(r.pi("router.checkpoint_prepared_"));
     g.router_.checkpoint_step_finished_ = FromI64::from_i64(r.pi("router.checkpoint_step_finished_"));
     g.router_.model_ = FromI64::from_i64(r.pi("router.model_"));
-    { let n = r.count("router.groups_.n"); for gi in 0..n { let grp = (g.router_.groups_).group(gi as i32);
+    { let n = r.count("router.groups_.n"); if n != (g.router_.groups_).num_groups() as usize { r.fail("XSectGroups layout differs from the init legs"); } for gi in 0..n { let grp = (g.router_.groups_).gate_group_mut(gi as i32);
+    if r.pi("router.groups_[].shape") != grp.shape as i64 || r.pi("router.groups_[].count") != grp.count as i64 { r.fail("XSectGroups group differs from the init legs"); }
+    set_vi(&mut grp.link_idx, r.vi("router.groups_[].link_idx"));
+    set_vf(&mut grp.y_full, r.vf("router.groups_[].y_full"));
+    set_vf(&mut grp.a_full, r.vf("router.groups_[].a_full"));
+    set_vf(&mut grp.r_full, r.vf("router.groups_[].r_full"));
+    set_vf(&mut grp.s_full, r.vf("router.groups_[].s_full"));
+    set_vf(&mut grp.w_max, r.vf("router.groups_[].w_max"));
+    set_vf(&mut grp.inv_y_full, r.vf("router.groups_[].inv_y_full"));
+    set_vf(&mut grp.y_bot, r.vf("router.groups_[].y_bot"));
+    set_vf(&mut grp.a_bot, r.vf("router.groups_[].a_bot"));
+    set_vf(&mut grp.s_bot, r.vf("router.groups_[].s_bot"));
+    set_vf(&mut grp.r_bot, r.vf("router.groups_[].r_bot"));
     while !r.peek("router.groups_[].buf_d") { r.skip_item(); }
     *grp.buf_d.borrow_mut() = r.vf("router.groups_[].buf_d"); *grp.buf_r.borrow_mut() = r.vf("router.groups_[].buf_r"); *grp.buf_r2.borrow_mut() = r.vf("router.groups_[].buf_r2"); }
     r.sk("router.groups_.packed_groups_"); r.sk("router.groups_.packed_count_"); r.sk("router.groups_.mask_active_"); }

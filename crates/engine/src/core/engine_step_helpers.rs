@@ -6,23 +6,23 @@
 // Modified: translated from C++ to Rust, 5 November 2026, by Claude (Anthropic) at the
 // request of Robert Dickinson. Not an OpenSWMM release.
 //
-// SWMMEngine::assembleLateralInflows: the decomposed inflow buffers summed into
-// nodes.lat_flow in legacy's source order, the step's inflow mass-balance terms, and the
-// street-inlet transfer (InletSolver::computeAll) that follows.
+// stepRouting's helpers on the engine: assembleLateralInflows (the decomposed inflow buffers
+// summed into nodes.lat_flow in legacy's source order, the step's inflow mass-balance terms,
+// and the street-inlet transfer InletSolver::computeAll that follows), effectiveUserLatFlow,
+// isBetweenEvents and isInSteadyState.
 //
-// MERGE NOTE: the engine-lifecycle work (branch rs6-init) translates this helper too. This
-// copy exists so the routing-step cross test can run stepRouting whole; keep the one whose
-// gate is identical (both follow the C++ line for line) and delete the other.
+// MERGE NOTE: the engine-lifecycle branch (rs6-init) translates these same four functions,
+// with the same signatures, in core/engine_step.rs. This file exists only so that this
+// branch's routing-step cross test can run stepRouting whole; at the merge DELETE THIS FILE
+// (and its `mod` line) and keep rs6-init's copies.
 //
-// NOT YET TRANSLATED: InletSolver::computeAll for a deck with street inlets
-// (StepError::NotTranslated), and the OPENSWMM_HAS_2D source-delivery receipts (off in the
-// reference build).
+// The OPENSWMM_HAS_2D source-delivery receipts are off in the reference build.
 
 use crate::core::cmath::cmax;
 use crate::core::context::SimulationContext;
 use crate::core::engine::SwmmEngine;
-use crate::core::engine_step_routing::StepError;
 use crate::data::forcing::ForcingMode;
+use crate::data::node::NodeType;
 
 /// effectiveUserLatFlow: the runtime-API lateral flow with any forcing overlaid.
 pub(crate) fn effective_user_lat_flow(ctx: &SimulationContext, uj: usize) -> f64 {
@@ -56,7 +56,7 @@ fn drain_queue(qm: &mut f64, remaining: f64, dt_routing: f64) -> f64 {
 
 impl SwmmEngine {
     /// SWMMEngine::assembleLateralInflows
-    pub(crate) fn assemble_lateral_inflows(&mut self, dt_routing: f64) -> Result<(), StepError> {
+    pub(crate) fn assemble_lateral_inflows(&mut self, dt_routing: f64) {
         let ctx = &mut self.ctx_;
         let mut sum_dw = 0.0;
         let mut sum_gw = 0.0;
@@ -172,10 +172,75 @@ impl SwmmEngine {
         ctx.mass_balance.step_ext_inflow = sum_ext;
         ctx.mass_balance.step_ext_withdrawal = sum_wd;
 
-        // Street inlet capture / backflow (InletSolver::computeAll)
-        if self.inlet_.soa_.count != 0 {
-            return Err(StepError::NotTranslated("street inlets"));
+        // Street inlet capture / backflow
+        self.inlet_.compute_all(&mut self.ctx_, dt_routing);
+    }
+
+    /// isBetweenEvents (legacy routing.c isBetweenEvents)
+    pub(crate) fn is_between_events(&self, current_date: f64) -> bool {
+        if self.ctx_.events.is_empty() {
+            return false;
         }
-        Ok(())
+        if self.next_event_ >= self.ctx_.events.len() as i32 {
+            return true;
+        }
+        let ev = &self.ctx_.events[self.next_event_ as usize];
+        if current_date > ev.end {
+            return true;
+        }
+        if current_date >= ev.start {
+            return false;
+        }
+        true
+    }
+
+    /// isInSteadyState (legacy routing.c isInSteadyState + inflowHasChanged)
+    pub(crate) fn is_in_steady_state(&self, action_count: i32) -> bool {
+        let ctx = &self.ctx_;
+        if !ctx.options.skip_steady_state {
+            return false;
+        }
+        if ctx.old_elapsed_ms == 0.0 && ctx.elapsed_ms == 0.0 {
+            return false;
+        }
+        if ctx.current_time == 0.0 {
+            return false;
+        }
+        if action_count > 0 {
+            return false;
+        }
+        if ctx.mass_balance.last_step_flow_error.abs() > ctx.options.sys_flow_tol {
+            return false;
+        }
+        const TINY: f64 = 1e-6;
+        for j in 0..ctx.n_nodes() as usize {
+            let mut q_old = ctx.nodes.old_lat_flow[j];
+            let mut q_new = ctx.nodes.lat_flow[j];
+            let mut diff = if q_old.abs() > TINY {
+                (q_new / q_old) - 1.0
+            } else if q_new.abs() > TINY {
+                1.0
+            } else {
+                0.0
+            };
+            if diff.abs() > ctx.options.lat_flow_tol {
+                return false;
+            }
+            if ctx.nodes.type_[j] == NodeType::Outfall || ctx.nodes.degree[j] == 0 {
+                q_old = ctx.nodes.old_inflow[j];
+                q_new = ctx.nodes.inflow[j];
+                diff = if q_old.abs() > TINY {
+                    (q_new / q_old) - 1.0
+                } else if q_new.abs() > TINY {
+                    1.0
+                } else {
+                    0.0
+                };
+                if diff.abs() > ctx.options.lat_flow_tol {
+                    return false;
+                }
+            }
+        }
+        true
     }
 }

@@ -31,94 +31,41 @@
 
 use crate::core::context::SimulationContext;
 use crate::core::datetime;
+use crate::core::engine_init_hydraulics::Terminated;
 use crate::core::engine::SwmmEngine;
-use crate::core::options::{Bytes, QualitySolverKind, RoutingModel};
+use crate::core::options::{QualitySolverKind, RoutingModel};
 use crate::data::link::LinkType;
-use crate::data::node::NodeType;
 use crate::data::forcing::ForcingMode;
 use crate::hydraulics::dynamic_wave_step::{bound_surface_outfall_flow, NcView};
 use crate::hydraulics::hyd_structures::StructureSolver;
 use crate::hydrology::lid_node_step as lidnode;
 use crate::transport::reaction_legacy_binding::legacy_reactions_active;
 
-/// What stepRouting can end with besides success.
+/// What the routing step's solvers can end with besides success (converted to the crate's
+/// Terminated at step_routing's boundary).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StepError {
-    /// A std::exception upstream throws; step() catches it and reports what().
-    Exception(Bytes),
+    /// A std::runtime_error upstream throws; step() catches it and reports what().
+    Exception(&'static str),
     /// A path the translation does not cover yet (never upstream behavior).
     NotTranslated(&'static str),
 }
 
+/// core::engine_step's STUB_EXCEPTION (rs6-init): a call into code not translated yet.
+pub const STUB_EXCEPTION: &str = "swmm6_rust::stub";
+/// A std::runtime_error on its way to step()'s catch (rs6-init's THROWN_PREFIX + the type).
+pub const THROWN_RUNTIME_ERROR: &str = "throw std::runtime_error";
+
+impl From<StepError> for Terminated {
+    fn from(e: StepError) -> Terminated {
+        match e {
+            StepError::Exception(what) => Terminated { exception: THROWN_RUNTIME_ERROR, what },
+            StepError::NotTranslated(what) => Terminated { exception: STUB_EXCEPTION, what },
+        }
+    }
+}
+
 impl SwmmEngine {
-    /// isBetweenEvents (legacy routing.c isBetweenEvents)
-    pub(crate) fn is_between_events(&self, current_date: f64) -> bool {
-        if self.ctx_.events.is_empty() {
-            return false;
-        }
-        if self.next_event_ >= self.ctx_.events.len() as i32 {
-            return true;
-        }
-        let ev = &self.ctx_.events[self.next_event_ as usize];
-        if current_date > ev.end {
-            return true;
-        }
-        if current_date >= ev.start {
-            return false;
-        }
-        true
-    }
-
-    /// isInSteadyState (legacy routing.c isInSteadyState + inflowHasChanged)
-    pub(crate) fn is_in_steady_state(&self, action_count: i32) -> bool {
-        let ctx = &self.ctx_;
-        if !ctx.options.skip_steady_state {
-            return false;
-        }
-        if ctx.old_elapsed_ms == 0.0 && ctx.elapsed_ms == 0.0 {
-            return false;
-        }
-        if ctx.current_time == 0.0 {
-            return false;
-        }
-        if action_count > 0 {
-            return false;
-        }
-        if ctx.mass_balance.last_step_flow_error.abs() > ctx.options.sys_flow_tol {
-            return false;
-        }
-        const TINY: f64 = 1e-6;
-        for j in 0..ctx.n_nodes() as usize {
-            let mut q_old = ctx.nodes.old_lat_flow[j];
-            let mut q_new = ctx.nodes.lat_flow[j];
-            let mut diff = if q_old.abs() > TINY {
-                (q_new / q_old) - 1.0
-            } else if q_new.abs() > TINY {
-                1.0
-            } else {
-                0.0
-            };
-            if diff.abs() > ctx.options.lat_flow_tol {
-                return false;
-            }
-            if ctx.nodes.type_[j] == NodeType::Outfall || ctx.nodes.degree[j] == 0 {
-                q_old = ctx.nodes.old_inflow[j];
-                q_new = ctx.nodes.inflow[j];
-                diff = if q_old.abs() > TINY {
-                    (q_new / q_old) - 1.0
-                } else if q_new.abs() > TINY {
-                    1.0
-                } else {
-                    0.0
-                };
-                if diff.abs() > ctx.options.lat_flow_tol {
-                    return false;
-                }
-            }
-        }
-        true
-    }
-
     /// The paths stepRouting does not translate yet, checked before anything changes.
     fn step_routing_not_translated(&self) -> Option<&'static str> {
         let ctx = &self.ctx_;
@@ -134,7 +81,7 @@ impl SwmmEngine {
         if !ctx.options.ignore_quality && ctx.reactions.surface.active() {
             return Some("species surface washoff delivery");
         }
-        if !ctx.options.ignore_rdii && self.rdii_iface_open_ && !self.rdii_iface_writing_ {
+        if !ctx.options.ignore_rdii && self.rdii_iface_is_open() && !self.rdii_iface_is_writing() {
             return Some("[FILES] USE RDII");
         }
         if self.iface_.infile_.is_some() {
@@ -153,7 +100,13 @@ impl SwmmEngine {
     }
 
     /// SWMMEngine::stepRouting: phase B of step(), one routing step of dt_routing seconds.
-    pub fn step_routing(&mut self, dt_routing: f64) -> Result<(), StepError> {
+    /// Err(Terminated) carries either a std::runtime_error step() catches (exception
+    /// THROWN_RUNTIME_ERROR) or a path not translated yet (STUB_EXCEPTION).
+    pub fn step_routing(&mut self, dt_routing: f64) -> Result<(), Terminated> {
+        self.step_routing_impl(dt_routing).map_err(Terminated::from)
+    }
+
+    fn step_routing_impl(&mut self, dt_routing: f64) -> Result<(), StepError> {
         if let Some(w) = self.step_routing_not_translated() {
             return Err(StepError::NotTranslated(w));
         }
@@ -230,7 +183,7 @@ impl SwmmEngine {
         // B2b. Interface file inflows (no file open: refused above otherwise)
 
         // B2c. Assemble the lateral inflows
-        self.assemble_lateral_inflows(dt_routing)?;
+        self.assemble_lateral_inflows(dt_routing);
 
         // B2d. Steady state skip
         let action_count = self.controls_.last_action_count();

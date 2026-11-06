@@ -84,7 +84,7 @@ pub fn exchange_ports(ctx: &mut SimulationContext, link: i32, flow: f64, dt: f64
 /// lidnode::resetPorts
 pub fn reset_ports(ctx: &mut SimulationContext) -> Result<(), StepError> {
     if ctx.node_subtypes.storages.lid_state.iter().any(|s| s.richards_mesh_routed) {
-        return Err(StepError::Exception(b"Mesh Richards final routing ports must finish before reset.".to_vec()));
+        return Err(StepError::Exception("Mesh Richards final routing ports must finish before reset."));
     }
     for s in ctx.node_subtypes.storages.lid_state.iter_mut() {
         s.port_delta.iter_mut().for_each(|x| *x = 0.0);

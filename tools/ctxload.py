@@ -340,7 +340,14 @@ def load_rt_struct(header, struct, path_r, label, L):
     for name, ty, arr in D.fields(header, struct):
         pr, lb = f'{path_r}.{D.rname(name)}', f'{label}.{name}'
         if (struct, name) == ('Router', 'groups_'):
-            L.append(f'    {{ let n = r.count("{lb}.n"); for gi in 0..n {{ let grp = ({pr}).group(gi as i32);')
+            # the group layout (shape, count) must be what the init legs built; the per-link
+            # geometry arrays are loaded (upstream's initialize can change them after
+            # initHydraulics, e.g. a force main's s_bot), the transect table views are not
+            L.append(f'    {{ let n = r.count("{lb}.n"); if n != ({pr}).num_groups() as usize {{ r.fail("XSectGroups layout differs from the init legs"); }} for gi in 0..n {{ let grp = ({pr}).gate_group_mut(gi as i32);')
+            L.append(f'    if r.pi("{lb}[].shape") != grp.shape as i64 || r.pi("{lb}[].count") != grp.count as i64 {{ r.fail("XSectGroups group differs from the init legs"); }}')
+            L.append(f'    set_vi(&mut grp.link_idx, r.vi("{lb}[].link_idx"));')
+            for f in ['y_full', 'a_full', 'r_full', 's_full', 'w_max', 'inv_y_full', 'y_bot', 'a_bot', 's_bot', 'r_bot']:
+                L.append(f'    set_vf(&mut grp.{f}, r.vf("{lb}[].{f}"));')
             L.append(f'    while !r.peek("{lb}[].buf_d") {{ r.skip_item(); }}')
             L.append(f'    *grp.buf_d.borrow_mut() = r.vf("{lb}[].buf_d"); *grp.buf_r.borrow_mut() = r.vf("{lb}[].buf_r"); *grp.buf_r2.borrow_mut() = r.vf("{lb}[].buf_r2"); }}')
             L.append(f'    r.sk("{lb}.packed_groups_"); r.sk("{lb}.packed_count_"); r.sk("{lb}.mask_active_"); }}')

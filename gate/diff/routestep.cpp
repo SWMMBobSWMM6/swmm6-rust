@@ -12,9 +12,12 @@
 //   AFTER c
 //   <the same dumps>            (or "throw <what>" when stepRouting throws)
 // and "END c" when the run ends before K1. The run stops after call K1.
+// Mode "hyd" (4th argument) runs each dumped call with options.ignore_quality set (restored
+// after the call), so the hydraulic routing step of a deck with pollutants can be compared
+// while the quality stage is not translated; the dumps show the flag set.
 // The Rust twin is crates/engine/examples/routestep.rs. Compile with -Wl,-E (gate/build.sh)
 // so the library's PLT call binds to this definition.
-// Usage: routestep deck.inp K0 K1
+// Usage: routestep deck.inp K0 K1 [hyd]
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -81,6 +84,7 @@
 #include "rtdump.hpp"
 
 static int g_call = 0, g_k0 = 1, g_k1 = 1;
+static bool g_hyd = false;
 
 // Engine members stepRouting reads or writes that the other dumpers do not print. The Rust
 // twin is stepdump in examples/routestep.rs.
@@ -121,6 +125,9 @@ void openswmm::SWMMEngine::stepRouting(double dt_routing) {
     }
     ++g_call;
     const bool d = g_call >= g_k0 && g_call <= g_k1;
+    const bool saved_iq = ctx_.options.ignore_quality;
+    if (d && g_hyd)
+        ctx_.options.ignore_quality = true;
     if (d) {
         uint64_t u;
         std::memcpy(&u, &dt_routing, 8);
@@ -130,6 +137,7 @@ void openswmm::SWMMEngine::stepRouting(double dt_routing) {
     try {
         real(this, dt_routing);
     } catch (const std::exception& ex) {
+        ctx_.options.ignore_quality = saved_iq;
         if (d) {
             std::printf("AFTER %d\nthrow %s\n", g_call, ex.what());
         }
@@ -143,6 +151,7 @@ void openswmm::SWMMEngine::stepRouting(double dt_routing) {
         std::printf("AFTER %d\n", g_call);
         dumpall(*this);
     }
+    ctx_.options.ignore_quality = saved_iq;
     if (g_call >= g_k1) {
         std::fflush(stdout);
         std::_Exit(0);
@@ -154,6 +163,7 @@ int main(int argc, char** argv) {
         return 2;
     g_k0 = std::atoi(argv[2]);
     g_k1 = std::atoi(argv[3]);
+    g_hyd = argc > 4 && std::strcmp(argv[4], "hyd") == 0;
     SWMM_Engine e = swmm_engine_create();
     int rc = swmm_engine_open(e, argv[1], "/dev/null", "/dev/null", nullptr);
     if (rc == 0)

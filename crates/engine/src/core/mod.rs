@@ -10,7 +10,7 @@ pub mod engine;
 pub mod engine_init_hydraulics;
 pub mod engine_init_hydrology;
 pub mod engine_init_quality;
-pub mod engine_lateral_inflows;
+pub mod engine_step_helpers;
 pub mod engine_step_routing;
 pub mod error_codes;
 pub mod file_io;

@@ -25,7 +25,7 @@ mod rtdump;
 use std::io::Write;
 use swmm6_rust::core::context::SimulationContext;
 use swmm6_rust::core::engine::SwmmEngine;
-use swmm6_rust::core::engine_step_routing::StepError;
+use swmm6_rust::core::engine_step_routing::{STUB_EXCEPTION, THROWN_RUNTIME_ERROR};
 
 fn pf(o: &mut Vec<u8>, l: &str, v: f64) {
     writeln!(o, "{} {:016x}", l, v.to_bits()).unwrap();
@@ -161,13 +161,14 @@ fn main() {
             out.extend_from_slice(format!("AFTER {}\n", call).as_bytes());
             match e.step_routing(dt) {
                 Ok(()) => dumpall(&e, &mut out),
-                Err(StepError::Exception(w)) => {
-                    out.extend_from_slice(b"throw ");
-                    out.extend_from_slice(&w);
-                    out.push(b'\n');
+                Err(t) if t.exception == THROWN_RUNTIME_ERROR => {
+                    out.extend_from_slice(format!("throw {}\n", t.what).as_bytes());
                 }
-                Err(StepError::NotTranslated(w)) => {
-                    out.extend_from_slice(format!("nottranslated {}\n", w).as_bytes());
+                Err(t) if t.exception == STUB_EXCEPTION => {
+                    out.extend_from_slice(format!("nottranslated {}\n", t.what).as_bytes());
+                }
+                Err(t) => {
+                    out.extend_from_slice(format!("terminate {} {}\n", t.exception, t.what).as_bytes());
                 }
             }
         }

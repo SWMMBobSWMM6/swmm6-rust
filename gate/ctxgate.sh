@@ -34,7 +34,7 @@
 #       "init" dumps upstream after swmm_engine_initialize too; the translation has no
 #       initialize yet, so only the cross test runs. A deck upstream aborts on (no dump) is
 #       counted apart.
-#   gate/ctxgate.sh route [K1 [K0]]
+#   gate/ctxgate.sh route [K1 [K0 [hyd]]]
 #       the routing-step cross test (default calls 1..300). Per deck, upstream
 #       (gate/diff/routestep) is opened, initialized and started through its C API and stepped
 #       with swmm_engine_step; the harness's own SWMMEngine::stepRouting (the library calls it
@@ -46,6 +46,8 @@
 #       cmp with the BEFORE block), then every AFTER block. Results: identical, differ (first
 #       call and label), loaddiff, nottranslated (the translation stops on a path it does not
 #       translate yet), nostart (upstream's open/initialize/start failed), nosteps.
+#       "hyd" runs each dumped call with options.ignore_quality set on both sides (the
+#       hydraulic step of a deck with pollutants, while quality routing is not translated).
 #       CTXGATE_LOG=file appends one line per deck.
 #
 # DECKLIST=file runs the decks listed in it (one path per line) instead of the default set.
@@ -56,10 +58,10 @@ if [ -n "$DECKLIST" ]; then sort "$DECKLIST" > "$W/decks.txt"      # DECKLIST=fi
 else { find /root/work/corpus -name '*.inp'; find /root/work/swmm6src/upstream/tests -name '*.inp'; find "$H/gate/decks" -name '*.inp'; } | sort > "$W/decks.txt"; fi
 
 if [ "${1:-}" = route ]; then
-  K1=${2:-300}; K0=${3:-1}; C_BIN="$H/gate/diff/routestep"; R_BIN="$E/routestep"
+  K1=${2:-300}; K0=${3:-1}; HYD=${4:-}; C_BIN="$H/gate/diff/routestep"; R_BIN="$E/routestep"
   : > "$W/res.txt"
   while IFS= read -r d; do
-    ( cd "$(dirname "$d")" && timeout 600 "$C_BIN" "$d" "$K0" "$K1" > "$W/c.txt" 2>/dev/null
+    ( cd "$(dirname "$d")" && timeout 600 "$C_BIN" "$d" "$K0" "$K1" $HYD > "$W/c.txt" 2>/dev/null
       timeout 1200 "$R_BIN" "$d" "$W/c.txt" load > "$W/l.txt" 2> "$W/err.txt"
       timeout 1200 "$R_BIN" "$d" "$W/c.txt" > "$W/r.txt" 2>> "$W/err.txt" ) 2>/dev/null
     res=$(python3 "$H/gate/routecmp.py" "$W/c.txt" "$W/r.txt" "$W/l.txt" 2>&1 | head -1)
@@ -69,7 +71,7 @@ if [ "${1:-}" = route ]; then
   done < "$W/decks.txt"
   for k in identical differ loaddiff nottranslated nostart nosteps panic; do
     printf '%s %s\n' "$k" "$(grep -c "^$k " "$W/res.txt")"
-  done | tr '\n' ' '; echo "(route calls $K0..$K1)"
+  done | tr '\n' ' '; echo "(route calls $K0..$K1 $HYD)"
   grep -v '^identical \|^nostart \|^nosteps ' "$W/res.txt" | head -${CTXGATE_SHOW:-5}
   [ -n "$CTXGATE_KEEP" ] && cp "$W/res.txt" "$CTXGATE_KEEP"; rm -rf "$W"
   exit 0

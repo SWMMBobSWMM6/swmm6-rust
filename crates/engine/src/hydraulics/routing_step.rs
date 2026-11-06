@@ -42,7 +42,7 @@ impl Router {
     pub fn step(&mut self, ctx: &mut SimulationContext, dt: f64, evap_rate: f64, structures: &mut StructureSolver, non_conduit_fn: Option<&mut NonConduitFn>) -> Result<i32, StepError> {
         let mesh_richards = lidnode::validate_richards_routing(ctx, dt)?;
         if mesh_richards && self.model_ != RouteModel::Dynwave {
-            return Err(StepError::Exception(b"Joint Mesh Richards routing is qualified only for native dynamic wave.".to_vec()));
+            return Err(StepError::Exception("Joint Mesh Richards routing is qualified only for native dynamic wave."));
         }
         if self.checkpoint_context_attached_ {
             return Err(StepError::NotTranslated("checkpoint sessions"));
@@ -94,19 +94,17 @@ impl Router {
         fixed_step
     }
 
-    /// accumulateLinkStepStats ([REPORT] LINK_STEPS), DYNWAVE part; the FV pending samples are
-    /// not translated.
-    pub fn accumulate_link_step_stats(&mut self, ctx: &mut SimulationContext, dt: f64, in_window: bool) -> Result<(), StepError> {
+    /// accumulateLinkStepStats ([REPORT] LINK_STEPS). The FV branch (folding the FV solver's
+    /// pending samples) is not translated: an FV run never gets here, as step_routing refuses
+    /// the FV router before.
+    pub fn accumulate_link_step_stats(&mut self, ctx: &mut SimulationContext, dt: f64, in_window: bool) {
         if !self.lstep_enabled_ {
-            return Ok(());
+            return;
         }
-        if self.model_ == RouteModel::Dynwave {
-            if in_window {
-                self.dw_solver_.accumulate_link_step_stats(ctx, dt, ctx.options.routing_step, ctx.options.variable_step);
-            }
-            return Ok(());
+        if self.model_ == RouteModel::Dynwave && in_window {
+            let (rs, vs) = (ctx.options.routing_step, ctx.options.variable_step);
+            self.dw_solver_.accumulate_link_step_stats(ctx, dt, rs, vs);
         }
-        Err(StepError::NotTranslated("FV link step statistics"))
     }
 
     /// initNodeFlows: storage losses, then inflow = lateral flow, outflow = losses, overflow.

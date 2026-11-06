@@ -10,6 +10,7 @@ pub mod hyd_closure_kernels;
 pub mod hyd_structures;
 pub mod hyd_structures_step;
 pub mod inlet;
+pub mod inlet_step;
 pub mod kinematic_wave;
 pub mod kinematic_wave_step;
 pub mod link;

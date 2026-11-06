@@ -308,6 +308,13 @@ impl XSectGroups {
         &self.groups[i as usize]
     }
 
+    /// Gate only (cargo feature `gate`): one group, writable, for the routing-step cross
+    /// test's loader. Not part of the translation.
+    #[cfg(feature = "gate")]
+    pub fn gate_group_mut(&mut self, i: i32) -> &mut ShapeGroup {
+        &mut self.groups[i as usize]
+    }
+
     /// The first group with the requested kernel shape, or None.
     pub fn find_group(&self, shape: XSectShape) -> Option<&ShapeGroup> {
         self.groups.iter().find(|g| g.shape == shape)

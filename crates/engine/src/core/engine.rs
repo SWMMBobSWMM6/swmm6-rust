@@ -169,6 +169,18 @@ pub struct SwmmEngine {
     pub(crate) last_step_steady_: bool,
 }
 
+impl SwmmEngine {
+    /// rdii_iface_file_.isOpen() (RdiiInterfaceFile is rs6-init's; MERGE: return
+    /// self.rdii_iface_file_.is_open() and drop rdii_iface_open_)
+    pub(crate) fn rdii_iface_is_open(&self) -> bool {
+        self.rdii_iface_open_
+    }
+    /// rdii_iface_file_.isWriting() (MERGE: self.rdii_iface_file_.is_writing())
+    pub(crate) fn rdii_iface_is_writing(&self) -> bool {
+        self.rdii_iface_writing_
+    }
+}
+
 impl Default for SwmmEngine {
     fn default() -> Self {
         Self::new()
