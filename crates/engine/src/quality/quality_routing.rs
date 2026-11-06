@@ -36,8 +36,8 @@
 //   the FV branch of execute (FvQualityTransport::execute, applyPollutantDecay, the bed
 //   exchange), msxlid::prepareNodes / reactNodes (reaction-species LID controls),
 //   transport::routeLegacyMsx (reaction species transport), reactLegacyNodes /
-//   reactLegacyLinks (legacy reactions), routeLegacyAge (water age), routeLegacyHeat (heat
-//   transport), heat::applyBedSoluteExchange.
+//   reactLegacyLinks (legacy reactions), heat::applyBedSoluteExchange. (routeLegacyAge and
+//   routeLegacyHeat are in transport/water_age_legacy.rs and heat_legacy.rs.)
 //   FvQualityTransport.cpp: execute, applyPollutantDecay, dryRestartState,
 //     restoreDryRestart, retainedSpeciesMass (and the inline hasRetainedDryMass,
 //     beginWindow, accepted).
@@ -724,15 +724,14 @@ impl QualitySolver {
         // (reactLegacyLinks runs only with legacy reactions, refused above)
         apply_link_quality_forcing(ctx, self.n_pollutants_, dt);
 
-        // transport::routeLegacyAge
-        if ctx.options.water_age && dt > 0.0 {
-            return Err(nt("water age (routeLegacyAge)"));
+        // A1b: the LEGACY age mirror runs last, on the fully accumulated qual_vol_in
+        crate::transport::water_age_legacy::route_legacy_age(ctx, dt);
+        // H1: the LEGACY temperature mirror beside it
+        crate::transport::heat_legacy::route_legacy_heat(ctx, dt)?;
+        // H6b: the bed's solute exchange
+        if crate::transport::heat_legacy::bed_exchange_enabled(ctx) {
+            return Err(nt("bed solute exchange (heat::applyBedSoluteExchange)"));
         }
-        // transport::routeLegacyHeat
-        if ctx.options.heat_transport && dt > 0.0 {
-            return Err(nt("heat transport (routeLegacyHeat)"));
-        }
-        // transport::heat::bedExchangeEnabled (needs heat_transport, refused above)
         Ok(())
     }
 

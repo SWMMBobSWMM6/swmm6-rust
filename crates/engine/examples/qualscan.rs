@@ -18,13 +18,15 @@ fn main() {
     let c = e.context();
     let lid_rows = c.node_subtypes.storages.lid.iter().filter(|l| l.control >= 0).count();
     println!(
-        "np={} route={:?} qs={:?} age={} heat={} bed={} rx={} nsp={} rxlid={} surf={} treat={} nodelid={} inlets={} lqforce={} ardvol={} coupling={} {}",
+        "np={} route={:?} qs={:?} age={} heat={} bed={} sx={} rad={} rx={} nsp={} rxlid={} surf={} treat={} nodelid={} inlets={} lqforce={} ardvol={} coupling={} {}",
         c.n_pollutants(),
         c.options.routing_model,
         c.options.quality_solver,
         c.options.water_age as i32,
         c.options.heat_transport as i32,
         c.heat_config.sediment_exchange as i32,
+        c.heat_config.surface_exchange as i32,
+        c.heat_config.radiative_exchange as i32,
         swmm6_rust::transport::reaction_legacy_binding::legacy_reactions_active(c) as i32,
         c.reactions.n_species(),
         c.reactions.lid_controls.len(),
