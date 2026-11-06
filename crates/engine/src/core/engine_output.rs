@@ -25,7 +25,8 @@
 //   * fillSurfaceSnapshot is empty without OPENSWMM_HAS_2D, as upstream's is.
 //   * The perf:: timers and the OPENSWMM_PERF stderr line only time the run; left out.
 //   * The FV solver's run statistics (end()) and the FV router are not translated: a deck
-//     with ROUTING FV stops in stepRouting before end() is reached.
+//     with ROUTING FV stops in stepRouting before end() is reached, and end() returns
+//     Err(stub) for an engine with an FV backend.
 //   * NOT YET TRANSLATED, an Err(stub) where it is met: a NATIVE SAVE HOTSTART row
 //     (HotStartManager::save and the engine checkpoint).
 
@@ -1017,7 +1018,12 @@ impl SwmmEngine {
             self.ctx_.routing_stats.build_histogram();
         }
 
-        // The FV solver's run statistics: no FV run reaches end() here (see the header).
+        // The FV solver's cumulative counters, published for the report when it ran
+        // (fv->run_stats().nsteps > 0): the FV run statistics are not translated (the FV step
+        // itself is refused in stepRouting), so an engine with an FV backend stops here.
+        if self.router_.fv_solver_.is_some() {
+            return Err(stub("SWMMEngine::end (the FV solver's run statistics, ExplicitFvSolver::run_stats)"));
+        }
 
         self.ctx_.finalize_max_stats();
 
