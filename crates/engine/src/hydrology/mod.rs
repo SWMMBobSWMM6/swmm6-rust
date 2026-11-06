@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+pub mod climate;
 pub mod climate_file;
 pub mod climate_types;
 pub mod gage;

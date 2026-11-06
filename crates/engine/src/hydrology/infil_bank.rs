@@ -15,9 +15,13 @@
 //     value included, and dispatches nothing for it, as upstream's switch does.
 //   * The members are public so the gate dumper (an example crate) can read them;
 //     upstream's are private.
-//   * NOT YET TRANSLATED (run-time step functions, phase 1c): infiltrationFactors, rate,
-//     rateFeet, evaluate, pack, unpack, checkpoint, validateCheckpoint.
+//   * infiltrationFactors, rate, rateFeet and evaluate were translated on 5 November 2026
+//     for the runoff step. NOT YET TRANSLATED: checkpoint, validateCheckpoint (engine
+//     checkpoints).
 
+use crate::core::cmath::cmax;
+use crate::core::context::SimulationContext;
+use crate::core::datetime;
 use crate::core::options::SimulationOptions;
 use crate::core::unit_conversion as ucf;
 use crate::hydrology::infiltration::{self as infil, CurveNumState, GreenAmptState, HortonState, InfilModel};
@@ -203,5 +207,65 @@ impl InfilBank {
             }
             _ => {}
         }
+    }
+}
+
+/// infiltrationFactors: the global monthly factors at a surface clock (elapsed seconds).
+pub fn infiltration_factors(ctx: &SimulationContext, elapsed_s: f64) -> Factors {
+    let month = datetime::month_of_year(datetime::add_seconds(ctx.options.start_date, elapsed_s)) - 1;
+    let mut result = Factors { infiltration: ctx.adjust_hydcon[month as usize], recovery: 1.0 };
+    let pattern = ctx.climate_state.recovery_pat_index;
+    if pattern >= 0 && (pattern as usize) < ctx.patterns.factors.len() {
+        let values = &ctx.patterns.factors[pattern as usize];
+        if (month as usize) < values.len() {
+            result.recovery = values[month as usize];
+        }
+    }
+    result
+}
+
+// InfilBank::rateFeet / rate / evaluate (translated 5 November 2026 for the runoff step).
+impl InfilBank {
+    /// rateFeet: advance one bank-owned kernel in feet; zero for an EXTERNAL entry or dt <= 0.
+    pub fn rate_feet(&mut self, e: i32, precip: f64, runon: f64, depth: f64, dt: f64, factors: Factors) -> f64 {
+        let ue = e as usize;
+        if self.owners_[ue] == Owner::External || dt <= 0.0 {
+            return 0.0;
+        }
+        let f = self.evaluate(e, precip, runon, depth, dt, factors);
+        self.cumulative_[ue] += cmax(0.0, f * 0.3048) * dt;
+        f
+    }
+
+    /// rate: the SI boundary (m/s in and out).
+    pub fn rate(&mut self, e: i32, precip: f64, runon: f64, depth: f64, dt: f64, factors: Factors) -> f64 {
+        const FEET_PER_METRE: f64 = 3.280839895013123;
+        cmax(0.0, self.rate_feet(e, precip * FEET_PER_METRE, runon * FEET_PER_METRE, depth * FEET_PER_METRE, dt, factors) * 0.3048)
+    }
+
+    fn evaluate(&mut self, i: i32, precip: f64, runon: f64, depth: f64, dt: f64, factors: Factors) -> f64 {
+        let ui = i as usize;
+        let mut infil = 0.0;
+        let im = self.methods_[ui];
+        if im == InfilModel::Horton as i32 || im == InfilModel::ModHorton as i32 {
+            let hs = &mut self.horton_[ui];
+            let (save_f0, save_fmin, save_regen) = (hs.f0, hs.fmin, hs.regen);
+            hs.f0 *= factors.infiltration;
+            hs.fmin *= factors.infiltration;
+            hs.regen *= factors.recovery;
+            infil = if im == InfilModel::Horton as i32 { infil::horton_get_infil(hs, precip + runon, depth, dt) } else { infil::mod_horton_get_infil(hs, precip + runon, depth, dt) };
+            hs.f0 = save_f0;
+            hs.fmin = save_fmin;
+            hs.regen = save_regen;
+        } else if im == InfilModel::GreenAmpt as i32 || im == InfilModel::ModGreenAmpt as i32 {
+            infil = infil::grnampt_get_infil(&mut self.grnampt_[ui], precip + runon, depth, dt, im, factors.infiltration, factors.recovery);
+        } else if im == InfilModel::CurveNum as i32 {
+            // CN treats runon as ponded depth, not as a rainfall rate.
+            let cn_depth = depth + runon * dt;
+            infil = infil::curvenum_get_infil(&mut self.curvenum_[ui], precip, cn_depth, dt, factors.recovery);
+        } else if im == InfilModel::Constant as i32 {
+            infil = infil::constant_get_infil(self.constant_[ui] * factors.infiltration, precip + runon, depth, dt);
+        }
+        infil
     }
 }

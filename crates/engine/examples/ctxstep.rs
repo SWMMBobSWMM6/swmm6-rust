@@ -21,6 +21,8 @@ mod ctxdump;
 mod ctxload;
 #[path = "common/hydrodump.rs"]
 mod hydrodump;
+#[path = "common/hydroload.rs"]
+mod hydroload;
 #[path = "common/lifedump.rs"]
 mod lifedump;
 #[path = "common/rtdump.rs"]
@@ -213,6 +215,146 @@ fn helper_mode(e: &mut SwmmEngine, args: &[String], out: &mut Vec<u8>) {
     out.extend_from_slice(&body);
 }
 
+/// The runoff step's dump (gate/diff/ctxstep.cpp runoff_dump).
+fn runoff_dump(e: &mut SwmmEngine) -> Vec<u8> {
+    let mut o = ctxdump::dump(e.context());
+    o.extend_from_slice(&hydrodump::hydrodump(e));
+    let pf = |o: &mut Vec<u8>, l: &str, v: f64| writeln!(o, "{} {:016x}", l, v.to_bits()).unwrap();
+    let pi = |o: &mut Vec<u8>, l: &str, v: i64| writeln!(o, "{} {}", l, v).unwrap();
+    let vf = |o: &mut Vec<u8>, l: &str, v: &[f64]| {
+        writeln!(o, "{} n={}", l, v.len()).unwrap();
+        for x in v {
+            write!(o, " {:016x}", x.to_bits()).unwrap();
+        }
+        if !v.is_empty() {
+            o.push(b'\n');
+        }
+    };
+    pf(&mut o, "old_runoff_time_", e.old_runoff_time_);
+    pf(&mut o, "new_runoff_time_", e.new_runoff_time_);
+    pf(&mut o, "old_runoff_ms_", e.old_runoff_ms_);
+    pf(&mut o, "prev_runoff_step_sec_", e.prev_runoff_step_sec_);
+    pf(&mut o, "new_runoff_ms_", e.new_runoff_ms_);
+    pi(&mut o, "has_runoff_", e.has_runoff_ as i64);
+    pi(&mut o, "has_snow_", e.has_snow_ as i64);
+    vf(&mut o, "wet_q_interp_", &e.wet_q_interp_);
+    vf(&mut o, "lid_drain_q_interp_", &e.lid_drain_q_interp_);
+    for q in &e.lid_drain_q_units_ {
+        pi(&mut o, "lid_drain_q_units_.first", q.0 as i64);
+        pf(&mut o, "lid_drain_q_units_.second", q.1);
+    }
+    vf(&mut o, "lid_vlidin_vol_", &e.lid_vlidin_vol_);
+    vf(&mut o, "lid_qsurf_cfs_", &e.lid_qsurf_cfs_);
+    vf(&mut o, "surface_quality_.buildup", &e.gate_surface_buildup());
+    o
+}
+
+/// SIDE.eng of the runoff mode: the "runoff_at k rc r" line, k, rc and the members.
+fn read_runoff_side(path: &str) -> (String, i32, i32, swmm6_rust::core::engine_step_runoff::GateRunoffSide) {
+    let text = std::fs::read_to_string(path).expect("ctxstep: cannot read the runoff side file");
+    let first = text.lines().next().unwrap_or("").to_string();
+    let mut it = text.split_ascii_whitespace();
+    let mut next = || it.next().expect("side: short").to_string();
+    assert_eq!(next(), "runoff_at");
+    let k: i32 = next().parse().unwrap();
+    assert_eq!(next(), "rc");
+    let rc: i32 = next().parse().unwrap();
+    let mut s = swmm6_rust::core::engine_step_runoff::GateRunoffSide::default();
+    if rc != 0 {
+        return (first, k, rc, s);
+    }
+    let bits = |x: String| f64::from_bits(u64::from_str_radix(&x, 16).unwrap());
+    let num = |name: &str, next: &mut dyn FnMut() -> String| -> f64 {
+        assert_eq!(next(), name);
+        bits(next())
+    };
+    let int = |name: &str, next: &mut dyn FnMut() -> String| -> i64 {
+        assert_eq!(next(), name);
+        next().parse().unwrap()
+    };
+    let vec = |name: &str, next: &mut dyn FnMut() -> String| -> Vec<f64> {
+        assert_eq!(next(), name);
+        let n: usize = next().parse().unwrap();
+        (0..n).map(|_| bits(next())).collect()
+    };
+    s.old_runoff_time_ = num("old_runoff_time_", &mut next);
+    s.new_runoff_time_ = num("new_runoff_time_", &mut next);
+    s.old_runoff_ms_ = num("old_runoff_ms_", &mut next);
+    s.prev_runoff_step_sec_ = num("prev_runoff_step_sec_", &mut next);
+    s.new_runoff_ms_ = num("new_runoff_ms_", &mut next);
+    s.has_runoff_ = int("has_runoff_", &mut next) != 0;
+    s.has_snow_ = int("has_snow_", &mut next) != 0;
+    s.wet_q_interp_ = vec("wet_q_interp_", &mut next);
+    s.lid_drain_q_interp_ = vec("lid_drain_q_interp_", &mut next);
+    let un = vec("lid_units_node", &mut next);
+    let uq = vec("lid_units_q", &mut next);
+    s.lid_drain_q_units_ = un.iter().zip(uq.iter()).map(|(&n, &q)| (n as i32, q)).collect();
+    s.lid_vlidin_vol_ = vec("lid_vlidin_vol_", &mut next);
+    s.lid_qsurf_cfs_ = vec("lid_qsurf_cfs_", &mut next);
+    s.buildup = vec("buildup", &mut next);
+    assert_eq!(next(), "end");
+    (first, k, rc, s)
+}
+
+/// The runoff mode (see gate/diff/ctxstep.cpp): after the translation's own open, initialize
+/// and start, load upstream's state after K steps (K > 0) and run the runoff step M times.
+fn runoff_mode(e: &mut SwmmEngine, args: &[String], out: &mut Vec<u8>) {
+    let k_steps: i32 = args[3].parse().unwrap_or(0);
+    let m_calls: i32 = args[4].parse().unwrap_or(1);
+    let side = args[5].as_str();
+    let full_j: i32 = if args.len() > 7 && args[6] == "full" { args[7].parse().unwrap_or(-1) } else { -1 };
+    let mut dt = e.context().options.routing_step;
+    if k_steps > 0 {
+        let (first, k, rc, s) = read_runoff_side(&format!("{}.eng", side));
+        writeln!(out, "{}", first).unwrap();
+        if rc != 0 {
+            return;
+        }
+        let ctx_text = std::fs::read(format!("{}.ctx", side)).expect("ctxstep: cannot read SIDE.ctx");
+        let mut r = ctxload::Rd::new(&ctx_text);
+        ctxload::load(&mut r, e.context_mut());
+        r.finish();
+        let hyd_text = std::fs::read(format!("{}.hyd", side)).expect("ctxstep: cannot read SIDE.hyd");
+        let mut r = ctxload::Rd::new(&hyd_text);
+        hydroload::load_hydro(&mut r, e);
+        r.finish();
+        e.gate_install_runoff_side(s);
+        let c = e.context();
+        if k > 0 {
+            dt = (c.elapsed_ms - c.old_elapsed_ms) / 1000.0;
+        }
+    } else {
+        writeln!(out, "runoff_at 0 rc 0").unwrap();
+    }
+    let total = e.context().options.total_duration_ms();
+    let mut last_new_ms = e.new_runoff_ms_;
+    let mut m = 1;
+    while m <= m_calls && e.context().elapsed_ms < total {
+        let r = guarded(|| e.gate_runoff_call(dt).map(|_| 0));
+        match r {
+            Err(t) if t.exception.starts_with(swmm6_rust::core::engine_step::THROWN_PREFIX) => {
+                writeln!(out, "runoff {} threw {}", m, t.what).unwrap();
+                break;
+            }
+            r => {
+                finish(r, &format!("runoff {}", m), out);
+            }
+        }
+        if m == 1 || m == m_calls || m == full_j || e.new_runoff_ms_ != last_new_ms {
+            writeln!(out, "runoff {}", m).unwrap();
+            let d = runoff_dump(e);
+            if m == full_j {
+                out.extend_from_slice(&d);
+            } else {
+                writeln!(out, "hash {} {:016x}", m, fnv1a(&d)).unwrap();
+            }
+        }
+        last_new_ms = e.new_runoff_ms_;
+        e.gate_advance_clock(dt);
+        m += 1;
+    }
+}
+
 fn main() {
     // the Router stubs panic; keep the default hook's message off stderr for those
     std::panic::set_hook(Box::new(|info| {
@@ -248,6 +390,13 @@ fn main() {
     }
     if mode == "start" {
         out.extend_from_slice(&full_dump(&mut e));
+        std::io::stdout().lock().write_all(&out).unwrap();
+        return;
+    }
+    if mode == "runoff" {
+        if rc == 0 {
+            runoff_mode(&mut e, &args, &mut out);
+        }
         std::io::stdout().lock().write_all(&out).unwrap();
         return;
     }

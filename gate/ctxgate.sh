@@ -58,6 +58,13 @@
 #       applyForcings) on that state; the translation loads the same state into its own
 #       started engine and calls its translation. The context after each helper is compared
 #       (hashed). Decks a helper does not apply to print "skipped" on both sides.
+#   gate/ctxgate.sh runoff [K [M]]
+#       the runoff step (SWMMEngine::stepRunoff) against upstream's: upstream runs K real steps
+#       (default 0), writes its context, hydrology solvers and the runoff engine members, then
+#       calls stepRunoff M times (default 100) as step() does, the routing clock advanced by hand
+#       between calls; the translation loads that state (K > 0) into its own started engine
+#       and does the same. The whole dump is hashed after each call (FNV-1a 64); with
+#       CTXGATE_DIFFDIR the full dumps at the first differing call are written there.
 #
 # DECKLIST=file runs the decks listed in it (one path per line) instead of the default set.
 # CTXGATE_KEEP=file keeps the list of differing decks; CTXGATE_SHOW=n shows the first n.
@@ -89,10 +96,10 @@ if [ "${1:-}" = loadrt ]; then
   exit 0
 fi
 
-if [ "${1:-}" = init ] || [ "${1:-}" = start ] || [ "${1:-}" = step ] || [ "${1:-}" = helpers ]; then
-  M=$1; NS=${2:-1}; [ "$M" = helpers ] && NS=${2:-10}; C_BIN="$H/gate/diff/ctxstep"; R_BIN="$E/ctxstep"
+if [ "${1:-}" = init ] || [ "${1:-}" = start ] || [ "${1:-}" = step ] || [ "${1:-}" = helpers ] || [ "${1:-}" = runoff ]; then
+  M=$1; NS=${2:-1}; [ "$M" = helpers ] && NS=${2:-10}; [ "$M" = runoff ] && NS=${2:-0}; NM=${3:-100}; C_BIN="$H/gate/diff/ctxstep"; R_BIN="$E/ctxstep"
   same=0; diff=0; stubn=0; : > "$W/differ.txt"; : > "$W/stubs.txt"; : > "$W/reached.txt"; mkdir -p "$W/bak"
-  if [ "$M" = step ]; then A2=(step "$NS" hash); elif [ "$M" = helpers ]; then A2=(helper "$NS" all "$W/side"); else A2=("$M"); fi
+  if [ "$M" = step ]; then A2=(step "$NS" hash); elif [ "$M" = helpers ]; then A2=(helper "$NS" all "$W/side"); elif [ "$M" = runoff ]; then A2=(runoff "$NS" "$NM" "$W/side"); else A2=("$M"); fi
   while IFS= read -r d; do
     # back up the files the deck SAVEs to; restore them after each side's run
     python3 "$H/gate/savefiles.py" "$d" > "$W/saves.txt" 2>/dev/null; k=0
@@ -103,7 +110,7 @@ if [ "${1:-}" = init ] || [ "${1:-}" = start ] || [ "${1:-}" = step ] || [ "${1:
     if cmp -s "$W/c.txt" "$W/r.txt"; then
       same=$((same+1))
       # what the deck reached: the return codes and the exit code (an all-crash would show here)
-      echo "$(grep -aE '^(open|init|start)_rc ' "$W/c.txt" | tr '\n' ' ')$(grep -aE '^step [0-9]+ rc ' "$W/c.txt" | tail -1 | cut -d' ' -f1-4)$(grep -acE '^(skipped|.* skipped \()' "$W/c.txt" | sed 's/^0$//; s/^[1-9].*/ [some helpers skipped]/') $(tail -1 "$W/c.txt")" >> "$W/reached.txt"
+      echo "$(grep -aE '^(open|init|start)_rc ' "$W/c.txt" | tr '\n' ' ')$(grep -aE '^step [0-9]+ rc ' "$W/c.txt" | tail -1 | cut -d' ' -f1-4)$(grep -aE '^runoff_at ' "$W/c.txt")$(grep -aE '^runoff [0-9]+' "$W/c.txt" | tail -1 | sed 's/^/ last /')$(grep -acE '^(skipped|.* skipped \()' "$W/c.txt" | sed 's/^0$//; s/^[1-9].*/ [some helpers skipped]/') $(tail -1 "$W/c.txt")" >> "$W/reached.txt"
       continue
     fi
     # a stub: the Rust side's last line before "exit 0" is "stub ...", and everything before
@@ -121,6 +128,13 @@ if [ "${1:-}" = init ] || [ "${1:-}" = start ] || [ "${1:-}" = step ] || [ "${1:
         lk=$(sed -n "${fl}p" "$W/c.txt"); set -- $lk; K=${2:-0}; [ "$K" = start ] && K=0
         ( cd "$(dirname "$d")" && timeout 600 "$C_BIN" "$d" step "$NS" full "$K" > "$CTXGATE_DIFFDIR/c.txt" 2>/dev/null ) 2>/dev/null; restore
         ( cd "$(dirname "$d")" && timeout 600 "$R_BIN" "$d" step "$NS" full "$K" > "$CTXGATE_DIFFDIR/r.txt" 2>/dev/null ) 2>/dev/null; restore
+      elif [ "$M" = runoff ]; then
+        # the first differing line is the hash of call J
+        fl=$(cmp "$W/c.txt" "$W/r.txt" 2>/dev/null | sed -n 's/.* line \([0-9]*\).*/\1/p')
+        lk=$(sed -n "${fl}p" "$W/c.txt"); set -- $lk; J=${2:-1}
+        echo "first differing line: $lk" >> "$CTXGATE_DIFFDIR/deck.txt"
+        ( cd "$(dirname "$d")" && timeout 600 "$C_BIN" "$d" runoff "$NS" "$NM" "$CTXGATE_DIFFDIR/side" full "$J" > "$CTXGATE_DIFFDIR/c.txt" 2>/dev/null ) 2>/dev/null; restore
+        ( cd "$(dirname "$d")" && timeout 600 "$R_BIN" "$d" runoff "$NS" "$NM" "$CTXGATE_DIFFDIR/side" full "$J" > "$CTXGATE_DIFFDIR/r.txt" 2>/dev/null ) 2>/dev/null; restore
       else
         cp "$W/c.txt" "$CTXGATE_DIFFDIR/c.txt"; cp "$W/r.txt" "$CTXGATE_DIFFDIR/r.txt"
       fi
@@ -129,9 +143,10 @@ if [ "${1:-}" = init ] || [ "${1:-}" = start ] || [ "${1:-}" = step ] || [ "${1:
   echo "identical decks by what they reached:"; sort "$W/reached.txt" 2>/dev/null | uniq -c | sort -rn | head -${CTXGATE_SHOW_REACHED:-12}
   if [ "$M" = helpers ]; then
     echo "ctxgate helpers $NS: $same identical, $diff differ (stub reached on $stubn)"
-  elif [ "$M" = step ]; then
-    echo "ctxgate step $NS: $same identical, $stubn stopped at a stub, $diff differ"
-    sed 's/  .*//' "$W/stubs.txt" | sort | uniq -c | sort -rn
+  elif [ "$M" = step ] || [ "$M" = runoff ]; then
+    [ "$M" = step ] && echo "ctxgate step $NS: $same identical, $stubn stopped at a stub, $diff differ"
+    [ "$M" = runoff ] && echo "ctxgate runoff K=$NS M=$NM: $same identical, $stubn stopped at a stub, $diff differ"
+    sed 's/  .*//; s/^stub runoff [0-9]* /stub runoff /' "$W/stubs.txt" | sort | uniq -c | sort -rn
   else
     echo "ctxgate $M: $same identical, $diff differ (stub reached on $stubn)"
   fi

@@ -17,8 +17,9 @@
 //   * `double adc_imperv[10]` are fixed arrays; member initializers carry into a
 //     hand-written Default. `std::vector<bool> external` is Vec<bool>.
 //   * The solver member is public so the gate dumper can read it; upstream's is private.
+//   * setMeltCoeffs was translated on 5 November 2026 for the runoff step.
 //   * NOT YET TRANSLATED (run-time step functions, phase 1c): step, pack, unpack, both
-//     execute overloads, setMeltCoeffs, both plowSnow overloads, meltElement,
+//     execute overloads, both plowSnow overloads, meltElement,
 //     rainMeltRate, and the file-static helpers (mixAge, getArealSnowCover,
 //     getArealDepletion, ...).
 
@@ -225,5 +226,21 @@ impl DegreeDaySnow {
 
     pub fn state_mut(&mut self) -> &mut SnowSoA {
         &mut self.soa_
+    }
+}
+
+// DegreeDaySnow::setMeltCoeffs (translated 5 November 2026 for the runoff step).
+impl DegreeDaySnow {
+    /// Seasonal melt coefficient interpolation (legacy snow.c snow_setMeltCoeffs):
+    /// season = sin(0.0172615 * (day - 81)), period 364.000 days.
+    pub fn set_melt_coeffs(&mut self, day_of_year: i32) {
+        const K_SEASON_RAD: f64 = 0.0172615;
+        let season = (K_SEASON_RAD * (day_of_year as f64 - 81.0)).sin(); // LIBM
+        self.soa_.season = season;
+
+        let total = self.soa_.n_subcatch * N_SUBAREAS;
+        for i in 0..total as usize {
+            self.soa_.dhm[i] = 0.5 * (self.soa_.dhmax[i] * (1.0 + season) + self.soa_.dhmin[i] * (1.0 - season));
+        }
     }
 }
