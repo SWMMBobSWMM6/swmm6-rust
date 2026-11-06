@@ -424,7 +424,7 @@ pub fn friction_update(q: f64, u: f64, r: f64, dt: f64, rough_factor: f64) -> f6
     if r <= 0.0 || rough_factor <= 0.0 {
         return q;
     }
-    let r43 = r * r.cbrt(); // LIBM
+    let r43 = r * crate::core::cmath::glibc_cbrt(r); // LIBM (std::cbrt: glibc's, not Rust's f64::cbrt)
     let den = 1.0 + dt * rough_factor * u.abs() / r43;
     q / den
 }
