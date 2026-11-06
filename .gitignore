@@ -37,3 +37,4 @@ __pycache__/
 gate/diff/routestep
 gate/diff/outgate
 target-b/
+gate/diff/ext80dot
