@@ -10,6 +10,7 @@ pub mod infil_bank;
 pub mod infiltration;
 pub mod inflow;
 pub mod lid;
+pub mod lid_kernel;
 pub mod lid_node;
 pub mod lid_node_held;
 pub mod lid_node_init;

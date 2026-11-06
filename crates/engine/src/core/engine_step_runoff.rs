@@ -28,9 +28,8 @@
 //     upstream; it is left out.
 //   * Code a deck reaches whose solver is not translated yet returns Err(stub(...)) at the
 //     point upstream would first act (see `stub_if`): UEB snow
-//     (ueb::advanceSubcatchments), the LID units (LIDSolver::execute on a unit with
-//     area), groundwater (stepGroundwater), RDII (RDIISolver::advance with groups, SAVE
-//     RDII), the
+//     (ueb::advanceSubcatchments), a LID unit with a report file (saveLidReport),
+//     custom [GWF] expressions (mathexpr::evaluate_fast), the
 //     water-age and heat transport hooks, the reactions surface species, and the runoff
 //     interface file (USE RUNOFF readResults, SAVE RUNOFF saveResults).
 
@@ -42,6 +41,7 @@ use crate::core::engine_init_hydraulics::Terminated;
 use crate::core::engine_step::{stub, THROWN_PREFIX};
 use crate::core::unit_conversion as ucf;
 use crate::data::forcing::ForcingMode;
+use crate::data::pollutant::MassUnits;
 use crate::data::table::table_lookup_cursor;
 use crate::data::water_age::WaterAgeSource;
 use crate::hydrology::climate;
@@ -374,7 +374,13 @@ impl SwmmEngine {
         // A6. LID performance
         self.lid_inflows(dt_runoff)?;
         self.lid_native_infil(dt_runoff);
-        self.lid_execute_check()?;
+        {
+            let owners = self.ordinary_source_owners().cloned();
+            let evap = self.ctx_.climate_state.evap_rate;
+            if let Err(w) = self.lid_.execute(&self.ctx_, dt_runoff, 0.0, evap, owners.as_ref()) {
+                return Err(if w.starts_with("Ordinary") { Terminated { exception: "throw std::invalid_argument", what: w } } else { stub(w) });
+            }
+        }
         // A4: LID layer ages; H5b: temperature column
         if !self.ctx_.options.ignore_quality {
             let r = &self.ctx_.reactions;
@@ -825,33 +831,170 @@ impl SwmmEngine {
         self.lid_.set_runoff_time(self.old_runoff_time_);
     }
 
-    /// LIDSolver::execute: NOT YET TRANSLATED; a stub where it would evaluate a unit.
-    fn lid_execute_check(&self) -> Result<(), Terminated> {
-        let owners = self.ordinary_source_owners();
-        for g in &self.lid_.groups_ {
-            if g.count == 0 {
+    /// stepRunoff A6b: the LID units' outputs back to the subcatchments and nodes, in
+    /// [LID_USAGE] order (legacy evalLidUnit, lid_addDrainRunon, lid_addDrainInflow and
+    /// lid_addDrainLoads).
+    fn lid_outputs(&mut self, dt_runoff: f64) -> Result<(), Terminated> {
+        let ucf_land = ucf::ucf(ucf::LANDAREA, &self.ctx_.options);
+        for k in 0..self.lid_.usage_order().len() {
+            let (t, u) = self.lid_.usage_order()[k];
+            let uu = u as usize;
+            let sc = self.lid_.group(t).subcatch_idx[uu];
+            if self.owns_spatial_source(sc) {
                 continue;
             }
-            for u in 0..g.count as usize {
-                if g.area[u] <= 0.0 {
-                    continue;
-                }
-                let sc = g.subcatch_idx[u];
-                if let Some(o) = owners {
-                    if sc >= 0 && o[sc as usize] >= 0 {
-                        continue;
+            if sc < 0 || sc >= self.ctx_.n_subcatches() {
+                continue;
+            }
+            let usc = sc as usize;
+            let lid_area = self.lid_.group(t).area[uu];
+
+            let lid_area_sc = if usc < self.ctx_.subcatches.total_lid_area_ft2.len() { self.ctx_.subcatches.total_lid_area_ft2[usc] } else { 0.0 };
+            let sub_area_ft2 = self.ctx_.subcatches.area[usc] / ucf_land;
+            let can_return = self.lid_.group(t).to_perv[uu] != 0 && sub_area_ft2 > lid_area_sc;
+            {
+                let g = self.lid_.group(t);
+                if !can_return {
+                    self.lid_qsurf_cfs_[usc] += g.surface_runoff[uu] * lid_area;
+                } else {
+                    self.ctx_.subcatches.lid_return_to_perv_cfs[usc] += g.surface_runoff[uu] * lid_area;
+                    let dn0 = g.drain_node[uu];
+                    let dsc0 = g.drain_subcatch[uu];
+                    let to_outlet = (dn0 < 0 && dsc0 < 0) || (dn0 == self.ctx_.subcatches.outlet_node[usc] && dsc0 == self.ctx_.subcatches.outlet_subcatch[usc]);
+                    if to_outlet {
+                        self.ctx_.subcatches.lid_return_to_perv_cfs[usc] += g.drain_flow[uu] * lid_area;
+                        self.lid_.group_mut(t).drain_flow[uu] = 0.0;
                     }
                 }
-                return Err(stub("LIDSolver::execute"));
+            }
+            {
+                let gm = self.lid_.group_mut(t);
+                gm.drain_open[uu] = if gm.drain_flow[uu] > 0.0 { 1 } else { 0 };
+            }
+            let g = self.lid_.group(t);
+            self.ctx_.subcatches.lid_drain_flow[usc] += g.drain_flow[uu] * lid_area;
+            let mut dn = g.drain_node[uu];
+            let mut dsc = g.drain_subcatch[uu];
+            if dn < 0 && (dsc < 0 || dsc == sc) {
+                dn = self.ctx_.subcatches.outlet_node[usc];
+                dsc = self.ctx_.subcatches.outlet_subcatch[usc];
+            }
+            if dn >= 0 {
+                let un = dn as usize;
+                if un < self.ctx_.nodes.lid_drain_inflow.len() {
+                    self.ctx_.nodes.lid_drain_inflow[un] += g.drain_flow[uu] * lid_area;
+                }
+            } else if dsc >= 0 && dsc != sc {
+                let utsc = dsc as usize;
+                if utsc < self.ctx_.subcatches.lid_drain_runon_cfs.len() {
+                    let q_dr = g.drain_flow[uu] * lid_area;
+                    self.ctx_.subcatches.lid_drain_runon_cfs[utsc] += q_dr;
+                    let lst = &self.ctx_.lid_layer_state;
+                    let ut = t as usize;
+                    stub_if(self.ctx_.options.water_age && lst.active() && utsc < self.ctx_.water_age_state.subcatch_lid_drain_age_cfs.len() && ut + 1 < lst.group_offset.len(), "SWMMEngine::stepRunoff A6b (LID drain run-on age)")?;
+                    stub_if(self.ctx_.options.heat_transport && lst.active() && ut + 1 < lst.group_offset.len(), "SWMMEngine::stepRunoff A6b (LID drain run-on temperature)")?;
+                }
+            }
+
+            // Gap #26: LID drain quality routing
+            let np_ctx = self.ctx_.n_pollutants();
+            let np_lid = g.n_pollutants;
+            let np_use = cmin(np_ctx, np_lid);
+            let species = self.ctx_.reactions.surface.active();
+            if (np_use > 0 || self.ctx_.options.water_age || self.ctx_.options.heat_transport || species) && g.drain_flow[uu] > 0.0 && !self.ctx_.options.ignore_quality {
+                let drain_cfs = g.drain_flow[uu] * lid_area;
+                let mut dest_node = g.drain_node[uu];
+                if dest_node < 0 {
+                    let target_sc = if g.drain_subcatch[uu] >= 0 { g.drain_subcatch[uu] } else { sc };
+                    if target_sc >= 0 && target_sc < self.ctx_.n_subcatches() {
+                        dest_node = self.ctx_.subcatches.outlet_node[target_sc as usize];
+                    }
+                }
+                let mut runon_sc = -1;
+                {
+                    let mut dn2 = g.drain_node[uu];
+                    let mut dsc2 = g.drain_subcatch[uu];
+                    if dn2 < 0 && (dsc2 < 0 || dsc2 == sc) {
+                        dn2 = self.ctx_.subcatches.outlet_node[usc];
+                        dsc2 = self.ctx_.subcatches.outlet_subcatch[usc];
+                    }
+                    if dn2 < 0 && dsc2 >= 0 && dsc2 != sc && dsc2 < self.ctx_.n_subcatches() {
+                        runon_sc = dsc2;
+                    }
+                }
+                let mass_ucf_d = ucf::ucf(ucf::MASS, &self.ctx_.options);
+                let mcf_of = |c: &crate::core::context::SimulationContext, p: usize| -> f64 {
+                    let mut mcf_d = mass_ucf_d;
+                    if p < c.pollutants.units.len() {
+                        match c.pollutants.units[p] {
+                            MassUnits::UgPerL => mcf_d = mass_ucf_d / 1000.0,
+                            MassUnits::CountsPerL => mcf_d = 1.0,
+                            _ => {}
+                        }
+                    }
+                    mcf_d
+                };
+                if runon_sc >= 0 {
+                    let urs = runon_sc as usize;
+                    let is_runoff_load_r = g.drain_node[uu] >= 0 || g.drain_subcatch[uu] == sc;
+                    for p in 0..np_use as usize {
+                        let rmvl_idx = uu * np_lid as usize + p;
+                        let rmvl = if rmvl_idx < g.drain_rmvl.len() { g.drain_rmvl[rmvl_idx] } else { 0.0 };
+                        let src_idx = usc * np_ctx as usize + p;
+                        let c_src = if src_idx < self.ctx_.subcatches.conc.len() { self.ctx_.subcatches.conc[src_idx] } else { 0.0 };
+                        let ri = urs * np_ctx as usize + p;
+                        if ri < self.ctx_.subcatches.lid_drain_runon_qual.len() {
+                            self.ctx_.subcatches.lid_drain_runon_qual[ri] += (drain_cfs * c_src * 28.317) * (1.0 - rmvl);
+                        }
+                        if g.to_perv[uu] == 0 {
+                            let mcf_d = mcf_of(&self.ctx_, p);
+                            let w = drain_cfs * c_src * dt_runoff * 28.317 * mcf_d;
+                            if w > 0.0 {
+                                self.ctx_.mass_balance.qual_bmp_removal[p] += rmvl * w;
+                                if is_runoff_load_r {
+                                    self.ctx_.mass_balance.qual_runoff_load[p] += w * (1.0 - rmvl);
+                                }
+                            }
+                        }
+                    }
+                    stub_if(species, "msxsurf::addLidDrainRunon")?;
+                    dest_node = -1;
+                }
+                if dest_node >= 0 && dest_node < self.ctx_.n_nodes() {
+                    let udn = dest_node as usize;
+                    if udn < self.ctx_.nodes.lid_drain_qual_vol.len() {
+                        self.ctx_.nodes.lid_drain_qual_vol[udn] += drain_cfs;
+                    }
+                    stub_if(self.ctx_.options.water_age && self.ctx_.lid_layer_state.active(), "SWMMEngine::stepRunoff A6b (LID drain age at the node)")?;
+                    stub_if(self.ctx_.options.heat_transport && self.ctx_.lid_layer_state.active(), "SWMMEngine::stepRunoff A6b (LID drain temperature at the node)")?;
+                    for p in 0..np_use as usize {
+                        let rmvl_idx = uu * np_lid as usize + p;
+                        let rmvl = if rmvl_idx < g.drain_rmvl.len() { g.drain_rmvl[rmvl_idx] } else { 0.0 };
+                        let src_idx = usc * np_ctx as usize + p;
+                        let c_src = if src_idx < self.ctx_.subcatches.conc.len() { self.ctx_.subcatches.conc[src_idx] } else { 0.0 };
+                        let nd_idx = udn * np_ctx as usize + p;
+                        if nd_idx < self.ctx_.nodes.lid_drain_qual_load.len() {
+                            self.ctx_.nodes.lid_drain_qual_load[nd_idx] += drain_cfs * c_src * (1.0 - rmvl);
+                        }
+                        if g.to_perv[uu] == 0 {
+                            let mcf_d = mcf_of(&self.ctx_, p);
+                            let w = drain_cfs * c_src * dt_runoff * 28.317 * mcf_d;
+                            if w > 0.0 {
+                                if p < self.ctx_.mass_balance.qual_bmp_removal.len() {
+                                    self.ctx_.mass_balance.qual_bmp_removal[p] += rmvl * w;
+                                }
+                                let is_runoff_load = g.drain_node[uu] >= 0 || g.drain_subcatch[uu] == sc;
+                                if is_runoff_load && p < self.ctx_.mass_balance.qual_runoff_load.len() {
+                                    self.ctx_.mass_balance.qual_runoff_load[p] += w * (1.0 - rmvl);
+                                }
+                            }
+                        }
+                    }
+                    stub_if(species, "msxsurf::addLidDrain")?;
+                }
             }
         }
         Ok(())
-    }
-
-    /// stepRunoff A6b: the LID units' outputs back to the subcatchments and nodes. Reached
-    /// only when no unit was evaluated (lid_execute_check stops the step otherwise).
-    fn lid_outputs(&mut self, _dt_runoff: f64) -> Result<(), Terminated> {
-        stub_if(!self.lid_.usage_order().is_empty() && self.lid_.groups_.iter().any(|g| g.count > 0), "SWMMEngine::stepRunoff A6b (LID outputs)")
     }
 
     /// SWMMEngine::assembleRunon: run-on from outfalls, upstream subcatchments and LID

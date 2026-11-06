@@ -67,7 +67,8 @@
 #       CTXGATE_DIFFDIR the full dumps at the first differing call are written there.
 #
 # DECKLIST=file runs the decks listed in it (one path per line) instead of the default set.
-# CTXGATE_KEEP=file keeps the list of differing decks; CTXGATE_SHOW=n shows the first n.
+# CTXGATE_KEEP=file keeps the list of differing decks; CTXGATE_STUBS=file the stub lines (step,
+# helpers, runoff modes); CTXGATE_SHOW=n shows the first n.
 H=$(cd "$(dirname "$0")/.." && pwd); W=$(mktemp -d)
 E="$H/target/release/examples"
 if [ -n "$DECKLIST" ]; then sort "$DECKLIST" > "$W/decks.txt"      # DECKLIST=file: one deck path per line
@@ -151,6 +152,7 @@ if [ "${1:-}" = init ] || [ "${1:-}" = start ] || [ "${1:-}" = step ] || [ "${1:
     echo "ctxgate $M: $same identical, $diff differ (stub reached on $stubn)"
   fi
   head -${CTXGATE_SHOW:-5} "$W/differ.txt"; head -3 "$W/stubs.txt"
+  [ -n "$CTXGATE_STUBS" ] && cp "$W/stubs.txt" "$CTXGATE_STUBS"
   [ -n "$CTXGATE_KEEP" ] && cp "$W/differ.txt" "$CTXGATE_KEEP"; rm -rf "$W"
   exit 0
 fi
