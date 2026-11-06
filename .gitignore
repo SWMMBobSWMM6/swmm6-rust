@@ -35,3 +35,5 @@ gate/diff/ctxstep
 __pycache__/
 *.pyc
 gate/diff/routestep
+gate/diff/outgate
+target-b/

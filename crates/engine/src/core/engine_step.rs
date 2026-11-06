@@ -40,8 +40,6 @@
 //     Err(stub) here.
 //   * xsp_cache_ keeps only its size (see engine.rs); getVelocity's XSectParams are built
 //     from the link store at the use, a verbatim copy of what the cache holds.
-//   * applyForcings' ADD rainfall forcing reads gage::getReportRainfall, not translated yet:
-//     Err(stub) there (forcing is set only through the C API).
 //   * The callbacks (progress, step begin and end) are boxed closures; the C callback's
 //     engine pointer and user data are their captures.
 //   * assembleLateralInflows is assemble_lateral_inflows_sources (every source) followed by
@@ -499,8 +497,8 @@ impl SwmmEngine {
             if c.forcing.gage_rainfall_mode[ug] == ForcingMode::Override {
                 c.gages.rainfall[ug] = c.forcing.gage_rainfall_value[ug];
             } else if c.forcing.gage_rainfall_mode[ug] == ForcingMode::Add {
-                // gage::getReportRainfall(ctx, g, current_date) + value
-                return Err(stub("gage::getReportRainfall (applyForcings ADD rainfall)"));
+                let r = crate::hydrology::gage_report::get_report_rainfall(c, g as i32, c.current_date);
+                c.gages.rainfall[ug] = r + c.forcing.gage_rainfall_value[ug];
             }
         }
         // ---- Link setting forcing ----

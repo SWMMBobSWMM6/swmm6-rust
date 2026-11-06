@@ -1573,6 +1573,35 @@ impl FromI64 for swmm6_rust::quality::landuse::WashoffType {
         bad_enum("WashoffType", v)
     }
 }
+impl FromI64 for swmm6_rust::transport::transport_policy::Domain {
+    fn from_i64(v: i64) -> Self {
+        use swmm6_rust::transport::transport_policy::Domain as E;
+        if v == E::Runoff as i64 { return E::Runoff; }
+        if v == E::Groundwater as i64 { return E::Groundwater; }
+        if v == E::Network1D as i64 { return E::Network1D; }
+        if v == E::Surface2D as i64 { return E::Surface2D; }
+        bad_enum("Domain", v)
+    }
+}
+impl FromI64 for swmm6_rust::transport::transport_policy::SpeciesClass {
+    fn from_i64(v: i64) -> Self {
+        use swmm6_rust::transport::transport_policy::SpeciesClass as E;
+        if v == E::Pollutants as i64 { return E::Pollutants; }
+        if v == E::Msx as i64 { return E::Msx; }
+        if v == E::Age as i64 { return E::Age; }
+        if v == E::Temperature as i64 { return E::Temperature; }
+        bad_enum("SpeciesClass", v)
+    }
+}
+impl FromI64 for swmm6_rust::transport::transport_policy::CellState {
+    fn from_i64(v: i64) -> Self {
+        use swmm6_rust::transport::transport_policy::CellState as E;
+        if v == E::Enabled as i64 { return E::Enabled; }
+        if v == E::DisabledByUser as i64 { return E::DisabledByUser; }
+        if v == E::Unavailable as i64 { return E::Unavailable; }
+        bad_enum("CellState", v)
+    }
+}
 /// Fill `c` (a fresh context) from the dump at `r`, as `ctxdump::dump` printed it.
 pub fn load(r: &mut Rd, c: &mut SimulationContext) {
     load_names(&mut c.node_names, r.vs("node_names"));

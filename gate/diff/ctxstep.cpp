@@ -123,6 +123,10 @@
 #include <sys/wait.h>
 
 static void full_dump(openswmm::SWMMEngine* eng) {
+    // The writer thread updates the output plugin's period count (lifedump prints it) after
+    // step() returns; drain it first, so the dump does not race it (the translation writes
+    // in the step).
+    eng->io_thread_.flush();
     ctxdump::dump(eng->context());
     ctxdump::engdump(*eng);
     ctxdump::rtdump(*eng);

@@ -99,7 +99,7 @@ fn infil_from_legacy(model: i32, lg: &[f64], v6: &mut [f64; 6]) {
 }
 
 /// buildupNorm: coverage fraction times area (PER_AREA) or curb length.
-fn buildup_norm(ctx: &crate::core::context::SimulationContext, ls: &LanduseSolver, ui: usize, lu: i32, p: i32) -> f64 {
+pub(crate) fn buildup_norm(ctx: &crate::core::context::SimulationContext, ls: &LanduseSolver, ui: usize, lu: i32, p: i32) -> f64 {
     let nlu = ctx.n_landuses();
     let np = ctx.n_pollutants();
     let cov = ui * nlu as usize + lu as usize;

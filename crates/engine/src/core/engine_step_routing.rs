@@ -299,7 +299,7 @@ impl SwmmEngine {
         self.ctx_.routing_stats.update_iterations(iters, converged);
 
         // B4b. Gap #55: inlet quality mass transfer (bypass <-> capture on the net flow).
-        //      (U85: B5's assembleExternalLoads zeroes what it adds.)
+        //      (U92: B5's assembleExternalLoads zeroes what it adds.)
         if self.ctx_.n_pollutants() > 0 && !self.ctx_.options.ignore_quality {
             self.inlet_.adjust_qual_inflows(&mut self.ctx_, dt_routing);
         }
