@@ -19,11 +19,14 @@
 // locals (forms and spans are assigned, values and before written, and the workspace
 // re-initialized before any read).
 //
-// NOT YET TRANSLATED (the routing step's node LIDs): MsxLidReactions.cpp's temperature
-// (file-local), heldMass, mobileWater, prepareNodes, outlet, receive, reactNodes; except
-// the read helpers translated with the quality stage.
+// The routing step's node LIDs (6 November 2026): temperature (file-local), prepareNodes and
+// reactNodes. heldMass, mobileWater, outlet and receive, which routeLegacyMsx calls, are in
+// transport/reaction_legacy_step.rs (msxlid_held_mass, msxlid_mobile_water, msxlid_outlet,
+// msxlid_receive), and heldMass again in core/report_results.rs for the report.
+// reactPool takes a writable pointer into lid.node_mass upstream; reactNodes here copies the
+// pool's slice out and back, since reactPool reads and writes nothing else of that store.
 
-use crate::core::cmath::cmax;
+use crate::core::cmath::{cclamp, cmax};
 use crate::core::context::SimulationContext;
 use crate::core::unit_conversion::{ucf, LANDAREA};
 use crate::hydrology::lid::{completed_unit_storage, LIDGroupSoA, LIDSolver, LIDType};
@@ -423,43 +426,234 @@ pub fn publish_units(c: &mut SimulationContext, dt: f64) {
     }
 }
 
-/// msxlid::prepareNodes, the part without a reactions-LID storage node: initialize the
-/// node stores, arm the species routing ledger (`fv_retained`: the FV transport's retained
-/// species mass, as route_legacy_msx takes it) and size msx_ext_mass_in. A deck with an
-/// opted-in LID storage node row (enabledNode) is refused before anything changes: the node
-/// half (the mobile/held split, the layer transfers, outlet, receive) is not translated.
+/// MsxLidReactions.cpp temperature (file-local): the node's heat temperature when heat is
+/// routed and finite, otherwise the reactions' default (degC).
+fn temperature(c: &SimulationContext, node: i32) -> f64 {
+    if c.options.heat_transport && node < c.heat_state.node_temp.len() as i32 && c.heat_state.node_temp[node as usize].is_finite() {
+        c.heat_state.node_temp[node as usize]
+    } else {
+        c.reactions.default_temp_c
+    }
+}
+
+/// msxlid::prepareNodes: replay the accepted LID water transfers into the layer and mobile
+/// species inventories before routing (`fv_retained`: the FV transport's retained species
+/// mass, as route_legacy_msx takes it, for armMsxRoutingLedger).
 pub fn prepare_nodes(c: &mut SimulationContext, dt: f64, fv_retained: &[f64]) -> Result<(), StepError> {
     if c.reactions.lid_controls.is_empty() || !(dt > 0.0) {
         return Ok(());
     }
-    for row in 0..c.node_subtypes.storages.count() {
-        if enabled_node(c, row) {
-            return Err(StepError::NotTranslated("reaction species LID storage nodes (msxlid::prepareNodes)"));
-        }
-    }
     initialize(c);
     crate::transport::reaction_legacy_step::arm_msx_routing_ledger(c, fv_retained);
-    let want = c.n_nodes() as usize * c.reactions.n_species() as usize;
+    let ns = c.reactions.n_species();
+    let uns = ns as usize;
+    let want = c.n_nodes() as usize * uns;
     c.reactions.msx_ext_mass_in.resize(want, 0.0);
+    let n_links = c.n_links() as usize;
+    let n_pollutants = c.n_pollutants();
+    for row in 0..c.node_subtypes.storages.count() {
+        if !enabled_node(c, row) {
+            continue;
+        }
+        let ur = row as usize;
+        let st = &c.node_subtypes.storages;
+        let state = &st.lid_state[ur];
+        if state.quality_old_water.len() != state.cells.len() {
+            continue;
+        }
+        let node = st.node_idx[ur];
+        let un = node as usize;
+        let base = un * uns;
+        let mut water = state.quality_old_water.clone();
+        let mut mobile = state.quality_old_mobile;
+        let r = &mut c.reactions;
+        let mass = &mut r.lid.node_mass[ur];
+        let mut mobile_mass = vec![0.0f64; uns];
+        let mut external = vec![0.0f64; uns];
+        let mut capture = 0.0;
+        for t in state.quality_transfers.iter() {
+            if t.from == -2 {
+                capture += t.volume;
+            }
+        }
+        let incoming = c.nodes.qual_vol_in[un] + if n_pollutants > 0 { capture } else { 0. };
+        for sp in 0..uns {
+            mobile_mass[sp] = r.msx_node_conc[base + sp] * mobile;
+            if state.richards {
+                mobile_mass[sp] += mass[sp];
+                mass[sp] = 0.0;
+            }
+            external[sp] = if incoming > 0.0 { cmax(0., r.msx_ext_mass_in[base + sp] * dt / incoming) } else { 0. };
+        }
+        for t in state.quality_transfers.iter() {
+            if t.to == -3 {
+                if t.from < 0 {
+                    mobile = cmax(0., mobile - t.volume);
+                } else {
+                    water[t.from as usize] = cmax(0., water[t.from as usize] - t.volume);
+                }
+                continue;
+            }
+            let available = if t.from == -2 {
+                t.volume
+            } else if t.from < 0 {
+                mobile
+            } else {
+                water[t.from as usize]
+            };
+            for sp in 0..uns {
+                let resident = if t.from == -2 {
+                    external[sp] * t.volume
+                } else if t.from < 0 {
+                    mobile_mass[sp]
+                } else {
+                    mass[t.from as usize * uns + sp]
+                };
+                let sent = if available > 0.0 { cmax(0., resident) * cclamp(t.volume / available, 0., 1.) } else { 0. };
+                if t.from == -2 {
+                    r.msx_ext_mass_in[base + sp] = cmax(0., r.msx_ext_mass_in[base + sp] - sent / dt);
+                    r.msx_ledger.inflow[sp] += sent;
+                } else if t.from < 0 {
+                    mobile_mass[sp] -= sent;
+                } else {
+                    mass[t.from as usize * uns + sp] -= sent;
+                }
+                if t.to == -4 {
+                    r.msx_ledger.seepage[sp] += sent;
+                } else if t.to < 0 {
+                    mobile_mass[sp] += sent;
+                } else {
+                    mass[t.to as usize * uns + sp] += sent;
+                }
+            }
+            if t.from == -2 {
+                if n_pollutants == 0 {
+                    c.nodes.qual_vol_in[un] = cmax(0., c.nodes.qual_vol_in[un] - t.volume);
+                }
+            } else if t.from < 0 {
+                mobile = cmax(0., mobile - t.volume);
+            } else {
+                water[t.from as usize] = cmax(0., water[t.from as usize] - t.volume);
+            }
+            if t.to != -4 {
+                if t.to < 0 {
+                    mobile += t.volume;
+                } else {
+                    water[t.to as usize] += t.volume;
+                }
+            }
+        }
+        let out = &mut r.lid.node_outlet[ur];
+        out.clear();
+        out.resize(n_links * uns, f64::NAN);
+        for p in state.quality_ports.iter() {
+            if p.volume < 0.0 {
+                let pc = p.cell as usize;
+                let available = water[pc];
+                for sp in 0..uns {
+                    let donor = &mut mass[pc * uns + sp];
+                    let sent = if available > 0.0 { cmax(0., *donor) * cclamp(-p.volume / available, 0., 1.) } else { 0. };
+                    *donor -= sent;
+                    out[p.link as usize * uns + sp] = sent / (-p.volume);
+                }
+                water[pc] = cmax(0., available + p.volume);
+            }
+        }
+        r.lid.node_mobile_old[ur] = mobile;
+        for sp in 0..uns {
+            if mobile > 1.0e-12 {
+                r.msx_node_conc[base + sp] = mobile_mass[sp] / mobile;
+            } else {
+                mass[sp] += mobile_mass[sp];
+                r.msx_node_conc[base + sp] = 0.0;
+            }
+        }
+    }
     Ok(())
 }
 
-/// msxlid::reactNodes: a no-op without an opted-in LID storage node row (prepare_nodes
-/// refuses a deck that has one).
-pub fn react_nodes(c: &mut SimulationContext, _dt: f64) -> Result<(), StepError> {
+/// msxlid::reactNodes: react the opted-in LID nodes' held layer pools and the weighted
+/// mobile-water portions once per interval.
+pub fn react_nodes(c: &mut SimulationContext, dt: f64) -> Result<(), StepError> {
     if c.reactions.lid_controls.is_empty() {
         return Ok(());
     }
+    let ns = c.reactions.n_species();
+    let uns = ns as usize;
+    let mut reacted: Vec<f64> = Vec::new();
+    let mut clamped: Vec<f64> = Vec::new();
+    fn book(c: &mut SimulationContext, reacted: &[f64], clamped: &[f64]) {
+        let r = &mut c.reactions;
+        for sp in 0..reacted.len() {
+            r.msx_ledger.reacted[sp] += reacted[sp];
+            r.msx_ledger.clamped[sp] += clamped[sp];
+        }
+    }
     for row in 0..c.node_subtypes.storages.count() {
-        if enabled_node(c, row) {
-            return Err(StepError::NotTranslated("reaction species LID storage nodes (msxlid::reactNodes)"));
+        if !enabled_node(c, row) {
+            continue;
+        }
+        let ur = row as usize;
+        let node = c.node_subtypes.storages.node_idx[ur];
+        let un = node as usize;
+        let control = c.node_subtypes.storages.lid[ur].control;
+        let temp = temperature(c, node);
+        let ncells = c.node_subtypes.storages.lid_state[ur].cells.len();
+        for i in 0..ncells {
+            let (v, layer) = {
+                let state = &c.node_subtypes.storages.lid_state[ur];
+                let v = if state.richards && i < state.richards_water.len() { state.richards_water[i] } else { state.cells[i].theta * state.cells[i].geometric_volume };
+                (v, state.cells[i].layer)
+            };
+            // reactPool reads and writes only this pool's slice of node_mass
+            let mut pool: Vec<f64> = c.reactions.lid.node_mass[ur][i * uns..(i + 1) * uns].to_vec();
+            react_pool(c, control, layer, v, &mut pool, dt, temp, &mut reacted, &mut clamped)?;
+            c.reactions.lid.node_mass[ur][i * uns..(i + 1) * uns].copy_from_slice(&pool);
+            book(c, &reacted, &clamped);
+        }
+        let v = c.nodes.volume[un];
+        if !(v > crate::quality::quality_routing::ZERO_VOLUME) {
+            continue;
+        }
+        let mut shares = vec![0.0f64; ncells];
+        let mut total = 0.0;
+        {
+            let state = &c.node_subtypes.storages.lid_state[ur];
+            for i in 0..ncells {
+                let cell = &state.cells[i];
+                if state.richards && cell.kind != crate::data::lid_node::LidNodeLayerKind::Surface {
+                    continue;
+                }
+                shares[i] = cell.geometric_volume * cmax(0., cell.porosity - cell.theta) * cclamp((c.nodes.depth[un] - cell.bottom) / (cell.top - cell.bottom), 0., 1.);
+                total += shares[i];
+            }
+        }
+        if !(total > 0.0) {
+            continue;
+        }
+        let mut original = vec![0.0f64; uns];
+        let mut delta = vec![0.0f64; uns];
+        let mut mass = vec![0.0f64; uns];
+        for sp in 0..uns {
+            original[sp] = c.reactions.msx_node_conc[un * uns + sp];
+        }
+        for i in 0..shares.len() {
+            if shares[i] > 0.0 {
+                let volume = v * shares[i] / total;
+                for sp in 0..uns {
+                    mass[sp] = original[sp] * volume;
+                }
+                let layer = c.node_subtypes.storages.lid_state[ur].cells[i].layer;
+                react_pool(c, control, layer, volume, &mut mass, dt, temp, &mut reacted, &mut clamped)?;
+                book(c, &reacted, &clamped);
+                for sp in 0..uns {
+                    delta[sp] += mass[sp] - original[sp] * volume;
+                }
+            }
+        }
+        for sp in 0..uns {
+            c.reactions.msx_node_conc[un * uns + sp] = cmax(0., original[sp] + delta[sp] / v);
         }
     }
     Ok(())
-}
-
-/// Whether any storage row is an opted-in reactions-LID node (enabledNode): the part of
-/// prepareNodes / reactNodes not translated yet.
-pub fn has_enabled_node(c: &SimulationContext) -> bool {
-    (0..c.node_subtypes.storages.count()).any(|row| enabled_node(c, row))
 }

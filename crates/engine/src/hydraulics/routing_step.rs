@@ -83,7 +83,13 @@ impl Router {
         if ctx.options.routing_model != RoutingModel::Fv {
             self.update_link_states(ctx);
         }
-        // (mesh_richards is false: refused above)
+        if mesh_richards {
+            for s in ctx.node_subtypes.storages.lid_state.iter_mut() {
+                if s.richards_mesh_pending_finish {
+                    s.richards_mesh_routed = true;
+                }
+            }
+        }
         Ok(iters)
     }
 

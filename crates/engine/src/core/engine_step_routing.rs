@@ -27,7 +27,7 @@
 // bed exchange), engine checkpointing, FV quality transport of reaction species, heat
 // or bed exchange, the FV solver options
 // Router::fv_not_translated names,
-// node LID Richards columns, and what the solvers report as not translated (DYNAMIC_SLOT,
+// and what the solvers report as not translated (DYNAMIC_SLOT,
 // TPA, physical junction areas, control-rule expression premises, checkpoint sessions).
 
 use crate::core::context::SimulationContext;
@@ -75,9 +75,6 @@ impl SwmmEngine {
             if let Some(w) = self.router_.fv_not_translated(ctx) {
                 return Some(w);
             }
-        }
-        if lidnode::unsupported(ctx) {
-            return Some("Richards node LID columns");
         }
         // B5's gate: the quality stage runs this step
         if (ctx.n_pollutants() > 0 || legacy_reactions_active(ctx) || ctx.options.water_age || ctx.options.heat_transport) && !ctx.options.ignore_quality {

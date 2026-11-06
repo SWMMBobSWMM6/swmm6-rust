@@ -27,9 +27,7 @@
 //
 // NOT YET TRANSLATED (StepError::NotTranslated; SWMMEngine::stepRouting refuses such a deck
 // before any state changes): the ROS2 and BDF2 solvers, EQUIL species (the joint Newton),
-// booster sources (reactionBoosterMass with a booster row, reactionSourceFactor), and the
-// reactions-LID storage node rows (msxlid::prepareNodes / reactNodes past their no-node
-// path, quality/msx_lid.rs).
+// and booster sources (reactionBoosterMass with a booster row, reactionSourceFactor).
 
 use crate::core::cmath::{cclamp, cmax, cmin};
 use crate::core::context::SimulationContext;
@@ -51,9 +49,6 @@ const K_MIN_STEP_FRAC: f64 = 1.0e-8;
 /// SWMMEngine::stepRouting before the step changes anything).
 pub fn reactions_not_translated(ctx: &SimulationContext) -> Option<&'static str> {
     let rx = &ctx.reactions;
-    if !rx.lid_controls.is_empty() && crate::quality::msx_lid::has_enabled_node(ctx) {
-        return Some("reaction species LID storage nodes (msxlid::prepareNodes / reactNodes)");
-    }
     if rx.sources.iter().any(|s| s.booster != 0) {
         return Some("reaction booster sources");
     }

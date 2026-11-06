@@ -32,10 +32,10 @@
 //
 // NOT YET TRANSLATED (each returns StepError::NotTranslated where upstream would first act;
 // SWMMEngine::stepRouting refuses such a deck before any state changes, so none is reached):
-//   the FV branch of execute (FvQualityTransport::execute, applyPollutantDecay, the bed
-//   exchange), and msxlid::prepareNodes / reactNodes for a reactions-LID storage node row
-//   (quality/msx_lid.rs translates the rest of them). (routeLegacyAge, routeLegacyHeat, routeLegacyMsx and
-//   reactLegacyNodes / reactLegacyLinks are in transport/water_age_legacy.rs,
+//   in the FV branch of execute, reactLegacyNodes / reactLegacyLinks after the FV transport
+//   (reaction species under FLOW_ROUTING FV) and heat::applyBedSoluteExchange. (msxlid's
+//   prepareNodes / reactNodes are in quality/msx_lid.rs; routeLegacyAge, routeLegacyHeat,
+//   routeLegacyMsx and reactLegacyNodes / reactLegacyLinks in transport/water_age_legacy.rs,
 //   heat_legacy.rs and reaction_legacy_step.rs.)
 //   FvQualityTransport.cpp: execute, applyPollutantDecay, dryRestartState,
 //     restoreDryRestart, retainedSpeciesMass (and the inline hasRetainedDryMass,

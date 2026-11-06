@@ -70,7 +70,7 @@ fn rain_depth(ctx: &SimulationContext) -> f64 {
 }
 
 /// LidNodeRichards.cpp refresh: pressure and theta of every porous cell from its water.
-fn refresh(s: &mut LidNodeState, stack: &[LidNodeLayer], name: &[u8]) -> Result<(), Terminated> {
+pub(crate) fn refresh(s: &mut LidNodeState, stack: &[LidNodeLayer], name: &[u8]) -> Result<(), Terminated> {
     s.held_volume = 0.0;
     for i in 0..s.cells.len() {
         if i == 0 {

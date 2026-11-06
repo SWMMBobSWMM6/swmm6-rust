@@ -17,11 +17,11 @@
 //   * std::max over an initializer list is a left fold of cmax, which is what max_element's
 //     `largest < *it` test computes.
 //
-// NOT YET TRANSLATED: Richards columns (LidNodeRichards.cpp: prepareRichardsStep's column
-// advance, exchangeRichardsPorts, refreshRichardsState, the Mesh-aquifer owner checks).
-// `unsupported` reports a Richards row, and SWMMEngine::stepRouting
-// (core/engine_step_routing.rs) returns StepError::NotTranslated for such a deck before any
-// state changes, so every Richards branch below is unreachable and returns NotTranslated.
+// The Richards columns (6 November 2026): prepareStepImpl calls prepareRichardsStep,
+// exchangePorts hands a link with a Richards end to exchangeRichardsPorts, finishStep checks
+// the Mesh-aquifer owners and finishRows carries the Richards branches (the routed Mesh
+// state, the porous port water, refreshRichardsState); LidNodeRichards.cpp is in
+// hydrology/lid_node_richards.rs, RichardsColumn.cpp in hydrology/richards_column.rs.
 
 use crate::core::cmath::{cclamp, cmax, cmin};
 use crate::core::context::SimulationContext;
@@ -33,11 +33,9 @@ use crate::hydraulics::node_step;
 use crate::hydrology::infiltration::grnampt_get_infil;
 use crate::hydrology::infiltration::InfilModel;
 use crate::hydrology::lid_node::layers;
-
-/// A storage row with a Richards column (not translated yet).
-pub fn unsupported(ctx: &SimulationContext) -> bool {
-    ctx.node_subtypes.storages.lid_state.iter().any(|s| s.richards)
-}
+use crate::hydrology::lid_node_init::refresh_richards_state;
+use crate::hydrology::lid_node_richards as lnr;
+pub use crate::hydrology::lid_node_richards::validate_richards_routing;
 
 /// lidnode::active
 pub fn active(ctx: &SimulationContext, node: i32) -> bool {
@@ -136,10 +134,7 @@ pub fn prepare_step(ctx: &mut SimulationContext, dt: f64, evaporation: f64) -> R
     if !(dt > 0.0) {
         return Ok(());
     }
-    // prepareRichardsStep: with no Richards row it collects no column and returns
-    if unsupported(ctx) {
-        return Err(StepError::NotTranslated("Richards node LID columns"));
-    }
+    lnr::prepare_richards_step(ctx, dt, evaporation, false)?;
     let us = ucf::get_unit_system(ctx.options.flow_units as i32);
     let count = ctx.node_subtypes.storages.count();
     for r in 0..count as usize {
@@ -313,9 +308,19 @@ pub fn prepare_step(ctx: &mut SimulationContext, dt: f64, evaporation: f64) -> R
     Ok(())
 }
 
-/// finishRows over every row (no Richards row reaches here).
-fn finish_rows(ctx: &mut SimulationContext, rows: &[i32]) {
-    let us = ucf::get_unit_system(ctx.options.flow_units as i32);
+/// finishRows: publish the rows' port water and completed retained/mobile receipts.
+fn finish_rows(ctx: &mut SimulationContext, rows: &[i32]) -> Result<(), StepError> {
+    let count = ctx.node_subtypes.storages.count() as usize;
+    let mut mesh_ports: Vec<LidNodeState> = Vec::new();
+    if rows.iter().any(|&r| ctx.node_subtypes.storages.lid_state[r as usize].richards_mesh_pending_finish) {
+        mesh_ports.resize(count, LidNodeState::default());
+    }
+    for &r in rows {
+        if ctx.node_subtypes.storages.lid_state[r as usize].richards_mesh_pending_finish {
+            // qualify every owned port state before changing any row
+            mesh_ports[r as usize] = lnr::routed(ctx, r)?;
+        }
+    }
     for &r in rows {
         let ur = r as usize;
         if ctx.node_subtypes.storages.lid_state[ur].cells.is_empty() {
@@ -324,20 +329,39 @@ fn finish_rows(ctx: &mut SimulationContext, rows: &[i32]) {
         let n = ctx.node_subtypes.storages.node_idx[ur] as usize;
         {
             let state = &mut ctx.node_subtypes.storages.lid_state[ur];
-            // (richards_mesh_pending_finish: Richards only)
+            if state.richards_mesh_pending_finish {
+                *state = std::mem::take(&mut mesh_ports[ur]);
+            }
             for i in 0..state.cells.len() {
-                let pd = state.port_delta[i];
-                let cell = &mut state.cells[i];
-                if cell.geometric_volume > 0.0 {
+                if state.richards {
+                    if !state.richards_mesh_pending_finish {
+                        state.richards_water[i] += state.port_delta[i];
+                    }
+                } else if state.cells[i].geometric_volume > 0.0 {
+                    let pd = state.port_delta[i];
+                    let cell = &mut state.cells[i];
                     cell.theta += pd / cell.geometric_volume;
                 }
             }
+        }
+        if ctx.node_subtypes.storages.lid_state[ur].richards {
+            refresh_richards_state(ctx, r).map_err(|t| StepError::Exception(t.what))?;
+        }
+        {
+            let state = &mut ctx.node_subtypes.storages.lid_state[ur];
             state.held_volume = 0.0;
-            for i in 0..state.cells.len() {
-                let cell = &state.cells[i];
-                state.held_volume += cell.theta * cell.geometric_volume;
+            if state.richards {
+                for k in 0..state.richards_water.len() {
+                    state.held_volume += state.richards_water[k];
+                }
+            } else {
+                for i in 0..state.cells.len() {
+                    let cell = &state.cells[i];
+                    state.held_volume += cell.theta * cell.geometric_volume;
+                }
             }
         }
+        let us = ucf::get_unit_system(ctx.options.flow_units as i32);
         refresh_node(ctx, n, us);
         let depth = ctx.nodes.depth[n];
         let st = &mut ctx.node_subtypes.storages;
@@ -349,36 +373,38 @@ fn finish_rows(ctx: &mut SimulationContext, rows: &[i32]) {
         ctx.nodes.lat_flow[node_r] += state.captured_flow;
         st.evap_loss[ur] += st.lid_state[ur].evap_volume;
         st.exfil_loss[ur] += st.lid_state[ur].richards_bottom_loss;
-        st.lid_state[ur].captured_flow = 0.0;
+        let state = &mut st.lid_state[ur];
+        state.captured_flow = 0.0;
+        if state.richards_mesh_pending_finish {
+            state.port_delta.iter_mut().for_each(|x| *x = 0.0);
+            state.mobile_delta = 0.0;
+            state.richards_mesh_pending_finish = false;
+            state.richards_mesh_routed = false;
+        }
     }
+    Ok(())
 }
 
 /// lidnode::finishStep
 pub fn finish_step(ctx: &mut SimulationContext) -> Result<(), StepError> {
     let count = ctx.node_subtypes.storages.count();
     let mut rows: Vec<i32> = Vec::new();
+    let mut first: Option<usize> = None;
     for r in 0..count as usize {
         rows.push(r as i32);
         let st = &ctx.node_subtypes.storages;
-        if !st.lid_state[r].richards || st.lid[r].bottom != LidNodeBottom::MeshAquifer {
+        let s = &st.lid_state[r];
+        if !s.richards || st.lid[r].bottom != LidNodeBottom::MeshAquifer {
             continue;
         }
-        return Err(StepError::NotTranslated("Richards node LID columns"));
+        let (start, end) = match first {
+            Some(f) => (st.lid_state[f].richards_mesh_start, st.lid_state[f].richards_completed_time),
+            None => (s.richards_mesh_start, s.richards_completed_time),
+        };
+        lnr::check_mesh_interval(s, start, end)?;
+        first = Some(r);
     }
-    finish_rows(ctx, &rows);
-    Ok(())
-}
-
-/// lidnode::validateRichardsRouting: false without mesh-aquifer Richards columns.
-pub fn validate_richards_routing(ctx: &SimulationContext, _dt: f64) -> Result<bool, StepError> {
-    let st = &ctx.node_subtypes.storages;
-    for r in 0..st.count() as usize {
-        if !st.lid_state[r].richards || st.lid[r].bottom != LidNodeBottom::MeshAquifer {
-            continue;
-        }
-        return Err(StepError::NotTranslated("Richards node LID columns"));
-    }
-    Ok(false)
+    finish_rows(ctx, &rows)
 }
 
 /// lidnode::bottomMode
@@ -487,7 +513,7 @@ pub fn exchange_ports(ctx: &mut SimulationContext, link: i32, flow: f64, dt: f64
     let n1 = ctx.links.node1[ul];
     let n2 = ctx.links.node2[ul];
     if richards_mode(ctx, n1) || richards_mode(ctx, n2) {
-        return Err(StepError::NotTranslated("Richards node LID ports"));
+        return lnr::exchange_richards_ports(ctx, link, flow, dt);
     }
     if !active(ctx, n1) && !active(ctx, n2) {
         return Ok(flow);
