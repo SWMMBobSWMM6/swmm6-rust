@@ -3,3 +3,4 @@ pub mod landuse;
 pub mod msx_lid;
 pub mod quality_routing;
 pub mod surface_species_kernel;
+pub mod treatment;

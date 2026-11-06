@@ -12,15 +12,16 @@
 // getGutterAreaRatio, getSplashOverVelocity, getGrateInletCapture, getCurbInletCapture,
 // getOnGradeInletCapture, getOnGradeCapturedFlow, findOnSagGrateFlows, getCurbOrificeFlow,
 // findOnSagCurbFlows, getOnSagSlottedFlow, getOnSagInletCapture, getOnSagCapturedFlow,
-// getCustomCapturedFlow, with SPLASH_COEFFS.
+// getCustomCapturedFlow, with SPLASH_COEFFS; and adjustQualInflows (the routing step's
+// inlet quality transfer, B4b).
 //
 // Differences in form, never in result:
 //   * Geom's `const XSectParams* xs` (null for street inlets) is an Option<XSectParams> held
 //     by value in the Geom.
 //   * The out-parameters of findOnSagGrateFlows / findOnSagCurbFlows are &mut f64.
 //
-// NOT YET TRANSLATED here: adjustQualInflows (quality), adjustFloodingTotals and gatherStats
-// (the step's bookkeeping, outside stepRouting).
+// adjustFloodingTotals and gatherStats (the step's bookkeeping, outside stepRouting) are not
+// here.
 
 use crate::core::cmath::{cmax, cmin};
 use crate::core::context::SimulationContext;
@@ -644,6 +645,59 @@ impl InletSolver {
         if q > s.peak_flow[ui] {
             s.peak_flow[ui] = q;
             s.peak_flow_capture[ui] = f_capture * 100.0;
+        }
+    }
+}
+
+impl InletSolver {
+    /// InletSolver::adjustQualInflows (legacy inlet_adjustQualInflows): the net captured flow
+    /// carries the bypass node's old quality into the capture node, a net backflow the
+    /// capture node's into the bypass node.
+    pub fn adjust_qual_inflows(&mut self, ctx: &mut SimulationContext, dt: f64) {
+        let ni = self.soa_.count;
+        if ni == 0 {
+            return;
+        }
+        let np = ctx.n_pollutants();
+        if np == 0 {
+            return;
+        }
+        let nn = ctx.n_nodes();
+        let unp = np as usize;
+        let nodes = &mut ctx.nodes;
+        for ii in 0..ni {
+            let ui = ii as usize;
+            let bypass = self.soa_.bypass_node[ui];
+            let capture = self.soa_.node_idx[ui];
+            if bypass < 0 || bypass >= nn {
+                continue;
+            }
+            if capture < 0 || capture >= nn {
+                continue;
+            }
+            let q_net = self.soa_.flow_capture[ui] - self.soa_.backflow[ui];
+            let ub = bypass as usize;
+            let uc = capture as usize;
+            if q_net > 0.0 {
+                nodes.qual_vol_in[uc] += q_net * dt;
+                for p in 0..unp {
+                    let nd_idx = uc * unp + p;
+                    let by_idx = ub * unp + p;
+                    if nd_idx < nodes.qual_mass_in.len() && by_idx < nodes.conc_old.len() {
+                        nodes.qual_mass_in[nd_idx] += q_net * nodes.conc_old[by_idx];
+                    }
+                }
+            } else if q_net < 0.0 {
+                let q_bkf = -q_net;
+                nodes.qual_vol_in[ub] += q_bkf * dt;
+                for p in 0..unp {
+                    let nd_idx = ub * unp + p;
+                    let cp_idx = uc * unp + p;
+                    if nd_idx < nodes.qual_mass_in.len() && cp_idx < nodes.conc_old.len() {
+                        nodes.qual_mass_in[nd_idx] += q_bkf * nodes.conc_old[cp_idx];
+                    }
+                }
+            }
         }
     }
 }

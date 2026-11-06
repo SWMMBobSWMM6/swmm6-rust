@@ -9,7 +9,9 @@
 // SWMMEngine::stepRouting: one routing step (phase B of step()): events, pump hysteresis,
 // control rules, setting transitions, external / DWF / RDII / interface inflows, lateral
 // inflow assembly, the steady-state skip, the hydraulic routing step through the Router with
-// the non-conduit (structure) callback, and the routing statistics' iteration count.
+// the non-conduit (structure) callback, the routing statistics' iteration count, and the
+// quality stage: the inlet quality transfer (InletSolver::adjustQualInflows, B4b) and the
+// LEGACY quality router (QualitySolver::execute, B5; quality/quality_routing.rs).
 //
 // Differences in form, never in result:
 //   * stepRouting can throw a std::exception, which step() catches (set_error with
@@ -19,10 +21,12 @@
 //   * The SWMM_TRACE_RSTEP / SWMM_TRACE_DUMP_STEP trace prints only and is left out.
 //   * OPENSWMM_HAS_2D is off in the reference build; its blocks are absent here too.
 //
-// NOT YET TRANSLATED (StepError::NotTranslated, returned before the hydraulic step changes
-// anything it would not also change upstream): the quality stage (QualitySolver::execute,
-// the EULERIAN_ARD and LAGRANGIAN engines, inlet quality transfer), species surface washoff
-// delivery (msxsurf::deliver for an active surface), engine checkpointing, the FV router,
+// NOT YET TRANSLATED (StepError::NotTranslated, returned before the step changes anything:
+// step_routing_not_translated): the EULERIAN_ARD and LAGRANGIAN quality engines (ArdEngine,
+// LagrangianSolver), legacy reactions (reactLegacyNodes/Links), reaction species transport
+// (routeLegacyMsx) and LID species (msxlid), water age (routeLegacyAge), heat transport
+// (routeLegacyHeat and the bed exchange), species surface washoff delivery (msxsurf::deliver
+// for an active surface), engine checkpointing, the FV router (and FV quality transport),
 // node LID Richards columns, and what the solvers report as not translated (DYNAMIC_SLOT,
 // TPA, physical junction areas, control-rule expression premises, checkpoint sessions).
 
@@ -33,7 +37,6 @@ use crate::core::engine_step::STUB_EXCEPTION;
 use crate::core::engine::SwmmEngine;
 use crate::core::options::{QualitySolverKind, RoutingModel};
 use crate::data::link::LinkType;
-use crate::data::forcing::ForcingMode;
 use crate::hydraulics::dynamic_wave_step::{bound_surface_outfall_flow, NcView};
 use crate::hydraulics::hyd_structures::StructureSolver;
 use crate::hydrology::lid_node_step as lidnode;
@@ -77,8 +80,28 @@ impl SwmmEngine {
         if !ctx.options.ignore_quality && ctx.reactions.surface.active() {
             return Some("species surface washoff delivery");
         }
+        // B5's gate: the quality stage runs this step
         if (ctx.n_pollutants() > 0 || legacy_reactions_active(ctx) || ctx.options.water_age || ctx.options.heat_transport) && !ctx.options.ignore_quality {
-            return Some("quality routing");
+            match ctx.options.quality_solver {
+                QualitySolverKind::EulerianArd => return Some("EULERIAN_ARD quality engine"),
+                QualitySolverKind::Lagrangian => return Some("LAGRANGIAN quality engine"),
+                _ => {}
+            }
+            if legacy_reactions_active(ctx) {
+                return Some("legacy reactions");
+            }
+            if ctx.reactions.n_species() > 0 {
+                return Some("reaction species transport");
+            }
+            if !ctx.reactions.lid_controls.is_empty() {
+                return Some("reaction species LID controls");
+            }
+            if ctx.options.water_age {
+                return Some("water age");
+            }
+            if ctx.options.heat_transport {
+                return Some("heat transport");
+            }
         }
         None
     }
@@ -284,8 +307,21 @@ impl SwmmEngine {
         let converged = self.router_.last_step_converged();
         self.ctx_.routing_stats.update_iterations(iters, converged);
 
-        // B4b / B5. Quality (refused above when it would run)
-        let _ = (ForcingMode::None, QualitySolverKind::Legacy);
+        // B4b. Gap #55: inlet quality mass transfer (bypass <-> capture on the net flow).
+        //      (U85: B5's assembleExternalLoads zeroes what it adds.)
+        if self.ctx_.n_pollutants() > 0 && !self.ctx_.options.ignore_quality {
+            self.inlet_.adjust_qual_inflows(&mut self.ctx_, dt_routing);
+        }
+
+        // B5. Water quality routing
+        if (self.ctx_.n_pollutants() > 0 || legacy_reactions_active(&self.ctx_) || self.ctx_.options.water_age || self.ctx_.options.heat_transport) && !self.ctx_.options.ignore_quality {
+            match self.ctx_.options.quality_solver {
+                // refused in step_routing_not_translated
+                QualitySolverKind::EulerianArd => return Err(StepError::NotTranslated("EULERIAN_ARD quality engine")),
+                QualitySolverKind::Lagrangian => return Err(StepError::NotTranslated("LAGRANGIAN quality engine")),
+                _ => self.quality_.execute(&mut self.ctx_, dt_routing)?,
+            }
+        }
         Ok(())
     }
 }

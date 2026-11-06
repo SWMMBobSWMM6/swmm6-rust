@@ -15,6 +15,7 @@ pub mod lid_kernel;
 pub mod lid_node;
 pub mod lid_node_step;
 pub mod lid_node_held;
+pub mod lid_node_quality;
 pub mod lid_node_init;
 pub mod native_snow;
 pub mod radiation;
