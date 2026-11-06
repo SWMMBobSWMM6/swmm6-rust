@@ -43,6 +43,10 @@ pub fn last_io_error() -> Bytes {
     TL_LAST_IO_ERROR.with(|e| e.borrow().clone())
 }
 
+pub(crate) fn set_last_io_error(m: Bytes) {
+    set_io_error(m)
+}
+
 fn set_io_error(m: Bytes) {
     TL_LAST_IO_ERROR.with(|e| *e.borrow_mut() = m);
 }
@@ -215,7 +219,7 @@ pub fn is_native_file(path: &[u8]) -> bool {
 }
 
 /// meshLidRestartUnsupported: a storage LID on the mesh aquifer.
-fn mesh_lid_restart_unsupported(ctx: &SimulationContext) -> bool {
+pub(crate) fn mesh_lid_restart_unsupported(ctx: &SimulationContext) -> bool {
     ctx.node_subtypes.storages.lid.iter().any(|c| c.control >= 0 && c.bottom == LidNodeBottom::MeshAquifer)
 }
 

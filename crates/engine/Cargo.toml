@@ -21,3 +21,7 @@ required-features = ["gate"]
 [[example]]
 name = "initqual"
 required-features = ["gate"]
+
+[[example]]
+name = "outgate"
+required-features = ["gate"]

@@ -9,5 +9,6 @@ pub mod msx_surface;
 pub mod reaction_expression;
 pub mod reaction_legacy_binding;
 pub mod reactions_component;
+pub mod transport_policy;
 pub mod water_age_component;
 pub mod water_age_lid;

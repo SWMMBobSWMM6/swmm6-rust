@@ -78,6 +78,24 @@
 #       CTXGATE_LOG=file appends one line per deck. Files a deck SAVEs to (gate/savefiles.py)
 #       are backed up before the run and restored after, since upstream's start() truncates
 #       them and another deck may USE them.
+#   gate/ctxgate.sh out start
+#       the output side after start() (gate/diff/outgate and examples/outgate, "start"): both
+#       run open, initialize and start(save = 1) as the CLI does, writing a .rpt and a .out
+#       into a scratch folder, and stop there (on success the files are flushed and the
+#       process ends without closing them; a failure takes the CLI's failure path: close,
+#       destroy). The two .rpt files (without the three wall-clock lines), the two .out files
+#       and the exit codes must be identical: the preamble and the .out header after a start,
+#       the whole report of a deck that fails in open, initialize or start.
+#   gate/ctxgate.sh out run [K0 [K1 [STRIDE]]]
+#       the period records and the end of the run without the runoff step: upstream
+#       (gate/diff/outgate run) runs the deck to the end through its C API, printing the whole
+#       state before each report period's postOutputSnapshot (periods K0..K1, default all,
+#       every STRIDE-th) and before end(); examples/outgate stream loads each state into its
+#       own started engine, runs the translated post_output_snapshot, then end, report and
+#       close, and compares the period records, the .out header and closing records, the
+#       .rpt (clock lines removed) and the exit code. Results: identical P, differ (what,
+#       where), nottranslated, nostart (upstream stops before stepping; files compared as in
+#       "start"), noresult, panic. Files a deck SAVEs to are backed up and restored.
 #
 # DECKLIST=file runs the decks listed in it (one path per line) instead of the default set.
 # CTXGATE_KEEP=file keeps the list of differing decks; CTXGATE_SHOW=n shows the first n.
@@ -108,6 +126,46 @@ if [ "${1:-}" = route ]; then
     printf '%s %s\n' "$k" "$(grep -c "^$k " "$W/res.txt")"
   done | tr '\n' ' '; echo "(route calls $K0..$K1 $HYD)"
   grep -v '^identical \|^nostart \|^nosteps ' "$W/res.txt" | head -${CTXGATE_SHOW:-5}
+  [ -n "$CTXGATE_KEEP" ] && cp "$W/res.txt" "$CTXGATE_KEEP"; rm -rf "$W"
+  exit 0
+fi
+
+if [ "${1:-}" = out ]; then
+  M=${2:-start}; C_BIN="$H/gate/diff/outgate"; R_BIN="$E/outgate"; K0=${3:-1}; K1=${4:-0}; ST=${5:-1}
+  : > "$W/res.txt"; mkdir -p "$W/bak" "$W/c" "$W/r"
+  while IFS= read -r d; do
+    python3 "$H/gate/savefiles.py" "$d" > "$W/saves.txt" 2>/dev/null; k=0
+    while IFS= read -r f; do k=$((k+1)); rm -f "$W/bak/$k"; [ -f "$f" ] && cp -p "$f" "$W/bak/$k"; done < "$W/saves.txt"
+    restore() { local k=0; while IFS= read -r f; do k=$((k+1)); if [ -f "$W/bak/$k" ]; then cp -p "$W/bak/$k" "$f"; else rm -f "$f"; fi; done < "$W/saves.txt"; }
+    rm -f "$W"/c/* "$W"/r/*
+    if [ "$M" = start ]; then
+      ( cd "$(dirname "$d")" && timeout 600 "$C_BIN" "$d" "$W/c/r.rpt" "$W/c/r.out" start > "$W/c.txt" 2>/dev/null; echo "exit $?" >> "$W/c.txt" ) 2>/dev/null; restore
+      ( cd "$(dirname "$d")" && timeout 600 "$R_BIN" "$d" "$W/r/r.rpt" "$W/r/r.out" start > "$W/r.txt" 2> "$W/err.txt"; echo "exit $?" >> "$W/r.txt" ) 2>/dev/null; restore
+      res=identical
+      if grep -q "^nottranslated" "$W/r.txt"; then res="$(head -1 "$W/r.txt" | head -c 160)"
+      elif grep -q "STUB\|not translated" "$W/err.txt"; then res="nottranslated $(grep -m1 -o 'STUB.*' "$W/err.txt" | head -c 120)"
+      elif grep -q panicked "$W/err.txt"; then res="panic $(grep -m1 -A1 panicked "$W/err.txt" | tail -1 | head -c 160)"
+      elif ! cmp -s "$W/c.txt" "$W/r.txt"; then res="differ rc $(tr '\n' ' ' < "$W/c.txt") / $(tr '\n' ' ' < "$W/r.txt")"
+      elif ! cmp -s <(grep -av 'Analysis begun\|Analysis ended\|Total elapsed time' "$W/c/r.rpt" 2>/dev/null) <(grep -av 'Analysis begun\|Analysis ended\|Total elapsed time' "$W/r/r.rpt" 2>/dev/null); then
+        res="differ rpt $(diff <(grep -av 'Analysis begun\|Analysis ended\|Total elapsed time' "$W/c/r.rpt" 2>/dev/null) <(grep -av 'Analysis begun\|Analysis ended\|Total elapsed time' "$W/r/r.rpt" 2>/dev/null) | head -3 | tr '\n' '|' | head -c 200)"
+      elif [ -f "$W/c/r.out" ] || [ -f "$W/r/r.out" ]; then
+        if ! cmp -s "$W/c/r.out" "$W/r/r.out"; then res="differ out $(cmp "$W/c/r.out" "$W/r/r.out" 2>&1 | head -1)"; fi
+      fi
+      [ "$res" = identical ] && res="identical $(head -1 "$W/c.txt")"
+    else
+      ( cd "$(dirname "$d")" && timeout 3600 "$C_BIN" "$d" "$W/c/r.rpt" "$W/c/r.out" run "$K0" "$K1" "$ST" 2>/dev/null | timeout 3600 "$R_BIN" "$d" "$W/r/r.rpt" "$W/r/r.out" stream "$W/c/r.rpt" "$W/c/r.out" > "$W/r.txt" 2> "$W/err.txt" ) 2>/dev/null
+      restore
+      res=$(head -1 "$W/r.txt")
+      if grep -q panicked "$W/err.txt"; then res="panic $(grep -m1 -A1 panicked "$W/err.txt" | tail -1 | head -c 160)"
+      elif [ -z "$res" ]; then res="noresult"; fi
+    fi
+    echo "$res $d" >> "$W/res.txt"
+    [ -n "$CTXGATE_LOG" ] && echo "$res $d" >> "$CTXGATE_LOG"
+  done < "$W/decks.txt"
+  for k in identical differ nottranslated nostart panic noresult; do
+    printf '%s %s\n' "$k" "$(grep -c "^$k " "$W/res.txt")"
+  done | tr '\n' ' '; echo "(out $M $K0..$K1/$ST)"
+  grep -v '^identical \|^nostart ' "$W/res.txt" | head -${CTXGATE_SHOW:-5}
   [ -n "$CTXGATE_KEEP" ] && cp "$W/res.txt" "$CTXGATE_KEEP"; rm -rf "$W"
   exit 0
 fi

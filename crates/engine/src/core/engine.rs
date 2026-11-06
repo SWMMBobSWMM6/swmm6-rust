@@ -26,9 +26,7 @@
 //     (FV dry state, channel thermal/species regions, snow, infiltration and groundwater
 //     state). They read and write solver state no open() result depends on, and the
 //     solvers are not translated yet, so they are left unset here. NOT YET TRANSLATED.
-//   * write_open_failure_report writes the .rpt of a failed open through
-//     DefaultReportPlugin::prepare/finalize, which take the context const. The .rpt writer
-//     is not translated yet, so no report file is written. NOT YET TRANSLATED.
+//   * write_open_failure_report is in core/engine_output.rs, with the .rpt writer.
 //   * perf:: timers (reset_load, reset_fv, ScopedTimer, begin_process_model) only time
 //     the run; they are left out.
 //   * emit_warning's callback is a boxed closure; the C callback's engine pointer and user
@@ -206,7 +204,7 @@ pub struct SwmmEngine {
     pub(crate) gage_states_: Vec<GageState>,
 
     /// Report file path
-    rpt_path_: Bytes,
+    pub(crate) rpt_path_: Bytes,
     /// Binary output file path
     out_path_: Bytes,
     /// per-subcatch interpolated GW flow (cfs)
@@ -216,7 +214,7 @@ pub struct SwmmEngine {
     pub(crate) old_gw_rate_: Vec<f64>,
     pub(crate) callbacks_: EngineCallbacks,
     /// index of the built-in .out writer in plugins_.output_plugins() (owned there)
-    binary_output_plugin_: Option<usize>,
+    pub(crate) binary_output_plugin_: Option<usize>,
 
     // ---- the run lifecycle's members (initialize, start, step: core/engine_initialize.rs,
     // engine_start.rs, engine_step.rs), in upstream's relative order. Declared together
@@ -868,14 +866,6 @@ impl SwmmEngine {
         if opt.routing_step > opt.wet_step {
             opt.routing_step = opt.wet_step;
             self.ctx_.warnings.push(format_warning(WARN_ROUTING_STEP_REDUCED, b""));
-        }
-    }
-
-    /// Writes the .rpt of a failed open. NOT YET TRANSLATED (the .rpt writer): no file is
-    /// written. The context is not changed either way (prepare/finalize take it const).
-    fn write_open_failure_report(&mut self) {
-        if self.rpt_path_.is_empty() || self.ctx_.options.rpt_disabled {
-            return;
         }
     }
 
