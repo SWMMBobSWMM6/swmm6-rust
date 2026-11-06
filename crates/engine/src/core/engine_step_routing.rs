@@ -23,8 +23,8 @@
 //
 // NOT YET TRANSLATED (StepError::NotTranslated, returned before the step changes anything:
 // step_routing_not_translated): the EULERIAN_ARD and LAGRANGIAN quality engines (ArdEngine,
-// LagrangianSolver), legacy reactions (reactLegacyNodes/Links), reaction species transport
-// (routeLegacyMsx) and LID species (msxlid), the heat flux modules (surface, radiative and
+// LagrangianSolver), the reaction solvers ROS2 and BDF2, EQUIL species, booster sources and
+// reaction-species LID controls (msxlid), the heat flux modules (surface, radiative and
 // bed exchange), species surface washoff delivery (msxsurf::deliver
 // for an active surface), engine checkpointing, the FV router (and FV quality transport),
 // node LID Richards columns, and what the solvers report as not translated (DYNAMIC_SLOT,
@@ -87,14 +87,8 @@ impl SwmmEngine {
                 QualitySolverKind::Lagrangian => return Some("LAGRANGIAN quality engine"),
                 _ => {}
             }
-            if legacy_reactions_active(ctx) {
-                return Some("legacy reactions");
-            }
-            if ctx.reactions.n_species() > 0 {
-                return Some("reaction species transport");
-            }
-            if !ctx.reactions.lid_controls.is_empty() {
-                return Some("reaction species LID controls");
+            if let Some(w) = crate::transport::reaction_legacy_step::reactions_not_translated(ctx) {
+                return Some(w);
             }
             if crate::transport::heat_legacy::heat_fluxes_active(ctx) {
                 return Some("heat fluxes");

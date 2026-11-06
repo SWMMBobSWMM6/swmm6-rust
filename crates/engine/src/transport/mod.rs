@@ -9,6 +9,7 @@ pub mod msx_initial_quality;
 pub mod msx_surface;
 pub mod reaction_expression;
 pub mod reaction_legacy_binding;
+pub mod reaction_legacy_step;
 pub mod reactions_component;
 pub mod water_age_component;
 pub mod water_age_legacy;

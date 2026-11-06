@@ -35,9 +35,9 @@
 // SWMMEngine::stepRouting refuses such a deck before any state changes, so none is reached):
 //   the FV branch of execute (FvQualityTransport::execute, applyPollutantDecay, the bed
 //   exchange), msxlid::prepareNodes / reactNodes (reaction-species LID controls),
-//   transport::routeLegacyMsx (reaction species transport), reactLegacyNodes /
-//   reactLegacyLinks (legacy reactions), heat::applyBedSoluteExchange. (routeLegacyAge and
-//   routeLegacyHeat are in transport/water_age_legacy.rs and heat_legacy.rs.)
+//   heat::applyBedSoluteExchange. (routeLegacyAge, routeLegacyHeat, routeLegacyMsx and
+//   reactLegacyNodes / reactLegacyLinks are in transport/water_age_legacy.rs,
+//   heat_legacy.rs and reaction_legacy_step.rs.)
 //   FvQualityTransport.cpp: execute, applyPollutantDecay, dryRestartState,
 //     restoreDryRestart, retainedSpeciesMass (and the inline hasRetainedDryMass,
 //     beginWindow, accepted).
@@ -652,7 +652,7 @@ impl QualitySolver {
         lidq::prepare_quality(ctx, dt)?;
         // msxlid::prepareNodes
         if !ctx.reactions.lid_controls.is_empty() && dt > 0.0 {
-            return Err(nt("reaction species LID controls (msxlid::prepareNodes)"));
+            return Err(nt("reaction species LID controls"));
         }
         let coupled_lids = self.n_pollutants_ > 0 && ctx.node_subtypes.storages.lid_state.iter().any(|state| !state.cells.is_empty());
         if coupled_lids {
@@ -709,19 +709,25 @@ impl QualitySolver {
             self.mix_at_nodes(ctx, dt);
         }
         update_untreated_storage_hrt(ctx, dt); // review A6
-        // transport::routeLegacyMsx
-        if ctx.reactions.n_species() > 0 && dt > 0.0 {
-            return Err(nt("reaction species transport (routeLegacyMsx)"));
+        // R4b: MSX element state advects on the CSTR mirror family, before the react stages
+        {
+            let held = crate::transport::reaction_legacy_step::fv_retained_species_mass(&self.fv_transport_.held_, ctx.n_pollutants(), ctx.reactions.n_species());
+            crate::transport::reaction_legacy_step::route_legacy_msx(ctx, dt, &held)?;
         }
         self.apply_treatment(ctx, dt, true);
         if legacy_reactions_active(ctx) {
-            // transport::reactLegacyNodes, msxlid::reactNodes
-            return Err(nt("legacy reactions (reactLegacyNodes)"));
+            crate::transport::reaction_legacy_step::react_legacy_nodes(ctx, dt)?;
+            // msxlid::reactNodes: a no-op without reaction-species LID controls (refused above)
+            if !ctx.reactions.lid_controls.is_empty() {
+                return Err(nt("reaction species LID controls"));
+            }
         } else {
             self.apply_decay(ctx, dt);
         }
         self.update_link_quality(ctx, dt);
-        // (reactLegacyLinks runs only with legacy reactions, refused above)
+        if legacy_reactions_active(ctx) {
+            crate::transport::reaction_legacy_step::react_legacy_links(ctx, dt)?;
+        }
         apply_link_quality_forcing(ctx, self.n_pollutants_, dt);
 
         // A1b: the LEGACY age mirror runs last, on the fully accumulated qual_vol_in
