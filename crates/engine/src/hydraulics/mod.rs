@@ -4,6 +4,7 @@ pub mod divider;
 pub mod dynamic_wave;
 pub mod dynamic_wave_step;
 pub mod exfiltration;
+pub mod exfiltration_step;
 pub mod force_main;
 pub mod fv;
 pub mod hyd_closure_kernels;

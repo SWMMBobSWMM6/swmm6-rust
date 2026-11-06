@@ -26,7 +26,7 @@
 // (RdiiInterfaceFile::applyFlows), routing interface inflow files (InterfaceManager
 // ::readInflows with a file open), engine checkpointing, the FV router, and what the
 // solvers report as not translated (KINWAVE / STEADY, DYNAMIC_SLOT, TPA, virtual junctions,
-// physical junction areas, node LID storage, storage exfiltration, street inlets, control
+// physical junction areas, node LID storage, street inlets, control
 // expressions).
 
 use crate::core::context::SimulationContext;
@@ -86,9 +86,6 @@ impl SwmmEngine {
         }
         if self.iface_.infile_.is_some() {
             return Some("routing interface inflow files");
-        }
-        if self.exfil_.soa_.count != 0 {
-            return Some("storage exfiltration");
         }
         if self.inlet_.soa_.count != 0 {
             return Some("street inlets");
@@ -265,7 +262,9 @@ impl SwmmEngine {
             Ok(())
         };
 
-        // B3-pre. Exfiltration (none: refused above otherwise)
+        // B3-pre. Exfiltration (storage node Green-Ampt seepage), before the router so the
+        //         raw rates reach Router::initNodeFlows' joint evap+exfil cap
+        self.exfil_.compute_all(&mut self.ctx_, dt_routing);
 
         let evap_rate = self.ctx_.climate_state.evap_rate;
         let iters = self.router_.step(&mut self.ctx_, dt_routing, evap_rate, &mut self.hydstruct_, Some(&mut non_conduit_fn))?;

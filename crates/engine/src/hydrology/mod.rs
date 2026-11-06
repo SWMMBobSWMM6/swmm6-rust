@@ -2,6 +2,7 @@
 pub mod climate_file;
 pub mod climate_types;
 pub mod gage;
+pub mod green_ampt_step;
 pub mod groundwater;
 pub mod groundwater_parse;
 pub mod hourly_meteorology;
