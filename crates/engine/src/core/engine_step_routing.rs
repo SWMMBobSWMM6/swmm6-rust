@@ -26,7 +26,7 @@
 // (RdiiInterfaceFile::applyFlows), routing interface inflow files (InterfaceManager
 // ::readInflows with a file open), engine checkpointing, the FV router, and what the
 // solvers report as not translated (KINWAVE / STEADY, DYNAMIC_SLOT, TPA, virtual junctions,
-// physical junction areas, node LID storage, street inlets, control
+// physical junction areas, node LID storage, inlet quality transfer, control
 // expressions).
 
 use crate::core::context::SimulationContext;
@@ -86,9 +86,6 @@ impl SwmmEngine {
         }
         if self.iface_.infile_.is_some() {
             return Some("routing interface inflow files");
-        }
-        if self.inlet_.soa_.count != 0 {
-            return Some("street inlets");
         }
         if (ctx.n_pollutants() > 0 || legacy_reactions_active(ctx) || ctx.options.water_age || ctx.options.heat_transport) && !ctx.options.ignore_quality {
             return Some("quality routing");
