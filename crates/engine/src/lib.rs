@@ -17,3 +17,7 @@ pub mod input;
 pub mod math;
 pub mod quality;
 pub mod transport;
+/// The 2D module (upstream `src/engine/2d`), compiled only with the `twod` feature, as upstream
+/// compiles it only with `OPENSWMM_HAS_2D`.
+#[cfg(feature = "twod")]
+pub mod twod;

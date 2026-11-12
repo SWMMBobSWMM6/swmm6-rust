@@ -13,6 +13,9 @@ path = "src/lib.rs"
 # Gate tools only, off by default: write access to private engine members for the context
 # loader (examples/common/ctxload.rs) and for the initqual harness's massbal mode.
 gate = []
+# Upstream's OPENSWMM_HAS_2D (the 2D surface routing module). Off: the engine matches the 1D
+# reference build; on: the 2D reference build (PLAN.md, phase 2a).
+twod = []
 
 [[example]]
 name = "ctxload"

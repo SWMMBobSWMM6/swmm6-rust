@@ -126,8 +126,30 @@ Each phase ends on a gate run. A deck enters the gate set when every section it 
 | **1c** hydrology | gages, rain files, climate, runoff, infiltration (all five), groundwater, degree-day snow, RDII, LID | G1–G3 on every SWMM5-feature deck that runs |
 | **1d** quality | pollutants, land uses, buildup and washoff, treatment, the LEGACY quality router | the same, with quality |
 | **1e** SWMM 6 only | the FV router (HLL/HLLC, MUSCL, local time stepping, implicit GMRES), DYNAMIC_SLOT, TPA, Anderson acceleration, virtual junctions, EULERIAN_ARD, LAGRANGIAN, water age, heat, UEB snow, Richards LID, the OPENSWMM_HS hotstart | the 25-deck parity corpus |
-| 2 | 2D | upstream's 2D bitwise regression |
+| **2a** 2D surface flow and 1D-2D coupling | under a `twod` cargo feature (upstream's `OPENSWMM_HAS_2D`): the 2D sections and data, the external mesh file, the mesh build, 2D infiltration, the explicit local-inertial LTS marcher and its kernels, node and outfall coupling, the 2D hooks in open/initialize/start/step and the report, 2D results through the state (no HDF5 writer, as upstream's OPENSWMM_2D_HDF5_OUTPUT=OFF build) | the state gates against the 2D reference build on every deck; the 101 in-scope 2D decks and synthetic coupled decks end to end |
+| 2b | 2D subsurface, groundwater transport, 2D quality, heat on the mesh, the 2D HDF5 writer, checkpointing | the same, on the 68 aquifer decks and the rest |
 | 3 | swmm6-rust in the RustGIS plugin and the page, beside swmm5-rust | the plugin against native OpenSWMM 6 |
+
+## Phase 2a: 2D surface flow and 1D-2D coupling (started 12 Nov)
+
+Bob chose (8 Nov) to carry 2D in this port (and the C# one), starting with 2D surface flow and 1D-2D coupling.
+
+**Second reference.** `/root/work/swmm6src/build2d`: the same commit (88329d6) and options as the 1D reference, plus `-DOPENSWMM_BUILD_2D=ON -DOPENSWMM_2D_HDF5_OUTPUT=OFF` (`build2d.opts`, `build2d.configure.log`). Without the HDF5 writer, `[2D_OPTIONS] OUTPUT_FILE` draws a warning and the 2D results stay in the engine, which is how the gates read them. The 2D solver defaults to one thread and combines threads only through min, bitwise-or and integer counters, so its bits do not depend on the thread count.
+
+**The switch.** `OPENSWMM_HAS_2D` is a PUBLIC define that changes `SWMMEngine`'s layout (the `surface_router_` member and its friends) and adds code to open, initHydraulics, start, step, the runoff and routing steps, the output snapshot and the report. `SimulationContext` is the same in both builds. The translation gets a `twod` cargo feature: off, it stays gated against the 1D reference as now; on, against the 2D reference. Harnesses for the 2D reference compile with `-DOPENSWMM_HAS_2D=1` and link `build2d`'s library.
+
+**Does 2D change 1D?** `gate/twobuilds.py` runs every deck through both reference programs and compares exit code, `.out` bytes and the `.rpt` without its clock lines (722 decks: the corpus, upstream's tests, examples and docs decks, and `gate/decks`).
+
+**Decks.** 172 decks carry `[2D_OPTIONS]` (all in upstream's tree; none in the corpus). 68 have a 2D aquifer (phase 2b), 3 have 2D quality, 1 snow, 1 heat. That leaves 101 in scope. Only 4 map mesh points to 1D nodes, all copies of `2d_complete_example.inp`, so the coupling needs synthetic decks (`gate/decks/twod/`).
+
+**Size.** About 25,000 of the 82,000 lines in `src/engine/2d`: SurfaceRouter2D (6,200), the solver without its checkpoint (9,200), coupling without its checkpoint (2,800), input (2,900), data (2,700), mesh (2,500), infiltration (900), plus the `#ifdef OPENSWMM_HAS_2D` blocks in the 1D engine. Not in 2a: subsurface (24,700), heat (6,900), GPU (3,700), groundwater (2,500), 2D quality (1,400), the HDF5 writer and every checkpoint file, the swmm_2d_* C API. Their sections parse to a refusal (STUB_EXCEPTION) in 2a.
+
+**Waves.**
+1. Input and open: the `twod` feature; the 2D data structs; `SectionHandlers2D` (every `[2D_*]` section, the external mesh file, the SI-units prescan) and the registration in `DefaultInputPlugin`; the 2D blocks of open() and PostParseResolver; refusals for the 2b sections; a 2D engine dump (tools/ctxdump.py) and `ctxgate.sh open` against build2d on every deck.
+2. Leaf numerics (alongside wave 1): `InertialKernels.hpp`, `SweKernels.hpp`, `MomentumPhysics2D`, `VfrClosure.hpp`, `QuadVfr.hpp`, `ExchangeLaw.hpp`, `PondModel.hpp`, as G4 differentials compiled from upstream source.
+3. Initialize: MeshBuilder, VertexReconstruction, RainfallInterpolator, InertialEdges, Infil2D, SurfaceRouter2D::initialize and the initHydraulics/start hooks; state gate after initialize and start.
+4. The step: ExplicitInertialSolver (serial CPU backend), SurfaceFluxCalculator, the factory's CPU path, SurfaceRouter2D::step/advancePostRouting/updateOutfallsPreRouting, NodeCoupling, OutfallExchange, ExchangeStructure, RuntimeCoupling, and the hooks in step/stepRunoff/stepRouting; a 2D route gate that loads upstream's state before each call.
+5. Output: fillSurfaceSnapshot, the report's 2D sections, the 1D `.out`/`.rpt` of coupled runs; end to end on the 101 decks and the synthetic coupled decks.
 
 ## Rules for the translation
 
