@@ -14,7 +14,8 @@ Usage: gate/twobuilds.py A_BIN B_BIN LIST OUTDIR [-j N] [--timeout S] [--stderr]
   src/bin/openswmm.rs); its files are then not compared. --summary prints the counts per deck
   category (the corpus, upstream's tests, examples and docs, each folder of gate/decks) and,
   within each, how many decks carry a [2D_*] section and how many ran to completion.
-  A is the reference, B the translation.
+  A is the reference, B the translation. On stderr the PID in bash's notice of a program
+  killed by a signal (the U1/U57 aborts) is masked.
 
 Written for swmm6-rust, 12 November 2026, by Claude (Anthropic) for Robert Dickinson;
 --stderr, the stopped status and --summary added 12 November 2026 (phase 2a wave 5).
@@ -25,6 +26,7 @@ H = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CLOCK = re.compile(rb'(Analysis begun on|Analysis ended on|Total elapsed time)')
 STUB = b'not translated yet: '
 TWOD = re.compile(rb'^\s*\[2D_', re.M | re.I)
+WRAPPER_PID = re.compile(rb'^(.*openswmm_saves\.sh: line \d+:\s+)\d+ ', re.M)
 
 
 def run(bin_, deck, rpt, out, err, timeout):
@@ -55,6 +57,14 @@ def masked(b):
     return b'\n'.join(l for l in b.split(b'\n') if not CLOCK.search(l))
 
 
+def errmasked(b):
+    """stderr without the PID bash prints when the program dies on a signal (the wrapper's
+    "openswmm_saves.sh: line N: PID Aborted ..." notice)."""
+    if b is None:
+        return None
+    return WRAPPER_PID.sub(rb'\1PID ', b)
+
+
 def stub_of(rc, err):
     if rc == 3 and err and STUB in err:
         return err.split(STUB, 1)[1].split(b'\n', 1)[0].decode('latin-1')
@@ -83,7 +93,7 @@ def one(i, deck, a, b, outdir, timeout, with_stderr):
             diffs.append('out')
         if masked(rpa) != masked(rpb):
             diffs.append('rpt')
-        if with_stderr and ea != eb:
+        if with_stderr and errmasked(ea) != errmasked(eb):
             diffs.append('stderr')
     st = 'stopped: ' + stopped if stopped is not None else ('same' if not diffs else 'differ: ' + ', '.join(diffs))
     if st == 'same' or stopped is not None:
@@ -145,6 +155,7 @@ def main():
     ap.add_argument('--stderr', action='store_true'); ap.add_argument('--summary', action='store_true')
     o = ap.parse_args()
     o.outdir = os.path.abspath(o.outdir)
+    o.a, o.b = os.path.abspath(o.a), os.path.abspath(o.b)  # the runs are in the decks' folders
     os.makedirs(o.outdir, exist_ok=True)
     decks = [l.strip() for l in open(o.list) if l.strip()]
     res_path = os.path.join(o.outdir, 'results.tsv')
