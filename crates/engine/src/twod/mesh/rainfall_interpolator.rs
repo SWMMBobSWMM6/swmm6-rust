@@ -7,7 +7,8 @@
 // request of Robert Dickinson. Not an OpenSWMM release.
 //
 // Static per-cell rain-gage weights (natural-neighbour / Laplace inside the gage hull,
-// inverse distance outside it, nearest gage on request), built once at initialize.
+// inverse distance outside it, nearest gage on request), built once at initialize; apply()
+// (the per-step sparse weighted sum) came with the step (wave 4a, 12 November 2026).
 //
 // Differences in form, never in result:
 //   * build's two exceptions (std::invalid_argument, std::runtime_error, caught by
@@ -423,5 +424,22 @@ impl RainfallInterpolator {
         self.w_ptr_[self.nt_ as usize] = self.w_gage_.len() as i32;
         self.ready_ = true;
         Ok(())
+    }
+
+    /// apply(rain, out): every cell's rainfall as its precomputed weighted sum of the gages'.
+    pub fn apply(&self, rain: &[f64], out: &mut Vec<f64>) {
+        if out.len() as i32 != self.nt_ {
+            out.clear();
+            out.resize(self.nt_ as usize, 0.0);
+        }
+        for i in 0..self.nt_ as usize {
+            let mut acc = 0.0;
+            let beg = self.w_ptr_[i] as usize;
+            let end = self.w_ptr_[i + 1] as usize;
+            for k in beg..end {
+                acc += self.w_val_[k] * rain[self.w_gage_[k] as usize];
+            }
+            out[i] = acc;
+        }
     }
 }

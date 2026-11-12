@@ -8,6 +8,7 @@
 
 pub mod diffusive_kernels;
 pub mod explicit_inertial_solver;
+pub mod explicit_inertial_solver_step;
 pub mod inertial_edges;
 pub mod inertial_kernels;
 pub mod momentum_physics_2d;
