@@ -37,8 +37,11 @@
 //     and the per-thread partial minima of the step bound (rebuild_dt_partial_). Those two keep
 //     upstream's thread partition: libgomp's static schedule gives thread t the contiguous
 //     block omp_static_thread() computes, and the serial loop here books each iteration into
-//     the slot of the thread upstream would run it on. compactOrdered (parallel list
-//     compaction above 65,536 entries) produces the serial order by construction, so the
+//     the slot of the thread upstream would run it on. The team is THREADS capped by
+//     OMP_THREAD_LIMIT, as libgomp sizes `num_threads(n)` (core::thread_info::omp_team_size;
+//     12 November 2026, wave 5: the CLI runs under OMP_THREAD_LIMIT=1 like the reference's, and
+//     a THREADS 2 deck then books every iteration into slot 0 there). compactOrdered (parallel
+//     list compaction above 65,536 entries) produces the serial order by construction, so the
 //     serial loops stand for it.
 //   * The development switches OPENSWMM_2D_MUSCL_OFF and OPENSWMM_2D_MARCHER_CHECK are refused
 //     with the crate's stub when set (PLAN.md, the environment-switch policy).
@@ -178,8 +181,9 @@ impl ExplicitInertialSolver {
         }
     }
 
+    /// The team `num_threads(max(1, opts->num_threads))` gets: OMP_THREAD_LIMIT caps it.
     fn nthreads(opts: &SolverOptions2D) -> usize {
-        cmax(1, opts.num_threads) as usize
+        cmax(1, crate::core::thread_info::omp_team_size(cmax(1, opts.num_threads))) as usize
     }
 
     /// The phase-2b owners and the runtime C API stores this translation leaves out (see the
@@ -743,7 +747,7 @@ impl ExplicitInertialSolver {
         self.dt0_ = 1.0e30;
         self.rebuild_dt_cell_.resize(na, 0.0);
         self.rebuild_dt_partial_.clear();
-        self.rebuild_dt_partial_.resize(nthr, 1.0e30);
+        self.rebuild_dt_partial_.resize(cmax(1, opts.num_threads) as usize, 1.0e30); // one per requested thread
         {
             let ed = &self.edges_;
             for k in 0..na {
@@ -909,7 +913,7 @@ impl ExplicitInertialSolver {
         let nthr = Self::nthreads(opts);
         let stride = 128 / std::mem::size_of::<f64>();
         self.rebuild_dt_partial_.clear();
-        self.rebuild_dt_partial_.resize(nthr * stride, 1.0e30);
+        self.rebuild_dt_partial_.resize(cmax(1, opts.num_threads) as usize * stride, 1.0e30); // one per requested thread
         let ed = &self.edges_;
         for k in 0..na {
             let tid = omp_static_thread(k, na, nthr);
