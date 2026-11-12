@@ -142,6 +142,10 @@ Bob chose (8 Nov) to carry 2D in this port (and the C# one), starting with 2D su
 
 **Decks.** 172 decks carry `[2D_OPTIONS]` (all in upstream's tree; none in the corpus). 68 have a 2D aquifer (phase 2b), 3 have 2D quality, 1 snow, 1 heat. That leaves 101 in scope. Only 4 map mesh points to 1D nodes, all copies of `2d_complete_example.inp`, so the coupling needs synthetic decks (`gate/decks/twod/`).
 
+**Census on the 2D reference (12 Nov).** The 101 in-scope upstream decks are small (at most 8 cells; 3.8 s for all 101): 98 run to completion, and 3 stale copies of the coupled example (tests/regression_testing/{phase0_parity,partA_parity}, docs/figures/decks/coupled_1d2d) stop with ERROR 141 because their outfall has two inlets. The 93 decks of `gate/decks/twodc` (gate/twodc_gen.py): 90 run to completion, and 3 fail on purpose (COUPLING_COEFFS AUTO in open; SMAGORINSKY under LOCAL_INERTIAL with LTS, and Coriolis on a coupled mesh, in 2D initialization). Upstream refuses Coriolis, turbulence and wall drag unless the mesh is uncoupled and runs FULL_SWE on a global step, so those variants run on an uncoupled copy. Repeat runs and THREADS 1 against 2 give identical `.out` files.
+
+**Environment switches.** The 2D code reads OPENSWMM_2D_BACKEND, _MIN_PARALLEL_CELLS(_DEVICE), _THREADS, _RAINFALL_MODE, _FLUX_DH_EPS, _HEAD_RAMP, _MUSCL_OFF, _SYNC_SPAN, _MARCHER_CHECK and _MARCHER_TELEMETRY, several of which change the numbers. As with OPENSWMM_FV_LTS_FIT in phase 1, the translation refuses a set development switch (STUB_EXCEPTION where upstream reads it) and the gates run with all of them unset.
+
 **Size.** About 25,000 of the 82,000 lines in `src/engine/2d`: SurfaceRouter2D (6,200), the solver without its checkpoint (9,200), coupling without its checkpoint (2,800), input (2,900), data (2,700), mesh (2,500), infiltration (900), plus the `#ifdef OPENSWMM_HAS_2D` blocks in the 1D engine. Not in 2a: subsurface (24,700), heat (6,900), GPU (3,700), groundwater (2,500), 2D quality (1,400), the HDF5 writer and every checkpoint file, the swmm_2d_* C API. Their sections parse to a refusal (STUB_EXCEPTION) in 2a.
 
 **Waves.**
