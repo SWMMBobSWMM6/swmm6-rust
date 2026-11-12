@@ -1,0 +1,8 @@
+element,zone,species,value
+CELL 1,SAT,TSS,3.5
+TAG low;UNSAT;TSS;1
+* LAYER 2 TSS 4
+CELL 9 SAT TSS 1
+* SAT NOPE 1
+bad line here
+CELL 1 SAT TSS -3
