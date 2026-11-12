@@ -1301,10 +1301,10 @@ impl DefaultReportPlugin {
             let ex = r.outfall_exchange();
             let mut header = false;
             for j in 0..ctx.n_nodes() {
-                let (engaged, submerged, max_stage) = match crate::twod::surface_router_2d_end::outfall_tailwater(ex, j) {
-                    Some(t) => t,
-                    None => continue,
-                };
+                let (mut engaged, mut submerged, mut max_stage) = (0.0, 0.0, 0.0);
+                if !ex.tailwater(j, &mut engaged, &mut submerged, &mut max_stage) {
+                    continue;
+                }
                 if !header {
                     wr(f, b"****************************");
                     wr(f, b"2D Outfall Tailwater Summary");

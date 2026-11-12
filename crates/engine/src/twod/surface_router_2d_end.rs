@@ -2,9 +2,8 @@
 //
 // Derived from OpenSWMM Engine src/engine/2d/SurfaceRouter2D.cpp and SurfaceRouter2D.hpp
 // (reportWeight, reportRainfall, reportRainCumulative, reportOldDepth, reportOldHead,
-// infilCumulative, outfallExchange, finalize), src/engine/2d/solver/ExplicitInertialSolver.cpp
-// (finalize) and src/engine/2d/coupling/OutfallExchange.cpp (tailwater)
-// (HydroCouple/openswmm.engine, branch swmm6_rel, commit 88329d6), Copyright 2026 Caleb Buahin,
+// infilCumulative, outfallExchange, finalize) and src/engine/2d/solver/ExplicitInertialSolver.cpp
+// (finalize) (HydroCouple/openswmm.engine, branch swmm6_rel, commit 88329d6), Copyright 2026 Caleb Buahin,
 // licensed under the Apache License, Version 2.0.
 // Modified: translated from C++ to Rust, 12 November 2026, by Claude (Anthropic) at the request
 // of Robert Dickinson. Not an OpenSWMM release.
@@ -12,15 +11,12 @@
 // The 2D router's output side and its end (phase 2a wave 5): the report-time accessors
 // SWMMEngine::fillSurfaceSnapshot reads, SurfaceRouter2D::finalize (SWMMEngine::end calls it:
 // the partial-batch flush, the solver's run statistics into mass_balance_2d for the "2D Solver
-// Statistics" report block, the solver's own finalize) and the outfall tailwater record the
-// report's "2D Outfall Tailwater Summary" reads.
+// Statistics" report block, the solver's own finalize).
 //
 // Differences in form, never in result:
-//   * ExplicitInertialSolver::finalize takes the router's mesh, options and boundary (upstream's
-//     solver reaches them through its pointers mesh_, opts_ and state_->boundary), as the step
-//     does (StepAttachments).
-//   * OutfallExchange::tailwater is the free function outfall_tailwater (the record is the
-//     exchange's public members).
+//   * ExplicitInertialSolver::finalize takes the router's mesh, options, boundary, coupling
+//     points and the 1D nodes (upstream's solver reaches them through its pointers), as the
+//     step does (StepAttachments).
 //   * finalize's OPENSWMM_PERF telemetry dump of the subsurface clock is left out: it needs an
 //     active two-zone kernel (phase 2b) and only times the run.
 // A phase-2b owner finalize would reach (an independent groundwater clock) cannot be active
@@ -33,23 +29,13 @@ use crate::core::cmath::cmax;
 use crate::core::context::SimulationContext;
 use crate::core::engine_init_hydraulics::Terminated;
 use crate::core::options::Bytes;
+use crate::twod::coupling::node_coupling::CouplingAttachments;
 use crate::twod::coupling::outfall_exchange::OutfallExchange;
 use crate::twod::data::solver_options_2d::{turbulence_name, SolverOptions2D, Turbulence2D};
 use crate::twod::data::surface_state_data::SurfaceStateData;
 use crate::twod::solver::explicit_inertial_solver::{eprint_bytes, ExplicitInertialSolver};
 use crate::twod::solver::explicit_inertial_solver_step::StepAttachments;
 use crate::twod::surface_router_2d::SurfaceRouter2D;
-
-/// OutfallExchange::tailwater(node, engaged_s, submerged_s, max_stage): a coupled outfall's
-/// tailwater record for the report (seconds the 2D tailwater was engaged and over the crown,
-/// the highest stage), or None for a node that is not a coupled outfall.
-pub fn outfall_tailwater(ex: &OutfallExchange, node: i32) -> Option<(f64, f64, f64)> {
-    if !ex.nodes_.iter().any(|&n| n == node) {
-        return None;
-    }
-    let un = node as usize;
-    Some((ex.tw_engaged_s_[un], ex.tw_submerged_s_[un], ex.tw_max_[un]))
-}
 
 impl SurfaceRouter2D {
     /// reportWeight(report_ms): the clamped interpolation fraction of the report instant inside
@@ -164,7 +150,9 @@ impl SurfaceRouter2D {
                 mesh: &mesh,
                 opts: &options,
                 boundary: if self.state_.boundary { Some(&*boundary) } else { None },
-                node_coupling_len: if self.state_.node_coupling { self.node_coupling_points_.len() } else { 0 },
+                node_coupling: if self.state_.node_coupling { Some(&self.node_coupling_points_[..]) } else { None },
+                nodes_1d: if self.state_.nodes_1d { Some(&ctx.nodes) } else { None },
+                coupling: CouplingAttachments::of(&self.state_, &self.coupling_head_cells_, &self.node_pond_area_m2_),
             };
             self.solver_.as_mut().unwrap().finalize(&a, &mut self.state_);
         }

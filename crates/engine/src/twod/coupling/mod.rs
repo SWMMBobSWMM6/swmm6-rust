@@ -10,4 +10,5 @@ pub mod exchange_law;
 pub mod node_coupling;
 pub mod outfall_exchange;
 pub mod pond_model;
+pub mod router_exchange;
 pub mod runtime_coupling;

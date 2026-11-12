@@ -6,16 +6,24 @@
 // Modified: translated from C++ to Rust, 12 November 2026, by Claude (Anthropic) at the
 // request of Robert Dickinson. Not an OpenSWMM release.
 //
-// Runtime (C API) sources and forcings on the 2D surface: the data and the queries the run path
-// reads. Only the swmm_2d_* API fills them, and that API is not translated, so in every run the
-// translation makes they hold no rows. RuntimeReceipt is in data/boundary_data.rs. The
-// unordered_map index members are HashMaps: only find and insert use them (no iteration), so
-// their order is not observable.
-
+// Runtime (C API) sources and forcings on the 2D surface: the whole header (wave 3 carried the
+// data and the queries initialize reads; wave 4b adds the rest). Only the swmm_2d_* API fills
+// the rows, and that API is not translated, so in every run the translation makes they hold
+// no rows; the run path reaches active, get, rate, nextTime and expire. RuntimeReceipt is in
+// data/boundary_data.rs.
+//
+// Differences in form, never in result:
+//   * The unordered_map index members are HashMaps: find and insert use them, and clear(id)
+//     iterates one only to set flags, so their order is not observable.
+//   * rebuild's `cells.at(cell)` throws std::out_of_range for a cell outside the new size;
+//     here it returns Err with libstdc++'s what() (the rows before it are already placed, as
+//     upstream's are). The API that calls it is not translated.
+//   * find returns the row's index (upstream a pointer into rows).
 #![allow(clippy::all)]
 
 use std::collections::HashMap;
 
+use crate::core::cmath::cmin;
 use crate::core::options::Bytes;
 pub use crate::twod::data::boundary_data::RuntimeReceipt;
 
@@ -64,9 +72,121 @@ pub struct RuntimeSources {
     pub index: HashMap<Bytes, HashMap<i32, usize>>,
 }
 
+/// libstdc++'s std::vector::at range-check what().
+fn range_check(n: usize, size: usize) -> Bytes {
+    format!("vector::_M_range_check: __n (which is {}) >= this->size() (which is {})", n, size).into_bytes()
+}
+
 impl RuntimeSources {
+    /// find(id, cell): the row's index.
+    pub fn find(&self, id: &[u8], cell: i32) -> Option<usize> {
+        let a = self.index.get(id)?;
+        a.get(&cell).copied()
+    }
+
+    /// rebuild(count): the per-cell lists of enabled rows.
+    pub fn rebuild(&mut self, count: i32) -> Result<(), Bytes> {
+        self.cells.clear();
+        self.cells.resize(count as usize, Vec::new());
+        for k in 0..self.rows.len() {
+            if self.rows[k].enabled {
+                let c = self.rows[k].cell as usize; // size_type conversion of an int
+                if c >= self.cells.len() {
+                    return Err(range_check(c, self.cells.len()));
+                }
+                self.cells[c].push(k);
+            }
+        }
+        Ok(())
+    }
+
+    /// replace(value): an existing (id, cell) row takes the new values and keeps its receipt;
+    /// a new one is appended with zeroed mass receipts.
+    pub fn replace(&mut self, mut value: RuntimeSource) {
+        if let Some(k) = self.find(&value.id, value.cell) {
+            value.receipt = std::mem::take(&mut self.rows[k].receipt);
+            self.rows[k] = value;
+            return;
+        }
+        let n = self.rows.len();
+        self.index.entry(value.id.clone()).or_default().insert(value.cell, n);
+        value.receipt.requested_mass.clear();
+        value.receipt.requested_mass.resize(value.concentrations.len(), 0.0);
+        value.receipt.applied_mass.clear();
+        value.receipt.applied_mass.resize(value.concentrations.len(), 0.0);
+        self.rows.push(value);
+    }
+
+    /// prune(): drop disabled rows from every cell list (order kept).
+    pub fn prune(&mut self) {
+        let rows = &self.rows;
+        for cell in self.cells.iter_mut() {
+            cell.retain(|&k| rows[k].enabled);
+        }
+    }
+
+    /// clear(id, cell): disable one (id, cell) row, or every row of `id` (cell < 0).
+    pub fn clear(&mut self, id: &[u8], cell: i32) -> bool {
+        let Some(found) = self.index.get(id) else {
+            return false;
+        };
+        if cell >= 0 {
+            let Some(k) = self.find(id, cell) else {
+                return false;
+            };
+            self.rows[k].enabled = false;
+            if (cell as usize) < self.cells.len() {
+                let rows = &self.rows;
+                self.cells[cell as usize].retain(|&k| rows[k].enabled);
+            }
+            return true;
+        } else {
+            let ks: Vec<usize> = found.values().copied().collect();
+            for k in ks {
+                self.rows[k].enabled = false;
+            }
+        }
+        self.prune();
+        true
+    }
+
+    /// syncReceipts(old): each row takes the receipt of its (id, cell) row in `old`.
+    pub fn sync_receipts(&mut self, old: &RuntimeSources) {
+        for row in self.rows.iter_mut() {
+            if let Some(k) = old.find(&row.id, row.cell) {
+                row.receipt = old.rows[k].receipt.clone();
+            }
+        }
+    }
+
     pub fn active(&self) -> bool {
         self.rows.iter().any(|r| r.enabled)
+    }
+
+    /// nextTime(now): the earliest enabled `until` after now (infinity if none).
+    pub fn next_time(&self, now: f64) -> f64 {
+        let mut next = f64::INFINITY;
+        for r in &self.rows {
+            if r.enabled && r.until > now {
+                next = cmin(next, r.until);
+            }
+        }
+        next
+    }
+
+    /// expire(now): disable every enabled row whose `until` has passed; prune if any.
+    pub fn expire(&mut self, now: f64) -> bool {
+        let mut changed = false;
+        for r in self.rows.iter_mut() {
+            if r.enabled && r.until <= now {
+                r.enabled = false;
+                changed = true;
+            }
+        }
+        if changed {
+            self.prune();
+        }
+        changed
     }
 }
 
@@ -114,6 +234,12 @@ impl Default for RuntimeForcings {
 }
 
 impl RuntimeForcings {
+    /// find(channel, cell): the row's index.
+    pub fn find(&self, channel: i32, cell: i32) -> Option<usize> {
+        let a = self.index.get(&channel)?;
+        a.get(&cell).copied()
+    }
+
     /// get(channel, cell): the cell's own enabled row, else the uniform one.
     pub fn get(&self, channel: i32, cell: i32) -> Option<&RuntimeForcing> {
         let ch = (channel - 1) as usize;
@@ -143,7 +269,63 @@ impl RuntimeForcings {
         }
     }
 
+    /// replace(row): an existing (channel, cell) row takes the new values and keeps its
+    /// receipt; a new one is appended.
+    pub fn replace(&mut self, mut row: RuntimeForcing) {
+        if let Some(k) = self.find(row.channel, row.cell) {
+            row.receipt = std::mem::take(&mut self.rows[k].receipt);
+            self.rows[k] = row;
+        } else {
+            let n = self.rows.len();
+            self.index.entry(row.channel).or_default().insert(row.cell, n);
+            self.rows.push(row);
+        }
+    }
+
+    /// rebuild(count): the per-cell and uniform row of each channel.
+    pub fn rebuild(&mut self, count: i32) -> Result<(), Bytes> {
+        self.cells.clear();
+        self.cells.resize(count as usize, [-1, -1, -1, -1]);
+        self.uniform = [-1, -1, -1, -1];
+        for k in 0..self.rows.len() {
+            if self.rows[k].enabled {
+                let row = &self.rows[k];
+                let ch = (row.channel - 1) as usize;
+                if row.cell < 0 {
+                    self.uniform[ch] = k as i32;
+                } else {
+                    let c = row.cell as usize;
+                    if c >= self.cells.len() {
+                        return Err(range_check(c, self.cells.len()));
+                    }
+                    self.cells[c][ch] = k as i32;
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub fn active(&self) -> bool {
         self.rows.iter().any(|r| r.enabled)
+    }
+
+    /// nextTime(now): the earliest enabled `until` after now (infinity if none).
+    pub fn next_time(&self, now: f64) -> f64 {
+        let mut time = f64::INFINITY;
+        for row in &self.rows {
+            if row.enabled && row.until > now {
+                time = cmin(time, row.until);
+            }
+        }
+        time
+    }
+
+    /// expire(now): disable every enabled row whose `until` has passed (no rebuild).
+    pub fn expire(&mut self, now: f64) {
+        for row in self.rows.iter_mut() {
+            if row.enabled && row.until <= now {
+                row.enabled = false;
+            }
+        }
     }
 }

@@ -17,15 +17,19 @@
 //   * stepRouting can throw a std::exception, which step() catches (set_error with
 //     SWMM_ERR_WRONG_STATE and e.what()). Here it returns Err(StepError::Exception(what)).
 //   * The non-conduit callback, a lambda capturing the engine upstream, is a closure over
-//     nothing: the solver hands it the DW node arrays (NcView) and the StructureSolver.
+//     nothing but (under `twod`) the 2D router: the solver hands it the context, the DW node
+//     arrays (NcView) and the StructureSolver.
 //   * The SWMM_TRACE_RSTEP / SWMM_TRACE_DUMP_STEP trace prints only and is left out.
-//   * OPENSWMM_HAS_2D is off in the reference build; its blocks are absent here too.
+//   * OPENSWMM_HAS_2D is off in the 1D reference build, and so are its blocks here without the
+//     `twod` feature. With it (the 2D reference build): the 2D pre- and post-routing hooks and
+//     prepareLidStep (12 November 2026, phase 2a wave 4a), and the windowless-coupling
+//     conductance in the non-conduit callback (12 November 2026, phase 2a wave 4c).
 //
 // NOT YET TRANSLATED (StepError::NotTranslated, returned before the step changes anything:
 // step_routing_not_translated): the reaction solvers ROS2 and BDF2, EQUIL species, booster
 // sources, engine checkpointing, FV quality transport of reaction species, heat or bed
 // exchange, the FV solver options Router::fv_not_translated names, and what the solvers
-// report as not translated (DYNAMIC_SLOT, TPA, physical junction areas, 2D-coupled ponds,
+// report as not translated (DYNAMIC_SLOT, TPA, physical junction areas,
 // control-rule expression premises, checkpoint sessions, heat::updateSolarForcing from the
 // snow configuration).
 
@@ -35,6 +39,8 @@ use crate::core::engine_init_hydraulics::Terminated;
 use crate::core::engine_step::STUB_EXCEPTION;
 use crate::core::engine::SwmmEngine;
 use crate::core::options::{QualitySolverKind, RoutingModel};
+#[cfg(feature = "twod")]
+use crate::core::options::NodeContinuity;
 use crate::data::link::LinkType;
 use crate::hydraulics::dynamic_wave_step::{bound_surface_outfall_flow, NcView};
 use crate::hydraulics::hyd_structures::StructureSolver;
@@ -219,6 +225,8 @@ impl SwmmEngine {
                 Some(&mut v[..])
             }
         }
+        #[cfg(feature = "twod")]
+        let surface_router = &self.surface_router_;
         let mut non_conduit_fn = |ctx: &mut SimulationContext, dt: f64, step: i32, dw: &mut NcView, hydstruct: &mut StructureSolver| -> Result<(), crate::core::engine_step_routing::StepError> {
             for k in 0..hydstruct.nc_indices_.len() {
                 let j = hydstruct.nc_indices_[k];
@@ -305,10 +313,17 @@ impl SwmmEngine {
                     }
                 }
             }
-            // OPENSWMM_HAS_2D: the windowless-coupling conductance of the 2D node exchange
-            // (SurfaceRouter2D::computeCouplingConductances) adds nothing on an uncoupled mesh,
-            // and a coupled mesh has stopped at updateOutfallsPreRouting above (the join wave
-            // adds the node exchange here).
+            // OPENSWMM_HAS_2D: the windowless-coupling conductance, the 2D exchange's head
+            // sensitivity G = -dQ/dh >= 0 on the node continuity denominator, under the default
+            // EXPLICIT node continuity only.
+            #[cfg(feature = "twod")]
+            if dw.initialized && surface_router.is_active() && ctx.options.node_continuity == NodeContinuity::Explicit {
+                let mut gs: Vec<(i32, f64)> = Vec::new();
+                surface_router.compute_coupling_conductances(&*ctx, &mut gs);
+                for &(gn, gv) in &gs {
+                    dw.sumdqdh[gn as usize] += gv;
+                }
+            }
             Ok(())
         };
 
