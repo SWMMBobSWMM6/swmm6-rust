@@ -38,3 +38,12 @@ gate/diff/routestep
 gate/diff/outgate
 target-b/
 gate/diff/ext80dot
+gate/diff/twod_vfr
+gate/diff/twod_quadvfr
+gate/diff/twod_inertial
+gate/diff/twod_swe
+gate/diff/twod_diffusive
+gate/diff/twod_sinks
+gate/diff/twod_momentum
+gate/diff/twod_exchange
+gate/diff/twod_pond

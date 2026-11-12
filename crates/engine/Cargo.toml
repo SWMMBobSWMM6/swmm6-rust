@@ -28,3 +28,41 @@ required-features = ["gate"]
 [[example]]
 name = "outgate"
 required-features = ["gate"]
+
+# Phase 2a wave 2: the 2D leaf-numerics differentials (gate/twodkern.sh runs them all)
+
+[[example]]
+name = "twod_vfr"
+required-features = ["twod"]
+
+[[example]]
+name = "twod_quadvfr"
+required-features = ["twod"]
+
+[[example]]
+name = "twod_inertial"
+required-features = ["twod"]
+
+[[example]]
+name = "twod_swe"
+required-features = ["twod"]
+
+[[example]]
+name = "twod_diffusive"
+required-features = ["twod"]
+
+[[example]]
+name = "twod_sinks"
+required-features = ["twod"]
+
+[[example]]
+name = "twod_momentum"
+required-features = ["twod"]
+
+[[example]]
+name = "twod_exchange"
+required-features = ["twod"]
+
+[[example]]
+name = "twod_pond"
+required-features = ["twod"]
