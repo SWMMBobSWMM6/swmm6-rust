@@ -18,11 +18,14 @@ pub mod solver;
 // Phase 2a wave 1: the 2D sections, their data and the router members open() fills.
 pub mod data;
 pub mod gw;
+pub mod heat;
 pub mod infil;
 pub mod input;
 pub mod quality;
 pub mod subsurface;
 pub mod surface_router_2d;
+// Phase 2a wave 3: SurfaceRouter2D::initialize and what it calls.
+pub mod surface_router_2d_init;
 
 /// A member of the 2D router that upstream reaches through raw pointers or captured references
 /// as well as through its owner (SimulationContext::twod_io, the section handlers): one

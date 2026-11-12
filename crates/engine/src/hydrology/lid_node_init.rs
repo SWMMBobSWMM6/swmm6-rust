@@ -16,13 +16,17 @@
 //   * refresh() throws std::runtime_error on a non-finite pressure. Nothing between it and
 //     SWMMEngine::initialize (noexcept) catches it, so upstream terminates; here initialize
 //     returns Err(Terminated) with that exception and what().
+//   * The 1D build's refusal of MESH_AQUIFER bottoms is compiled only without the `twod`
+//     feature (12 November 2026), as upstream's #ifndef OPENSWMM_HAS_2D.
 
 use crate::core::cmath::{cclamp, cmax, cmin};
 use crate::core::context::SimulationContext;
 use crate::core::engine_init_hydraulics::Terminated;
 use crate::core::options::Bytes;
 use crate::core::unit_conversion as ucf;
-use crate::data::lid_node::{richards, LidNodeBottom, LidNodeCell, LidNodeLayer, LidNodeLayerKind, LidNodeState};
+#[cfg(not(feature = "twod"))]
+use crate::data::lid_node::LidNodeBottom;
+use crate::data::lid_node::{richards, LidNodeCell, LidNodeLayer, LidNodeLayerKind, LidNodeState};
 use crate::hydraulics::node;
 use crate::hydrology::infiltration::grnampt_init;
 use crate::hydrology::lid_node::{layers, thickness, validate_stack};
@@ -171,7 +175,9 @@ pub fn initialize_infiltration(ctx: &mut SimulationContext, node: i32) {
 
 /// lidnode::initialize(ctx): build every LID node's cells and seed its moisture.
 pub fn initialize(ctx: &mut SimulationContext) -> Result<(), Terminated> {
-    // without OPENSWMM_HAS_2D a MESH_AQUIFER bottom is refused
+    // without OPENSWMM_HAS_2D a MESH_AQUIFER bottom is refused (with the twod feature, the 2D
+    // build's initHydraulics check refuses it instead: core/engine_twod.rs)
+    #[cfg(not(feature = "twod"))]
     for r in 0..ctx.node_subtypes.storages.count() {
         let ur = r as usize;
         if ctx.node_subtypes.storages.lid[ur].control >= 0 && ctx.node_subtypes.storages.lid[ur].bottom == LidNodeBottom::MeshAquifer {

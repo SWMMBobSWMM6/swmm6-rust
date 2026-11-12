@@ -12,9 +12,9 @@
 // the face flow depths (MEAN and the Begnudelli & Sanders Eq. 14 wetted-edge form) and the
 // scalar cores of the FLAT/VFR volume <-> free-surface closure.
 //
-// NOT TRANSLATED here (they gather from MeshData and SolverOptions2D, the 2D data structs of
-// wave 1, and belong with the mesh in wave 3): cellEtaDepthQuad, cellEtaDepth, cellWetArea,
-// cellVolumeFromEta. Each is a gather that forwards to the scalar cores below.
+// The four MeshData gathers (cellEtaDepthQuad, cellEtaDepth, cellWetArea, cellVolumeFromEta)
+// came with the mesh in wave 3 (12 November 2026), at the end of this file; each forwards to
+// the scalar cores below, and they are checked inside the init2d / start2d state gates.
 //
 // Differences in form, never in result:
 //   * OPENSWMM_KERNEL_FN is dropped.
@@ -24,7 +24,8 @@
 //   * std::cbrt is core::cmath::glibc_cbrt; std::log and std::expm1 are f64::ln and
 //     f64::exp_m1, which call glibc's log and expm1 (both checked by the differential).
 //   * froudeCap's std::clamp is written out as libstdc++ 13 defines it, min(max(v, lo), hi),
-//     not core::cmath::cclamp (they differ when hi < lo; see froude_cap).
+//     not core::cmath::cclamp (they differ when hi < lo; see froude_cap). cellWetArea's
+//     std::clamp(fraction, 0., 1.) is cclamp (lo <= hi there).
 //
 // Checked bit for bit against upstream's header by gate/diff/twod_inertial.cpp and
 // examples/twod_inertial.rs.
@@ -40,7 +41,11 @@
     clippy::manual_clamp
 )]
 
-use crate::core::cmath::{cmax, cmin, glibc_cbrt};
+use crate::core::cmath::{cclamp, cmax, cmin, glibc_cbrt};
+use crate::twod::data::mesh_data::MeshData;
+use crate::twod::data::solver_options_2d::{CellClosure2D, SolverOptions2D};
+use crate::twod::mesh::quad_vfr::{quad_wet_fraction, K_QUAD_VFR_Z};
+use crate::twod::mesh::vfr_closure::vfr_wet_fraction;
 use crate::twod::mesh::quad_vfr::{quad_eta_from_mean_depth, quad_mean_depth_from_eta};
 use crate::twod::mesh::vfr_closure::{vfr_eta_from_mean_depth, vfr_mean_depth_from_eta, vfr_sort3};
 
@@ -252,4 +257,98 @@ pub fn positivity_scale(v: f64, outflow_m3s: f64, dt: f64, beta: f64) -> f64 {
     } else {
         avail / take
     }
+}
+
+// ---------------------------------------------------------------------------
+// The MeshData gathers (wave 3): cellEtaDepthQuad, cellEtaDepth, cellWetArea,
+// cellVolumeFromEta. Each reads one cell's geometry and calls the scalar core above.
+// ---------------------------------------------------------------------------
+
+/// The quad's precomputed VFR elevations (`&m.quad_vfr_z[i * kQuadVfrZ]`).
+#[inline]
+fn quad_zs(m: &MeshData, i: i32) -> &[f64] {
+    let kz = K_QUAD_VFR_Z as usize;
+    let b = i as usize * kz;
+    &m.quad_vfr_z[b..b + kz]
+}
+
+/// cellEtaDepthQuad(m, o, i, V, eta, depth), returned as (eta, depth).
+#[inline]
+pub fn cell_eta_depth_quad(m: &MeshData, o: &SolverOptions2D, i: i32, v: f64) -> (f64, f64) {
+    let u = i as usize;
+    eta_depth_quad_scalar(m.tri_area[u], m.tri_cz[u], quad_zs(m, i), m.quad_vfr_a[u * 2], m.quad_vfr_a[u * 2 + 1], true, o.vfr_min_wet_frac, v)
+}
+
+/// cellEtaDepth(m, o, i, V, eta, depth), returned as (eta, depth).
+#[inline]
+pub fn cell_eta_depth(m: &MeshData, o: &SolverOptions2D, i: i32, v: f64) -> (f64, f64) {
+    let u = i as usize;
+    if o.cell_closure != CellClosure2D::Vfr {
+        return eta_depth_scalar(m.tri_area[u], m.tri_cz[u], 0.0, 0.0, 0.0, false, o.vfr_min_wet_frac, v);
+    }
+    if m.cell_nv[u] == 4 {
+        return cell_eta_depth_quad(m, o, i, v);
+    }
+    eta_depth_scalar(
+        m.tri_area[u],
+        m.tri_cz[u],
+        m.vz[m.cell_vertex(i, 0) as usize],
+        m.vz[m.cell_vertex(i, 1) as usize],
+        m.vz[m.cell_vertex(i, 2) as usize],
+        true,
+        o.vfr_min_wet_frac,
+        v,
+    )
+}
+
+/// cellWetArea(m, o, i, volume).
+#[inline]
+pub fn cell_wet_area(m: &MeshData, o: &SolverOptions2D, i: i32, volume: f64) -> f64 {
+    if !(volume > 0.0) {
+        return 0.0;
+    }
+    let u = i as usize;
+    if o.cell_closure != CellClosure2D::Vfr {
+        return m.tri_area[u];
+    }
+    let (eta, _depth) = cell_eta_depth(m, o, i, volume);
+    let fraction;
+    if m.cell_nv[u] == 4 {
+        fraction = quad_wet_fraction(quad_zs(m, i), m.quad_vfr_a[u * 2], m.quad_vfr_a[u * 2 + 1], eta);
+    } else {
+        let mut a = m.vz[m.cell_vertex(i, 0) as usize];
+        let mut b = m.vz[m.cell_vertex(i, 1) as usize];
+        let mut c = m.vz[m.cell_vertex(i, 2) as usize];
+        vfr_sort3(&mut a, &mut b, &mut c);
+        fraction = vfr_wet_fraction(a, b, c, eta);
+    }
+    m.tri_area[u] * cclamp(fraction, 0.0, 1.0)
+}
+
+/// cellVolumeFromEta(m, o, i, eta).
+#[inline]
+pub fn cell_volume_from_eta(m: &MeshData, o: &SolverOptions2D, i: i32, eta: f64) -> f64 {
+    let u = i as usize;
+    if m.cell_nv[u] == 4 {
+        return volume_from_eta_quad_scalar(
+            m.tri_area[u],
+            m.tri_cz[u],
+            quad_zs(m, i),
+            m.quad_vfr_a[u * 2],
+            m.quad_vfr_a[u * 2 + 1],
+            o.cell_closure == CellClosure2D::Vfr,
+            o.vfr_min_wet_frac,
+            eta,
+        );
+    }
+    volume_from_eta_scalar(
+        m.tri_area[u],
+        m.tri_cz[u],
+        m.vz[m.cell_vertex(i, 0) as usize],
+        m.vz[m.cell_vertex(i, 1) as usize],
+        m.vz[m.cell_vertex(i, 2) as usize],
+        o.cell_closure == CellClosure2D::Vfr,
+        o.vfr_min_wet_frac,
+        eta,
+    )
 }

@@ -14,6 +14,10 @@
 // outfall depths and the backwater fill), [FILES] USE HOTSTART (legacy SWMM5 files), the
 // clocks, init_modules (the four init legs in upstream's order, with the hot-start runoff and
 // species blocks between them, then ctx_.forcing.resize), and the node inflow/outflow seed.
+// With the `twod` feature (the 2D build, 12 November 2026) the 1D build's refusals of
+// REACTION_SUBSURFACE and MESH_CONTACTS channel heat are absent, init_modules calls
+// initializeChannelGround after init_geometry, and the reactive-LID check follows it
+// (core/engine_twod.rs).
 //
 // Differences of form, never in result:
 //   * initialize is noexcept upstream. Where an exception escapes it (U1/U65 inside
@@ -29,12 +33,15 @@
 use crate::core::cmath::{cclamp, cmax};
 use crate::core::constants;
 use crate::core::context::EngineState;
-use crate::core::engine::{SwmmEngine, CFFI_ERR_BADPARAM, CFFI_ERR_HOTSTART, SWMM_ERR_BADPARAM, SWMM_ERR_PARSE, SWMM_ERR_PLUGIN, SWMM_ERR_WRONG_STATE, SWMM_OK};
+#[cfg(not(feature = "twod"))]
+use crate::core::engine::SWMM_ERR_PLUGIN;
+use crate::core::engine::{SwmmEngine, CFFI_ERR_BADPARAM, CFFI_ERR_HOTSTART, SWMM_ERR_BADPARAM, SWMM_ERR_PARSE, SWMM_ERR_WRONG_STATE, SWMM_OK};
 use crate::core::engine_init_hydraulics::Terminated;
 use crate::core::engine_step::stub;
 use crate::core::hot_start_manager as hsm;
 use crate::core::options::{Bytes, QualitySolverKind, RoutingModel};
 use crate::core::unit_conversion as ucf;
+#[cfg(not(feature = "twod"))]
 use crate::data::heat_override::HeatElement;
 use crate::data::link::LinkType;
 use crate::data::node::NodeType;
@@ -129,11 +136,14 @@ impl SwmmEngine {
         }
         // perf::begin_process_model: timing only.
 
-        // without OPENSWMM_HAS_2D
+        // without OPENSWMM_HAS_2D (with the twod feature, the 2D build's own initialize-time
+        // checks decide these decks: core/engine_twod.rs)
+        #[cfg(not(feature = "twod"))]
         if !self.ctx_.reactions.subsurface_laws.is_empty() {
             self.set_error(SWMM_ERR_PLUGIN, b"REACTION_SUBSURFACE requires a 2D-enabled groundwater engine.");
             return Ok(SWMM_ERR_PLUGIN);
         }
+        #[cfg(not(feature = "twod"))]
         if self.ctx_.options.heat_transport && self.ctx_.heat_config.sediment_exchange {
             for l in 0..self.ctx_.n_links() {
                 if crate::transport::heat_overrides::sediment_for(&self.ctx_, &HeatElement::link(l)).mesh_ground {
@@ -533,6 +543,8 @@ impl SwmmEngine {
         // Initialize all computational modules (batch SoA setup)
         self.init_modules()?;
 
+        #[cfg(feature = "twod")]
+        self.initialize_2d_reactive_lid_check();
         if let Some(e) = self.ctx_.errors.first().cloned() {
             self.set_error(SWMM_ERR_PARSE, &e);
             return Ok(SWMM_ERR_PARSE);
@@ -593,6 +605,8 @@ impl SwmmEngine {
             self.hotstart_species_ = Default::default();
         }
         self.init_geometry();
+        #[cfg(feature = "twod")]
+        self.init_modules_channel_ground()?;
         self.init_mass_balance();
 
         // Allocate forcing arrays to match object counts

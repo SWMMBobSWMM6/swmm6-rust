@@ -7,4 +7,7 @@
 // Dickinson. Not an OpenSWMM release.
 
 pub mod exchange_law;
+pub mod node_coupling;
+pub mod outfall_exchange;
 pub mod pond_model;
+pub mod runtime_coupling;

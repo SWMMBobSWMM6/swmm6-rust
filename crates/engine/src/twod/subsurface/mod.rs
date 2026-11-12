@@ -6,4 +6,5 @@
 
 pub mod subsurface_data;
 pub mod subsurface_sections;
+pub mod subsurface_solver;
 pub mod surface_ownership;
