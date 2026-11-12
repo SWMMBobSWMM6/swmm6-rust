@@ -12,7 +12,8 @@
 //   * Nested structs are top-level types (MassBalance, RoutingStepStats, ...).
 //   * StateAccessors' std::function members are Option<Box<dyn Fn...>>.
 //   * TwoDModelIO holds raw pointers to 2D objects that a 1D build never creates; it is
-//     an empty struct here until 2D is translated.
+//     an empty struct without the `twod` feature. With it, each pointer is an optional
+//     shared handle (twod::Shared) to the router's member (12 November 2026).
 //   * The C arrays of MaxStats are [MaxStats; MAX_STATS].
 
 #![allow(clippy::all)]
@@ -170,8 +171,35 @@ pub struct Event {
 }
 
 /// Upstream: raw pointers to the 2D model's objects, all null in a 1D build.
+#[cfg(not(feature = "twod"))]
 #[derive(Debug, Clone, Default)]
 pub struct TwoDModelIO {}
+
+/// Upstream: raw pointers to the 2D model's objects, wired by the engine's constructor
+/// (SWMMEngine::wire2DModelIO) and preserved by reset(); null (None) for a detached context.
+/// Each is a shared handle to the router's member. Not yet carried: `aquifer_state` and
+/// `aquifer_transport` (the subsurface solver's, phase 2b; their readers see an inactive
+/// kernel, which is what upstream's point at until the kernel runs). `surface_router` records
+/// only that the pointer is set (the router itself is reached through the engine).
+#[cfg(feature = "twod")]
+#[derive(Debug, Clone, Default)]
+pub struct TwoDModelIO {
+    pub mesh: Option<crate::twod::Shared<crate::twod::data::mesh_data::MeshData>>,
+    pub options: Option<crate::twod::Shared<crate::twod::data::solver_options_2d::SolverOptions2D>>,
+    pub boundary: Option<crate::twod::Shared<crate::twod::data::boundary_data::BoundaryData>>,
+    pub pending_bc: Option<crate::twod::Shared<Vec<crate::twod::data::pending_rows_2d::PendingBoundaryRow>>>,
+    pub pending_ec: Option<crate::twod::Shared<Vec<crate::twod::data::pending_rows_2d::PendingEdgeConveyanceRow>>>,
+    pub pending_iq: Option<crate::twod::Shared<Vec<crate::twod::data::pending_rows_2d::PendingInitialQualityRow>>>,
+    pub pending_ibq: Option<crate::twod::Shared<Vec<crate::twod::data::pending_rows_2d::PendingInitialBedQualityRow>>>,
+    pub pending_bq: Option<crate::twod::Shared<Vec<crate::twod::data::pending_rows_2d::PendingBoundaryQualityRow>>>,
+    pub infil: Option<crate::twod::Shared<crate::twod::infil::infil_2d::Infil2D>>,
+    pub gw: Option<crate::twod::Shared<crate::twod::gw::gw_transport_data::GwTransportData>>,
+    pub surface_quality: Option<crate::twod::Shared<crate::twod::quality::surface_quality_2d::SurfaceQuality2D>>,
+    pub aquifer: Option<crate::twod::Shared<crate::twod::subsurface::subsurface_data::SubsurfaceConfig>>,
+    pub aquifer_nodes: Option<crate::twod::Shared<Vec<Bytes>>>,
+    pub aquifer_links: Option<crate::twod::Shared<Vec<Bytes>>>,
+    pub surface_router: bool,
+}
 
 #[derive(Debug, Clone, Default)]
 pub struct OutfallExports {

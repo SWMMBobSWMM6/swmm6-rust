@@ -12,7 +12,8 @@
 // applied), and the lookups that fall back to the global configuration.
 //
 // 1D build: the OPENSWMM_HAS_2D branch (CELL2D / MESH_TAG rows) is the #else branch,
-// which refuses mesh overrides.
+// which refuses mesh overrides. With the `twod` feature (12 November 2026) the 2D branch is
+// translated: the rows land on the router's mesh, reached through ctx.twod_io.mesh.
 
 use crate::core::context::SimulationContext;
 use crate::core::options::Bytes;
@@ -116,8 +117,72 @@ pub fn resolve_heat_overrides(ctx: &mut SimulationContext) -> Vec<Bytes> {
         ov.sed_link.resize(nl as usize, sediment);
     }
 
+    #[cfg(not(feature = "twod"))]
     if want_rad_cell || want_sed_cell {
         errors.push(b"model.heat: mesh overrides require a 2D-enabled engine.".to_vec());
+    }
+    #[cfg(feature = "twod")]
+    if want_rad_cell || want_sed_cell {
+        let mesh = ctx.twod_io.mesh.clone();
+        let mesh = mesh.as_ref().map(|m| m.borrow());
+        let nc = mesh.as_ref().map_or(0, |m| m.n_cells());
+        let ov = &mut ctx.heat_config.overrides;
+        if want_rad_cell {
+            ov.rad_cell.clear();
+            ov.rad_cell.resize(nc as usize, radiative);
+        }
+        if want_sed_cell {
+            ov.sed_cell.clear();
+            ov.sed_cell.resize(nc as usize, sediment);
+        }
+        for scope in [HeatScope::MeshTag, HeatScope::Cell2d] {
+            for ri in 0..ov.rows.len() {
+                if ov.rows[ri].scope != scope {
+                    continue;
+                }
+                let name = ov.rows[ri].name.clone();
+                let attr = ov.rows[ri].attr;
+                let value = ov.rows[ri].value;
+                let mut cell = -1;
+                if scope == HeatScope::Cell2d {
+                    let (parsed, used) = crate::core::charconv::from_chars_i32(&name);
+                    match parsed {
+                        Ok(c) if used == name.len() && c >= 1 && c <= nc => cell = c - 1,
+                        _ => {
+                            let mut m = b"model.heat: CELL2D '".to_vec();
+                            m.extend_from_slice(&name);
+                            m.extend_from_slice(b"' is not a valid 1-based mesh cell.");
+                            errors.push(m);
+                            continue;
+                        }
+                    }
+                }
+                let mut hit = false;
+                for i in 0..nc {
+                    let skip = if scope == HeatScope::Cell2d {
+                        i != cell
+                    } else {
+                        let m = mesh.as_ref().unwrap();
+                        i as usize >= m.tri_tag.len() || m.tri_tag[i as usize] != name
+                    };
+                    if skip {
+                        continue;
+                    }
+                    hit = true;
+                    if is_sediment_attr(attr) {
+                        patch_sediment(&mut ov.sed_cell[i as usize], attr, value);
+                    } else {
+                        patch_radiative(&mut ov.rad_cell[i as usize], attr, value);
+                    }
+                }
+                if !hit {
+                    let mut m = b"model.heat: MESH_TAG '".to_vec();
+                    m.extend_from_slice(&name);
+                    m.extend_from_slice(b"' matches no mesh region.");
+                    errors.push(m);
+                }
+            }
+        }
     }
 
     // Two passes, in specificity order (D-PE3): TAG first, then elements.

@@ -15,6 +15,8 @@ pub mod engine_start;
 pub mod engine_step;
 pub mod engine_step_routing;
 pub mod engine_step_runoff;
+#[cfg(feature = "twod")]
+pub mod engine_twod;
 pub mod engine_init_hydraulics;
 pub mod engine_init_hydrology;
 pub mod engine_init_quality;

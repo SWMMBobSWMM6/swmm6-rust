@@ -130,6 +130,100 @@ impl DefaultInputPlugin {
     pub fn registry(&mut self) -> &mut SectionRegistry {
         &mut self.registry_
     }
+
+    /// registerContextSections(): with 2D (the twod feature), the [2D_*], [GW_*], surface
+    /// quality and subsurface handlers bound to the router the context's twod_io points at, or,
+    /// for a detached context without a router, to whatever authored storage it carries
+    /// ([2D_OPTIONS] only of the mesh family). Without 2D it does nothing.
+    pub fn register_context_sections(&mut self, ctx: &SimulationContext) {
+        #[cfg(feature = "twod")]
+        {
+            use crate::twod::gw::gw_transport_sections::register_gw_transport_sections;
+            use crate::twod::input::section_handlers_2d::{parse_2d_options_line, register_2d_sections, Sections2DTargets};
+            use crate::twod::quality::surface_quality_2d::register_surface_quality_sections;
+            use crate::twod::subsurface::subsurface_sections::register_subsurface_sections;
+            let io = &ctx.twod_io;
+            if io.surface_router {
+                // the router wires every handle (SwmmEngine::wire_2d_model_io)
+                if let (Some(mesh), Some(options), Some(bc), Some(ec), Some(iq), Some(ibq), Some(bq), Some(gw), Some(sq), Some(aq), Some(an), Some(al)) = (
+                    &io.mesh,
+                    &io.options,
+                    &io.pending_bc,
+                    &io.pending_ec,
+                    &io.pending_iq,
+                    &io.pending_ibq,
+                    &io.pending_bq,
+                    &io.gw,
+                    &io.surface_quality,
+                    &io.aquifer,
+                    &io.aquifer_nodes,
+                    &io.aquifer_links,
+                ) {
+                    let t = Sections2DTargets {
+                        mesh: mesh.clone(),
+                        options: options.clone(),
+                        pending_bc_rows: bc.clone(),
+                        pending_ec_rows: ec.clone(),
+                        pending_iq_rows: iq.clone(),
+                        pending_ibq_rows: ibq.clone(),
+                        pending_bq_rows: bq.clone(),
+                    };
+                    register_2d_sections(&t, &mut self.registry_);
+                    register_gw_transport_sections(gw, &mut self.registry_);
+                    register_surface_quality_sections(sq, &mut self.registry_);
+                    register_subsurface_sections(aq, an, al, &mut self.registry_);
+                    return;
+                }
+            }
+            if let Some(options) = &io.options {
+                // Detached persistence contexts carry authored storage without a running router.
+                let options = options.clone();
+                self.registry_.register_custom(b"2D_OPTIONS", move |model: &mut SimulationContext, lines: &[Bytes]| {
+                    for line in lines {
+                        let tokens = crate::input::tokenizer::tokenize(line);
+                        if tokens.is_empty() {
+                            continue;
+                        }
+                        let error = parse_2d_options_line(&tokens, &mut options.borrow_mut(), Some(&mut model.warnings));
+                        if !error.is_empty() {
+                            model.error_code = 5; // SWMM_ERR_PARSE
+                            let mut m = b"[2D] ".to_vec();
+                            m.extend_from_slice(&error);
+                            m.extend_from_slice(" \u{2014} line: ".as_bytes());
+                            m.extend_from_slice(line);
+                            model.error_message = m;
+                            return;
+                        }
+                    }
+                });
+            }
+            if let Some(gw) = &io.gw {
+                register_gw_transport_sections(gw, &mut self.registry_);
+            }
+            if let Some(sq) = &io.surface_quality {
+                register_surface_quality_sections(sq, &mut self.registry_);
+            }
+            if let (Some(aq), Some(an), Some(al)) = (&io.aquifer, &io.aquifer_nodes, &io.aquifer_links) {
+                register_subsurface_sections(aq, an, al, &mut self.registry_);
+            }
+        }
+        #[cfg(not(feature = "twod"))]
+        let _ = ctx;
+    }
+
+    /// readText(): read an .inp held in memory (the C API's path), after registering the
+    /// context's 2D sections.
+    pub fn read_text(&mut self, text: &[u8], ctx: &mut SimulationContext) -> i32 {
+        self.register_context_sections(ctx);
+        let mut reader = InputReader::new(&self.registry_);
+        let ok = reader.read_stream(text, ctx);
+        self.skipped_sections_ = reader.skipped_sections().to_vec();
+        if ok {
+            0
+        } else {
+            -1
+        }
+    }
 }
 
 // ============================================================================

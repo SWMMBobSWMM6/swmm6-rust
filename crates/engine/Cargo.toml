@@ -18,6 +18,10 @@ gate = []
 twod = []
 
 [[example]]
+name = "ctxopen2d"
+required-features = ["twod"]
+
+[[example]]
 name = "ctxload"
 required-features = ["gate"]
 

@@ -12,6 +12,11 @@
 #       the whole SWMMEngine::open (swmm_engine_open in gate/diff/ctxopen, examples/ctxopen),
 #       then the context and the engine members open() sets; open_rc too. "lenient" sets
 #       swmm_engine_set_lenient_open first; "metadata" opens through swmm_engine_open_metadata.
+#   gate/ctxgate.sh open2d [lenient|metadata]
+#       the same against the 2D reference (OPENSWMM_HAS_2D, build2d): gate/diff/ctxopen2d against
+#       examples/ctxopen2d built with the twod feature (target2d/release/examples, or
+#       CTXGATE_EXAMPLES2D=dir); the dump adds the 2D router's open-time state (twoddump). The
+#       deck set adds upstream's examples/ and docs/ decks (the coupled 2d_complete_example).
 #   gate/ctxgate.sh inithyd
 #       open, then SWMMEngine::initHydraulics (gate/diff/inithyd, examples/inithyd); dumps the
 #       context, the open() members and the Router, controls, inflow, RDII, exfiltration,
@@ -115,6 +120,9 @@
 H=$(cd "$(dirname "$0")/.." && pwd); W=$(mktemp -d)
 E="${CTXGATE_EXAMPLES:-$H/target/release/examples}"   # CTXGATE_EXAMPLES=dir: the Rust harnesses built elsewhere (CARGO_TARGET_DIR)
 if [ -n "$DECKLIST" ]; then sort "$DECKLIST" > "$W/decks.txt"      # DECKLIST=file: one deck path per line
+elif [ "${1:-}" = open2d ]; then
+  { find "${CORPUS:-/root/work/corpus}" -name '*.inp'; find /root/work/swmm6src/upstream/tests -name '*.inp'; find "$H/gate/decks" -name '*.inp';
+    find /root/work/swmm6src/upstream/examples /root/work/swmm6src/upstream/docs -name '*.inp'; } | sort > "$W/decks.txt"
 else { find "${CORPUS:-/root/work/corpus}" -name '*.inp'; find /root/work/swmm6src/upstream/tests -name '*.inp'; find "$H/gate/decks" -name '*.inp'; } | sort > "$W/decks.txt"; fi
 
 if [ "${1:-}" = route ]; then
@@ -271,6 +279,7 @@ fi
 PRE=""
 case "${1:-}" in
   open) T=open; R=${2:-}; N=ctxopen ;;
+  open2d) T=open; R=${2:-}; N=ctxopen2d; E="${CTXGATE_EXAMPLES2D:-$H/target2d/release/examples}" ;;
   inithyd) T=inithyd; R=""; N=inithyd ;;
   inithydro) T=inithydro; R=${2:-}; N=inithydro ;;
   initqual) T=initqual; R=${2:-quality}; N=initqual
@@ -296,6 +305,7 @@ done < "$W/decks.txt"
 if [ "$T" = initqual ]; then
   echo "ctxgate initqual $R: $same identical, $diff differ (massbal skipped on $skipped)"
 else
+  [ "$N" = ctxopen2d ] && T=open2d
   echo "ctxgate $T $R: $same identical, $diff differ"
 fi
 head -${CTXGATE_SHOW:-5} "$W/differ.txt"
