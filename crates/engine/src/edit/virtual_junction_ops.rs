@@ -11,9 +11,9 @@
 // helpers, with the anonymous-namespace helpers they use. The editing operations
 // (set/clear virtual, split, fuse, set inlet) are not translated here.
 //
-// Rule 5 of vj_rule_violation inspects `ctx.twod_io.mesh`, which is non-null only when a
-// 2D mesh is loaded. The 1D build never loads one (TwoDModelIO carries no mesh in this
-// crate), so the branch cannot be taken and is left out.
+// Rule 5 of vj_rule_violation inspects `ctx.twod_io.mesh`, which is non-null only in a build
+// with 2D. Without the `twod` feature TwoDModelIO carries no mesh, so the branch cannot be
+// taken; with it (12 November 2026) the branch is translated.
 
 use crate::core::context::SimulationContext;
 use crate::core::error_codes::{ERR_VJ_LINK_COUNT, ERR_VJ_OFFSET, ERR_VJ_XSECT_MISMATCH};
@@ -120,7 +120,36 @@ pub fn vj_rule_violation(ctx: &SimulationContext, node_idx: i32) -> i32 {
         return ERR_VJ_OFFSET;
     }
 
-    // Rule 5 (no 2D surface coupling) applies only with a 2D mesh; see the header.
+    // Rule 5: no 2D surface coupling (only with the twod feature; see the header).
+    #[cfg(feature = "twod")]
+    if let Some(mesh) = &ctx.twod_io.mesh {
+        let m = mesh.borrow();
+        // The [2D_*_NODE_MAP] handlers store the node NAME; the index is resolved only when
+        // the surface router initializes.
+        let targets = |stored: i32, name: &[u8]| -> bool {
+            if stored >= 0 {
+                return stored == node_idx;
+            }
+            !name.is_empty() && ctx.node_names.find(name) == node_idx
+        };
+        for v in 0..m.vert_coupled_node.len() {
+            let nm: &[u8] = if v < m.vert_coupled_node_name.len() { &m.vert_coupled_node_name[v] } else { b"" };
+            if targets(m.vert_coupled_node[v], nm) {
+                return crate::core::error_codes::ERR_VJ_LATERAL_INFLOW;
+            }
+        }
+        for t in 0..m.tri_coupled_node.len() {
+            let nm: &[u8] = if t < m.tri_coupled_node_name.len() { &m.tri_coupled_node_name[t] } else { b"" };
+            if targets(m.tri_coupled_node[t], nm) {
+                return crate::core::error_codes::ERR_VJ_LATERAL_INFLOW;
+            }
+        }
+        for row in &m.tri_couplings {
+            if targets(row.node, &row.node_name) {
+                return crate::core::error_codes::ERR_VJ_LATERAL_INFLOW;
+            }
+        }
+    }
     0
 }
 

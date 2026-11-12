@@ -1012,6 +1012,170 @@ def life_dumper():
     open(f'{ROOT}/crates/engine/examples/common/lifedump.rs', 'w').write('\n'.join(R) + '\n')
     print('lifedump: written')
 
+# ---------------------------------------------------------------------------
+# The 2D router's open-time state (gate/diff/twoddump.hpp, examples/common/twoddump.rs):
+# every SurfaceRouter2D member the [2D_*], [GW_*], surface-quality and [2D_AQUIFER*] handlers
+# and open() fill, in upstream's member order (PLAN.md, phase 2a, wave 1). Generated last:
+# the 2D enums, structs and aliases are added to the shared tables only after every 1D file
+# is written, so the 1D dumpers' text cannot change. The C++ side reads the private members
+# directly (the harness defines private/protected as public, as inithyd.cpp does); the Rust
+# side reads the router through SwmmEngine::surface_router_2d() and its shared handles.
+# ---------------------------------------------------------------------------
+TWOD_STRUCTS = {
+    'Infil2DRow': ('2d/infil/Infil2D.hpp', 'Infil2DRow'),
+    'Infil2DOptions': ('2d/infil/Infil2D.hpp', 'Infil2DOptions'),
+    'RuntimeOriginal': ('2d/data/BoundaryData.hpp', 'RuntimeOriginal'),
+    'RuntimeReceipt': ('2d/coupling/RuntimeCoupling.hpp', 'RuntimeReceipt'),
+    'GwTransportOptions': ('2d/gw/GwTransportData.hpp', 'GwTransportOptions'),
+    'GwOptions': ('2d/subsurface/SubsurfaceData.hpp', 'GwOptions'),
+    'SqScopeKey': ('2d/quality/SurfaceQuality2D.hpp', 'SqScopeKey'),
+    # Infil2D::bank_ (the hydrology dumper's InfilBank and its state structs)
+    'surface::InfilBank': ('hydrology/surface/InfilBank.hpp', 'InfilBank'),
+    'HortonState': ('hydrology/Infiltration.hpp', 'HortonState'),
+    'CurveNumState': ('hydrology/Infiltration.hpp', 'CurveNumState'),
+}
+TWOD_ELEM_STRUCTS = {
+    'TriCouplingRow': '2d/data/MeshData.hpp', 'Infil2DDefault': '2d/infil/Infil2D.hpp',
+    'Infil2DOverride': '2d/infil/Infil2D.hpp', 'Infil2DRow': '2d/infil/Infil2D.hpp',
+    'GwParamsRow': '2d/gw/GwTransportData.hpp', 'GwSorptionRow': '2d/gw/GwTransportData.hpp',
+    'GwInitialQualityRow': '2d/gw/GwTransportData.hpp', 'GwBoundaryQualityRow': '2d/gw/GwTransportData.hpp',
+    'GwSourceRow': '2d/gw/GwTransportData.hpp', 'GwSourceSpeciesTerm': '2d/gw/GwTransportData.hpp',
+    'GwAquiferRow': '2d/subsurface/SubsurfaceData.hpp', 'GwNodeBed': '2d/subsurface/SubsurfaceData.hpp',
+    'GwBoundaryRow': '2d/subsurface/SubsurfaceData.hpp', 'GwLinkRow': '2d/subsurface/SubsurfaceData.hpp',
+    'SurfaceOwnerRecord': '2d/subsurface/SurfaceOwnership.hpp',
+    'CoverageRow2D': '2d/quality/SurfaceQuality2D.hpp', 'LoadingRow2D': '2d/quality/SurfaceQuality2D.hpp',
+    'CurbRow2D': '2d/quality/SurfaceQuality2D.hpp', 'Params': '2d/quality/SurfaceQuality2D.hpp',
+    'PendingBoundaryRow': '2d/data/PendingRows2D.hpp', 'PendingEdgeConveyanceRow': '2d/data/PendingRows2D.hpp',
+    'PendingInitialQualityRow': '2d/data/PendingRows2D.hpp', 'PendingInitialBedQualityRow': '2d/data/PendingRows2D.hpp',
+    'PendingBoundaryQualityRow': '2d/data/PendingRows2D.hpp',
+    # InfilBank's per-cell state
+    'GreenAmptState': 'hydrology/Infiltration.hpp', 'HortonState': 'hydrology/Infiltration.hpp',
+    'CurveNumState': 'hydrology/Infiltration.hpp',
+}
+
+def _twod_string_set(pc, pr, lb, C, R):
+    """std::set<std::string>: its elements in order (BTreeSet<Bytes> in the translation)."""
+    C.append(f'  {{ std::vector<std::string> t(({pc}).begin(), ({pc}).end()); vs("{lb}", t); }}')
+    R.append(f'    vs(o, "{lb}", &({pr}).iter().cloned().collect::<Vec<Vec<u8>>>());')
+
+def _twod_receipts(pc, pr, lb, C, R):
+    """BoundaryData::receipts: a mutable std::map (a RefCell'd BTreeMap in the translation)."""
+    emit(pc, f'(*{pr}.borrow())', lb, ('map', ('i', 'int'), ('struct', '2d/coupling/RuntimeCoupling.hpp', 'RuntimeReceipt')), C, R)
+
+def _twod_quality_index(pc, pr, lb, C, R):
+    """GwTransportData::quality_index_: an unordered_map keyed by QualityKey, sorted by key."""
+    C.append(f'  {{ std::vector<std::tuple<int, std::string, int, int, int, std::string, long long>> t; for (const auto& kv : {pc}) t.emplace_back((int)kv.first.scope, kv.first.tag, kv.first.cell, (int)kv.first.zone, kv.first.layer, kv.first.species, (long long)kv.second);'
+             f' std::sort(t.begin(), t.end()); pi("{lb}.n", (long long)t.size()); for (const auto& x : t) {{ pi("{lb}.scope", std::get<0>(x)); ps("{lb}.tag", std::get<1>(x)); pi("{lb}.cell", std::get<2>(x)); pi("{lb}.zone", std::get<3>(x)); pi("{lb}.layer", std::get<4>(x)); ps("{lb}.species", std::get<5>(x)); pi("{lb}.val", std::get<6>(x)); }} }}')
+    R.append(f'    {{ let mut t: Vec<(i32, Vec<u8>, i32, i32, i32, Vec<u8>, i64)> = ({pr}).iter().map(|(k, v)| (k.scope as i32, k.tag.clone(), k.cell, k.zone as i32, k.layer, k.species.clone(), *v as i64)).collect();'
+             f' t.sort(); pi(o, "{lb}.n", t.len() as i64); for x in &t {{ pi(o, "{lb}.scope", x.0 as i64); ps(o, "{lb}.tag", &x.1); pi(o, "{lb}.cell", x.2 as i64); pi(o, "{lb}.zone", x.3 as i64); pi(o, "{lb}.layer", x.4 as i64); ps(o, "{lb}.species", &x.5); pi(o, "{lb}.val", x.6); }} }}')
+
+TWOD_CUSTOM = {
+    ('GwTransportOptions', 'thermal_authored'): _twod_string_set,
+    ('BoundaryData', 'receipts'): _twod_receipts,
+    ('GwTransportData', 'quality_index_'): _twod_quality_index,
+}
+
+def twod_dump_struct(header, struct, path_c, path_r, label, C, R):
+    """dump_struct with the TWOD_CUSTOM hooks and TWOD_ELEM_STRUCTS, recursing into itself."""
+    for name, ty, arr in fields(header, struct):
+        if name == 'operator':
+            continue   # `bool operator==(...)`: the field parser splits at its '=' (not data)
+        pc, pr, lb = f'{path_c}.{name}', f'{path_r}.{rname(name)}', f'{label}.{name}'
+        if (struct, name) in TWOD_CUSTOM:
+            TWOD_CUSTOM[(struct, name)](pc, pr, lb, C, R)
+            continue
+        k = kind(ty)
+        if arr:
+            if k and k[0] in 'fi':
+                C.append(f'  for (int q = 0; q < (int)(sizeof({pc})/sizeof({pc}[0])); ++q) {{')
+                R.append(f'    for q in 0..({pr}).len() {{')
+                emit(f'{pc}[q]', f'{pr}[q]', lb + '[]', k, C, R)
+                C.append('  }'); R.append('    }')
+            else:
+                SKIPS.append(lb); C.append(f'  sk("{lb}");'); R.append(f'    sk(o, "{lb}");')
+            continue
+        t = ty.replace('const ', '').strip()
+        em = re.fullmatch(r'std::vector<(?:\w+::)*(\w+)>', t)
+        if k is None and em and em.group(1) in TWOD_ELEM_STRUCTS:
+            C.append(f'  pi("{lb}.n", (long long)({pc}).size());'); R.append(f'    pi(o, "{lb}.n", ({pr}).len() as i64);')
+            C.append(f'  for (auto& el : {pc}) {{'); R.append(f'    for el in ({pr}).iter() {{')
+            twod_dump_struct(TWOD_ELEM_STRUCTS[em.group(1)], em.group(1), 'el', '(*el)', lb + '[]', C, R)
+            C.append('  }'); R.append('    }')
+            continue
+        if k is not None and k[0] == 'struct':
+            twod_dump_struct(k[1], k[2], pc, pr, lb, C, R)
+            continue
+        if k is None:
+            SKIPS.append(f'{lb} ({ty})'); C.append(f'  sk("{lb}");'); R.append(f'    sk(o, "{lb}");')
+            continue
+        emit(pc, pr, lb, k, C, R)
+
+# SurfaceRouter2D members open() fills, in upstream's member order:
+# (member, header, struct or None for a vector, element type for a vector)
+TWOD_MEMBERS = [
+    ('mesh_', '2d/data/MeshData.hpp', 'MeshData', None),
+    ('options_', '2d/data/SolverOptions2D.hpp', 'SolverOptions2D', None),
+    ('boundary_', '2d/data/BoundaryData.hpp', 'BoundaryData', None),
+    ('infil_', '2d/infil/Infil2D.hpp', 'Infil2D', None),
+    ('gw_', '2d/gw/GwTransportData.hpp', 'GwTransportData', None),
+    ('surface_quality_', '2d/quality/SurfaceQuality2D.hpp', 'SurfaceQuality2D', None),
+    ('aquifer_cfg_', '2d/subsurface/SubsurfaceData.hpp', 'SubsurfaceConfig', None),
+    ('aquifer_node_names_', None, None, 'std::string'),
+    ('aquifer_link_names_', None, None, 'std::string'),
+    ('pending_bc_rows_', '2d/data/PendingRows2D.hpp', None, 'PendingBoundaryRow'),
+    ('pending_iq_rows_', '2d/data/PendingRows2D.hpp', None, 'PendingInitialQualityRow'),
+    ('pending_ibq_rows_', '2d/data/PendingRows2D.hpp', None, 'PendingInitialBedQualityRow'),
+    ('pending_bq_rows_', '2d/data/PendingRows2D.hpp', None, 'PendingBoundaryQualityRow'),
+    ('pending_edge_conveyance_rows_', '2d/data/PendingRows2D.hpp', None, 'PendingEdgeConveyanceRow'),
+]
+
+def twod_dumper():
+    # the 2D enums, structs and spellings (after every 1D file is written; see above)
+    for d, _, fs in os.walk(os.path.join(UP, '2d')):
+        for f in fs:
+            if f.endswith('.hpp'):
+                for m in re.finditer(r'enum\s+(?:class\s+)?(\w+)\s*(?::\s*[\w:]+)?\s*\{', strip(open(os.path.join(d, f), errors='replace').read())):
+                    ENUMS.add(m.group(1))
+    STRUCTS.update(TWOD_STRUCTS)
+    ALIASES['openswmm::FilePathPair'] = 'FilePathPair'
+    nskip = len(SKIPS)
+    C = ['// generated by tools/ctxdump.py: prints the 2D router\'s open-time state; the Rust twin prints the same',
+         '// include after `#define private public` and core/SWMMEngine.hpp built with OPENSWMM_HAS_2D=1 (see gate/diff/ctxopen2d.cpp)',
+         '#pragma once', '#include <tuple>', '#include <algorithm>', '#include "ctxdump.hpp"', 'namespace ctxdump {',
+         'inline void twoddump(openswmm::SWMMEngine& e) {', '  auto& r = e.surface_router_;']
+    R = ['// generated by tools/ctxdump.py: Rust twin of gate/diff/twoddump.hpp', '#![allow(dead_code, unused_parens, clippy::all)]',
+         'use std::io::Write;', 'use swmm6_rust::core::engine::SwmmEngine;',
+         'fn pf(o: &mut Vec<u8>, l: &str, v: f64) { writeln!(o, "{} {:016x}", l, v.to_bits()).unwrap(); }',
+         'fn pi(o: &mut Vec<u8>, l: &str, v: i64) { writeln!(o, "{} {}", l, v).unwrap(); }',
+         'fn ps(o: &mut Vec<u8>, l: &str, s: &[u8]) { write!(o, "{} {}:", l, s.len()).unwrap(); o.extend_from_slice(s); o.push(b\'\\n\'); }',
+         'fn vf(o: &mut Vec<u8>, l: &str, v: &[f64]) { writeln!(o, "{} n={}", l, v.len()).unwrap(); for x in v { write!(o, " {:016x}", x.to_bits()).unwrap(); } if !v.is_empty() { o.push(b\'\\n\'); } }',
+         'fn vi(o: &mut Vec<u8>, l: &str, v: &[i64]) { writeln!(o, "{} n={}", l, v.len()).unwrap(); for x in v { write!(o, " {}", x).unwrap(); } if !v.is_empty() { o.push(b\'\\n\'); } }',
+         'fn vs(o: &mut Vec<u8>, l: &str, v: &[Vec<u8>]) { writeln!(o, "{} n={}", l, v.len()).unwrap(); for s in v { write!(o, " {}:", s.len()).unwrap(); o.extend_from_slice(s); } if !v.is_empty() { o.push(b\'\\n\'); } }',
+         'fn sk(o: &mut Vec<u8>, l: &str) { writeln!(o, "skip {}", l).unwrap(); }',
+         'fn pn(o: &mut Vec<u8>, l: &str) { writeln!(o, "{} none", l).unwrap(); }',
+         'pub fn twoddump(e: &SwmmEngine) -> Vec<u8> {', '    let mut o: Vec<u8> = Vec::new();', '    let o = &mut o;',
+         '    let r = e.surface_router_2d();']
+    for member, header, struct, elem in TWOD_MEMBERS:
+        lb = f'twod.{member}'
+        C.append('  {'); R.append(f'    {{ let m = r.{member}.borrow();')
+        if struct:
+            twod_dump_struct(header, struct, f'r.{member}', '(*m)', lb, C, R)
+        elif elem == 'std::string':
+            emit(f'r.{member}', '(*m)', lb, kind('std::vector<std::string>'), C, R)
+        else:
+            C.append(f'  pi("{lb}.n", (long long)(r.{member}).size());'); R.append(f'    pi(o, "{lb}.n", (*m).len() as i64);')
+            C.append(f'  for (auto& el : r.{member}) {{'); R.append('    for el in (*m).iter() {')
+            twod_dump_struct(header, elem, 'el', '(*el)', lb + '[]', C, R)
+            C.append('  }'); R.append('    }')
+        C.append('  }'); R.append('    }')
+    C.append('}'); C.append('} // namespace ctxdump')
+    R.append('    std::mem::take(o)'); R.append('}')
+    tskips = SKIPS[nskip:]
+    del SKIPS[nskip:]
+    open(f'{ROOT}/gate/diff/twoddump.hpp', 'w').write('\n'.join(C) + '\n')
+    open(f'{ROOT}/crates/engine/examples/common/twoddump.rs', 'w').write('\n'.join(R) + '\n')
+    print(f'twoddump: {len(tskips)} skipped:', '; '.join(tskips))
+
 def main():
     collect_enums()
     C = ['// generated by tools/ctxdump.py: prints a SimulationContext; the Rust twin prints the same',
@@ -1115,6 +1279,7 @@ def main():
     router_dumper()
     hydro_dumper()
     life_dumper()
+    twod_dumper()
 
 if __name__ == '__main__':
     main()

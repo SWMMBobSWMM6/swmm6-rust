@@ -6,3 +6,24 @@
 // OPENSWMM_HAS_2D. Each submodule names the upstream files it derives from.
 // Written for swmm6-rust, 12 November 2026, by Claude (Anthropic) at the request of Robert
 // Dickinson. Not an OpenSWMM release.
+
+use std::cell::RefCell;
+use std::rc::Rc;
+
+pub mod data;
+pub mod gw;
+pub mod infil;
+pub mod input;
+pub mod quality;
+pub mod subsurface;
+pub mod surface_router_2d;
+
+/// A member of the 2D router that upstream reaches through raw pointers or captured references
+/// as well as through its owner (SimulationContext::twod_io, the section handlers): one
+/// shared, interior-mutable value, held by the router and cloned into each user.
+pub type Shared<T> = Rc<RefCell<T>>;
+
+/// A new shared value.
+pub fn shared<T>(v: T) -> Shared<T> {
+    Rc::new(RefCell::new(v))
+}

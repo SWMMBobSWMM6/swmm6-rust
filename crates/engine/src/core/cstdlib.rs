@@ -529,3 +529,93 @@ pub fn atoi(s: &[u8]) -> i32 {
 pub fn starts_with_ci(s: &[u8], word: &[u8]) -> bool {
     s.len() >= word.len() && s[..word.len()].eq_ignore_ascii_case(word)
 }
+
+/// glibc `strtol(s, &end, 10)`: (value, bytes consumed). Leading C-locale white space, an
+/// optional sign, decimal digits; saturates at LONG_MIN/LONG_MAX (the digits are still all
+/// consumed). No digit consumes nothing: (0, 0). The C string ends at its first NUL.
+/// Added for the 2D section parsers (2d/input/SectionHandlers2D.cpp tryParseInt), 12 November
+/// 2026, by Claude (Anthropic) for Robert Dickinson.
+pub fn strtol(s: &[u8]) -> (i64, usize) {
+    let s = c_str(s);
+    let n = s.len();
+    let mut i = 0;
+    while i < n && c_isspace(s[i]) {
+        i += 1;
+    }
+    let mut neg = false;
+    if i < n && (s[i] == b'-' || s[i] == b'+') {
+        neg = s[i] == b'-';
+        i += 1;
+    }
+    let start = i;
+    let mut v: i128 = 0;
+    while i < n && s[i].is_ascii_digit() {
+        if v <= i64::MAX as i128 + 1 {
+            v = v * 10 + (s[i] - b'0') as i128;
+        }
+        i += 1;
+    }
+    if i == start {
+        return (0, 0);
+    }
+    let v = if neg { -v } else { v };
+    let l: i64 = if v > i64::MAX as i128 {
+        i64::MAX
+    } else if v < i64::MIN as i128 {
+        i64::MIN
+    } else {
+        v as i64
+    };
+    (l, i)
+}
+
+/// The exception `std::stod` throws.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StodErr {
+    /// std::invalid_argument (nothing converts)
+    InvalidArgument,
+    /// std::out_of_range (strtod reports ERANGE)
+    OutOfRange,
+}
+
+/// `std::stod(s, &pos)`: Ok((value, pos)) or the exception it throws. ERANGE follows glibc:
+/// overflow (an infinite result from a non-"inf" literal) and underflow (a zero result from a
+/// mantissa holding a nonzero digit, or any subnormal result; an exact subnormal literal is not
+/// distinguished). The same rules as controls/controls.rs stod_pos, shared here for the 2D
+/// parsers, 12 November 2026, by Claude (Anthropic) for Robert Dickinson.
+pub fn stod_pos(s: &[u8]) -> Result<(f64, usize), StodErr> {
+    let (v, used) = strtod(s);
+    if used == 0 {
+        return Err(StodErr::InvalidArgument);
+    }
+    let t = &c_str(s)[..used];
+    let mut k = 0;
+    while k < t.len() && c_isspace(t[k]) {
+        k += 1;
+    }
+    if k < t.len() && (t[k] == b'+' || t[k] == b'-') {
+        k += 1;
+    }
+    let body = &t[k..];
+    if v.is_nan() {
+        return Ok((v, used));
+    }
+    if v.is_infinite() {
+        let lit = body.first().is_some_and(|c| c.to_ascii_lowercase() == b'i');
+        return if lit { Ok((v, used)) } else { Err(StodErr::OutOfRange) };
+    }
+    let is_hex = body.len() >= 2 && body[0] == b'0' && body[1].to_ascii_lowercase() == b'x';
+    if v == 0.0 {
+        let nonzero = if is_hex {
+            body[2..].iter().take_while(|&&c| c.to_ascii_lowercase() != b'p').any(|&c| c.is_ascii_hexdigit() && c != b'0')
+        } else {
+            body.iter().take_while(|&&c| c != b'e' && c != b'E').any(|&c| (b'1'..=b'9').contains(&c))
+        };
+        if nonzero {
+            return Err(StodErr::OutOfRange);
+        }
+    } else if v.abs() < f64::MIN_POSITIVE {
+        return Err(StodErr::OutOfRange);
+    }
+    Ok((v, used))
+}

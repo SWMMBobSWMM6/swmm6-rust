@@ -291,6 +291,9 @@ pub struct SwmmEngine {
     pub(crate) ard_: crate::transport::ard_engine::ArdEngine,
     /// QUALITY_SOLVER LAGRANGIAN engine
     pub(crate) lard_: crate::quality::lard::lagrangian_solver::LagrangianSolver,
+    /// The 2D surface router (upstream's OPENSWMM_HAS_2D member; core/engine_twod.rs)
+    #[cfg(feature = "twod")]
+    pub(crate) surface_router_: crate::twod::surface_router_2d::SurfaceRouter2D,
 }
 
 impl Default for SwmmEngine {
@@ -394,8 +397,12 @@ impl SwmmEngine {
             ard_init_attempted_: false,
             ard_: crate::transport::ard_engine::ArdEngine::new(),
             lard_: Default::default(),
+            #[cfg(feature = "twod")]
+            surface_router_: Default::default(),
         };
         e.ctx_.state = EngineState::Created;
+        #[cfg(feature = "twod")]
+        e.wire_2d_model_io();
         e
     }
 
@@ -510,6 +517,9 @@ impl SwmmEngine {
         // Reset context for a fresh run
         self.ctx_.reset();
         self.metadata_only_ = metadata_only;
+        // Router-owned groundwater rows outlive ctx_.reset() (core/engine_twod.rs)
+        #[cfg(feature = "twod")]
+        self.open_2d_clear();
 
         // Stamp the report wall clock before any parsing work (std::time).
         self.ctx_.wall_start = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0);
@@ -539,8 +549,18 @@ impl SwmmEngine {
             }
         }
 
+        // Register the 2D section handlers before reading; scan for the SI-units header.
+        #[cfg(feature = "twod")]
+        self.open_2d_register_and_prescan(inp_path);
+
         if self.plugins_.input_plugins_mut()[0].read(inp, &mut self.ctx_) != 0 {
             return if self.ctx_.error_code != 0 { self.ctx_.error_code } else { SWMM_ERR_PARSE };
+        }
+
+        // The external mesh file, then the INFIL_STEP / GW_ET alias folding.
+        #[cfg(feature = "twod")]
+        if let Some(rc) = self.open_2d_after_read(inp_path) {
+            return rc;
         }
 
         // Species registry: pollutants occupy the first slots.
@@ -708,6 +728,9 @@ impl SwmmEngine {
         for w in crate::transport::msx_surface::resolve(&mut self.ctx_) {
             self.ctx_.warnings.push(w);
         }
+        // U4: the [GW_*] rows, now that the mesh, species and series are final.
+        #[cfg(feature = "twod")]
+        self.open_2d_resolve();
 
         // Project-level sanity checks (legacy project_validate), only without input errors.
         if self.ctx_.errors.is_empty() {
@@ -764,6 +787,10 @@ impl SwmmEngine {
             rp.validate(&self.ctx_);
             self.plugins_.add_report_plugin(rp);
         }
+
+        // [2D_OPTIONS] OUTPUT_FILE in a build without the 2D HDF5 writer (core/engine_twod.rs)
+        #[cfg(feature = "twod")]
+        self.open_2d_output_file_warning();
 
         // ctx_.state_accessors: NOT YET TRANSLATED (see the file header).
 

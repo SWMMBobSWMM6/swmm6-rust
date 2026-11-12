@@ -15,6 +15,9 @@
 //     takes its legacy branch and the 2D surface cells read "no 2D mesh". The Draft argument
 //     (a planning pass of the C API) is not used by the report: resolve(ctx) takes none.
 //     groundwaterEnables and surface2DEnables are not on the report path; not translated.
+//   * With the `twod` feature (12 November 2026) the groundwater and 2D surface cells read the
+//     router's mesh, options, [2D_AQUIFER] rows and [GW_*] options through ctx.twod_io, as
+//     upstream's 2D build does; see groundwater_two_zone for the kernel state.
 
 use crate::core::context::SimulationContext;
 use crate::core::options::{Bytes, QualitySolverKind};
@@ -120,6 +123,27 @@ fn unavailable(c: &mut Cell, why: &[u8]) {
     c.reason = why.to_vec();
 }
 
+/// hasMesh2D(): a mesh with at least one cell (twod feature).
+#[cfg(feature = "twod")]
+fn has_mesh_2d(ctx: &SimulationContext) -> bool {
+    ctx.twod_io.mesh.as_ref().is_some_and(|m| m.borrow().n_cells() > 0)
+}
+
+/// The groundwater cell's two-zone test (twod feature). Upstream: `authored = (!aq ||
+/// aq->n_cells == 0) && hasMesh2D && aquifer && !aquifer->empty() && !ignore_2d &&
+/// (!options || options->groundwater != 0)`, `two_zone = authored || (aq && aq->active &&
+/// aq->n_cells > 0)`. The kernel state `aq` (twod_io.aquifer_state) belongs to phase 2b and is
+/// never active here, as it is not upstream before SurfaceRouter2D::initialize resolves an
+/// aquifer; so two_zone is `authored` and the counts are the planned ones.
+#[cfg(feature = "twod")]
+fn groundwater_two_zone(ctx: &SimulationContext) -> bool {
+    let io = &ctx.twod_io;
+    has_mesh_2d(ctx)
+        && io.aquifer.as_ref().is_some_and(|a| !a.borrow().empty())
+        && !ctx.options.ignore_2d
+        && io.options.as_ref().map_or(true, |o| o.borrow().groundwater != 0)
+}
+
 /// resolve(ctx): the matrix for the project as configured (no draft).
 pub fn resolve(ctx: &SimulationContext) -> Matrix {
     let mut m = Matrix::default();
@@ -182,8 +206,57 @@ pub fn resolve(ctx: &SimulationContext) -> Matrix {
         }
     }
 
-    // ---- Groundwater (no two-zone [2D_AQUIFER] kernel in a 1D build) ----
-    {
+    // ---- Groundwater: the two-zone [2D_AQUIFER] kernel (twod feature, below) ----
+    #[cfg(feature = "twod")]
+    let two_zone = groundwater_two_zone(ctx);
+    #[cfg(feature = "twod")]
+    if two_zone {
+        // planned (authored) counts: groundwaterEnables would read an active kernel, which
+        // the translation does not run yet (see groundwater_two_zone)
+        let g = ctx.twod_io.gw.as_ref().map(|g| g.borrow());
+        let pol = m.at(Domain::Groundwater, SpeciesClass::Pollutants);
+        if np == 0 {
+            unavailable(pol, b"no [POLLUTANTS]");
+        } else if ignore_q {
+            disabled(pol, b"IGNORE_QUALITY");
+        } else if g.as_ref().is_some_and(|g| !g.options.transport_pollutants) {
+            disabled(pol, b"TRANSPORT_POLLUTANTS NO");
+        } else {
+            enabled(pol, np);
+        }
+        let bulk = ctx.reactions.species_is_wall.iter().filter(|&&w| w == 0).count() as i32;
+        let msx = m.at(Domain::Groundwater, SpeciesClass::Msx);
+        if !reactions_active(ctx) {
+            unavailable(msx, b"no reactions component");
+        } else if bulk == 0 {
+            unavailable(msx, b"no BULK species for subsurface transport");
+        } else if ignore_q {
+            disabled(msx, b"IGNORE_QUALITY");
+        } else if g.as_ref().is_some_and(|g| !g.options.transport_msx) {
+            disabled(msx, b"TRANSPORT_MSX NO");
+        } else {
+            enabled(msx, bulk);
+        }
+        let age = m.at(Domain::Groundwater, SpeciesClass::Age);
+        if !age_on {
+            unavailable(age, b"WATER_AGE OFF");
+        } else if g.as_ref().is_some_and(|g| !g.options.transport_age) {
+            disabled(age, b"TRANSPORT_AGE NO");
+        } else {
+            enabled(age, 1);
+        }
+        let tmp = m.at(Domain::Groundwater, SpeciesClass::Temperature);
+        if !heat_on {
+            unavailable(tmp, b"HEAT_TRANSPORT OFF");
+        } else if g.as_ref().is_some_and(|g| !g.options.transport_temperature) {
+            disabled(tmp, b"TRANSPORT_TEMPERATURE NO");
+        } else {
+            enabled(tmp, 1);
+        }
+    }
+    #[cfg(not(feature = "twod"))]
+    let two_zone = false;
+    if !two_zone {
         let has_aq = ctx.aquifer_names.size() > 0;
         let no_aq: &[u8] = b"no [AQUIFERS] or [2D_AQUIFER]";
         unavailable(m.at(Domain::Groundwater, SpeciesClass::Pollutants), if has_aq { b"no transported quality \xE2\x80\x94 the aquifer supplies the [POLLUTANTS] GW concentration at the node seam (legacy)" as &[u8] } else { no_aq });
@@ -235,8 +308,59 @@ pub fn resolve(ctx: &SimulationContext) -> Matrix {
     }
 
     // ---- 2D surface (no mesh in a 1D build) ----
+    #[cfg(not(feature = "twod"))]
     for c in [SpeciesClass::Pollutants, SpeciesClass::Msx, SpeciesClass::Age, SpeciesClass::Temperature] {
         unavailable(m.at(Domain::Surface2D, c), b"no 2D mesh");
+    }
+    #[cfg(feature = "twod")]
+    {
+        let mesh = has_mesh_2d(ctx);
+        let o = ctx.twod_io.options.as_ref().map(|o| o.borrow());
+        let ig2d = ctx.options.ignore_2d;
+        let gate = |c: &mut Cell, project_on: bool, off_why: &[u8], key_on: bool, key: &[u8], quality_gated: bool, count: i32, unavailable_why: Option<&[u8]>| {
+            if !mesh {
+                unavailable(c, b"no 2D mesh");
+                return;
+            }
+            if !project_on {
+                unavailable(c, off_why);
+                return;
+            }
+            if ig2d {
+                disabled(c, b"IGNORE_2D");
+                return;
+            }
+            if quality_gated && ignore_q {
+                disabled(c, b"IGNORE_QUALITY");
+                return;
+            }
+            if let Some(why) = unavailable_why {
+                unavailable(c, why);
+                return;
+            }
+            if !key_on {
+                disabled(c, key);
+                return;
+            }
+            enabled(c, count);
+        };
+        let tp = o.as_ref().map_or(true, |o| o.transport_pollutants);
+        let tm = o.as_ref().map_or(true, |o| o.transport_msx);
+        let ta = o.as_ref().map_or(true, |o| o.transport_age);
+        let tt = o.as_ref().map_or(true, |o| o.transport_temperature);
+        gate(m.at(Domain::Surface2D, SpeciesClass::Pollutants), np > 0, b"no [POLLUTANTS]", tp, b"TRANSPORT_POLLUTANTS", true, np, None);
+        gate(
+            m.at(Domain::Surface2D, SpeciesClass::Msx),
+            msx_on,
+            b"no reactions component",
+            tm,
+            b"TRANSPORT_MSX",
+            true,
+            nm,
+            if msx_wall { Some(b"WALL species have no surface transport semantics" as &[u8]) } else { None },
+        );
+        gate(m.at(Domain::Surface2D, SpeciesClass::Age), age_on, b"WATER_AGE OFF", ta, b"TRANSPORT_AGE", false, 1, None);
+        gate(m.at(Domain::Surface2D, SpeciesClass::Temperature), heat_on, b"HEAT_TRANSPORT OFF", tt, b"TRANSPORT_TEMPERATURE", false, 1, None);
     }
 
     m

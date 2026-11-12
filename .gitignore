@@ -38,3 +38,5 @@ gate/diff/routestep
 gate/diff/outgate
 target-b/
 gate/diff/ext80dot
+target2d/
+gate/diff/ctxopen2d

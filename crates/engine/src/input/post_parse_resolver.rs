@@ -205,7 +205,13 @@ pub fn resolve_external_file_slots(ctx: &mut SimulationContext, anchor_dir: &[u8
     for rpt in ctx.lid_usage.rpt_file.iter_mut() {
         resolve(rpt);
     }
-    // (2D mesh_file / output_file: OPENSWMM_HAS_2D only.)
+    // 2D mesh_file / output_file (OPENSWMM_HAS_2D only: the twod feature).
+    #[cfg(feature = "twod")]
+    if let Some(options) = &ctx.twod_io.options {
+        let mut o = options.borrow_mut();
+        resolve(&mut o.mesh_file);
+        resolve(&mut o.output_file);
+    }
 }
 
 // -------------------------------------------------------------------------

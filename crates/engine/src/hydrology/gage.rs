@@ -26,7 +26,9 @@
 // hand-written Default for GageState.
 //
 // 1D build: the 2D-mesh clause (every gage is used under a rain-on-grid RAINFALL_MODE)
-// tests ctx.twod_io.mesh, which a 1D build never sets, so it is always false here.
+// tests ctx.twod_io.mesh, which a 1D build never sets, so it is always false here. With the
+// `twod` feature (12 November 2026) it reads the router's mesh and options, as upstream's 2D
+// build does.
 
 use crate::core::cmath::{cclamp, cmin};
 use crate::core::context::SimulationContext;
@@ -114,6 +116,13 @@ pub fn gage_is_used(ctx: &SimulationContext, gage_idx: i32) -> bool {
     }
     for gname in &ctx.unit_hyds.gage_names {
         if ctx.gage_names.find(gname) == gage_idx {
+            return true;
+        }
+    }
+    // S7: the 2D mesh reads every gage under RAINFALL_MODE SYSTEM / NATURAL_NEIGHBOUR.
+    #[cfg(feature = "twod")]
+    if let (Some(mesh), Some(options)) = (&ctx.twod_io.mesh, &ctx.twod_io.options) {
+        if mesh.borrow().n_triangles() > 0 && options.borrow().rainfall_mode != crate::twod::data::solver_options_2d::RainfallMode::None {
             return true;
         }
     }
