@@ -7,7 +7,7 @@ These conventions apply to every file in `crates/engine`. `crates/engine/src/dat
 * Keep every floating-point operation in upstream's order. `a + b + c` stays `(a + b) + c`; never reassociate, never fuse, never "simplify".
   * Write `x * x` where upstream writes `x * x`, and `pow` where it writes `pow`.
   * Rust does not contract `a * b + c` into an FMA, so leave that expression as it is.
-* `std::min`/`std::max`/`std::clamp` become `core::cmath::{cmin, cmax, cclamp}`, never Rust's `f64::min`/`max`/`clamp`, which treat NaN differently.
+* `std::min`/`std::max`/`std::clamp` become `core::cmath::{cmin, cmax, cclamp}`, never Rust's `f64::min`/`max`/`clamp`, which treat NaN differently. `cclamp` is libstdc++ 13's own form, `min(max(v, lo), hi)`, so it returns `hi` when `hi < lo` (the reference build compiles out the precondition check).
 * `std::fabs` becomes `.abs()`, and `std::sqrt` becomes `.sqrt()`; both are exact.
 * Transcendental functions (`pow`, `exp`, `log`, `sin`, …) need glibc's bits. Mark each use with `// LIBM` so the later libm pass can find it.
 * `static_cast<int>(double)` becomes `core::cmath::cvt_i32(x)` wherever the value can be NaN, infinite or out of range. The reference build gives INT_MIN for all of those, where Rust's `as i32` saturates (NaN gives 0). For values known to be in range, `as i32` is the same.

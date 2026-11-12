@@ -6,7 +6,7 @@
 // definitions in the C++ standard exactly:
 //   std::min(a, b)        = (b < a) ? b : a
 //   std::max(a, b)        = (a < b) ? b : a
-//   std::clamp(v, lo, hi) = (v < lo) ? lo : (hi < v) ? hi : v
+//   std::clamp(v, lo, hi) = std::min(std::max(v, lo), hi)   (libstdc++ 13; see cclamp)
 // Written for swmm6-rust, 2 November 2026, by Claude (Anthropic) for Robert Dickinson.
 
 #[inline(always)]
@@ -27,15 +27,14 @@ pub fn cmax<T: PartialOrd>(a: T, b: T) -> T {
     }
 }
 
+/// `std::clamp(v, lo, hi)` as the reference build's libstdc++ 13 implements it
+/// (bits/stl_algo.h:3670): `return std::min(std::max(__val, __lo), __hi);`. Its precondition
+/// `!(hi < lo)` is only a `__glibcxx_assert`, compiled out in a Release build, so with hi < lo
+/// this returns `hi`, where the textbook ternary form returns `lo`. Every other input (NaN in
+/// any position, signed zeros) gives the same result in both forms.
 #[inline(always)]
 pub fn cclamp<T: PartialOrd>(v: T, lo: T, hi: T) -> T {
-    if v < lo {
-        lo
-    } else if hi < v {
-        hi
-    } else {
-        v
-    }
+    cmin(cmax(v, lo), hi)
 }
 
 /// `static_cast<int>(x)` as the reference build executes it (x86-64 `cvttsd2si`): truncation
@@ -65,6 +64,17 @@ mod tests {
         // signed zeros: std::min(0.0, -0.0) is 0.0 (first), Rust's min may give either
         assert!(cmin(0.0f64, -0.0).is_sign_positive());
         assert!(cmin(-0.0f64, 0.0).is_sign_negative());
+    }
+    #[test]
+    fn clamp_follows_libstdcxx() {
+        // libstdc++ 13: min(max(v, lo), hi); with hi < lo the result is hi
+        assert_eq!(cclamp(0.0, 1.0, -1.0), -1.0);
+        assert_eq!(cclamp(5.0, 1.0, -1.0), -1.0);
+        assert_eq!(cclamp(0, 0, -2), -2); // TableData's clamp(idx, 0, n - 2) with n = 0
+        assert_eq!(cclamp(0.5, 0.0, 1.0), 0.5);
+        assert!(cclamp(f64::NAN, 0.0, 1.0).is_nan());
+        assert_eq!(cclamp(0.5, f64::NAN, 1.0), 0.5);
+        assert_eq!(cclamp(-0.5, 0.0, f64::NAN), 0.0);
     }
 }
 
