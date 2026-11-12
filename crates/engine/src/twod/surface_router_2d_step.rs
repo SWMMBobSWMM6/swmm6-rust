@@ -12,39 +12,40 @@
 // Modified: translated from C++ to Rust, 12 November 2026, by Claude (Anthropic) at the request
 // of Robert Dickinson. Not an OpenSWMM release.
 //
-// The 2D router's run-time step on an uncoupled mesh (phase 2a wave 4a): the pre- and
-// post-routing hooks SWMMEngine::stepRouting calls, the co-advance batch (rain from the held gage
-// rates, evaporation, held infiltration, boundary values, the marcher's advance, the boundary
-// and mass-balance ledgers, the statistics and render cadences), and the gage-rate history the
-// runoff step books.
+// The 2D router's run-time step (phase 2a wave 4a; the 1D-2D exchange joined in wave 4c): the
+// pre- and post-routing hooks SWMMEngine::stepRouting calls, the co-advance batch (rain from the
+// held gage rates, evaporation, held infiltration, boundary values, the equalization areas, the
+// marcher's advance with its live junction exchange, the junction ledger and its delivery queue,
+// the boundary and mass-balance ledgers, the statistics and render cadences), and the gage-rate
+// history the runoff step books.
 //
-// The 1D-2D exchange is the join wave's (wave 4b translates it). Every place this step would
-// run coupling code refuses with the crate's stub before it changes anything, naming the path:
-//   * updateOutfallsPreRouting with outfall or node coupling points, an outfall exchange or
-//     tracking ponds (updateOutfallBoundaries, OutfallExchange::recordTailwater / prepare,
-//     updateTrackingPonds): the first 2D call of a routing step, so a coupled deck stops there;
-//   * advancePostRouting's OutfallExchange::apply, coAdvanceStep's junction ledger (a non-empty
-//     last_coupling_exchange), computeCouplingConductances, publishEqualizeAreas with an
-//     equalizing point: unreachable once updateOutfallsPreRouting has refused (kept as guards).
-// On an uncoupled mesh those calls are no-ops upstream (empty point lists), and the translation
-// skips them.
+// The exchange itself is wave 4b's (twod/coupling): updateOutfallsPreRouting runs
+// updateOutfallBoundaries, OutfallExchange::recordTailwater / prepare and updateTrackingPonds;
+// advancePostRouting runs OutfallExchange::apply; coAdvanceStep runs publishEqualizeAreas before
+// the advance and the junction ledger (router_exchange.rs, upstream's inline block as two
+// methods) after it; computeCouplingConductances is called from stepRouting's non-conduit
+// callback (core/engine_step_routing.rs).
 //
-// Also left out, each refused at initialize in phase 2a (so the branch cannot run): the common
-// source stage, the joint hydraulic pairing, the two-zone subsurface kernel (its producer clock
-// setProducerEnd is a member the kernel alone reads), surface species (publishNodeRows and
-// applyAgingAndReactions return at once without transport rows), mesh snow and heat
-// (prepareMeshHeat and advanceRemainingGroundColumns return at once), the runtime forcing and
-// source stores (the swmm_2d_* C API), and the plugin solvers' boundary receipt drain (the
-// serial CPU marcher books its receipts itself). The development switches
-// OPENSWMM_2D_SYNC_SPAN and OPENSWMM_2D_HEAD_RAMP are refused with the stub when set.
+// Left out, each refused at initialize in phase 2a (so the branch cannot run): the common
+// source stage, the joint hydraulic pairing (whose chronology checks guard
+// updateOutfallsPreRouting and advancePostRouting; kept as stubs), the two-zone subsurface kernel
+// (its producer clock setProducerEnd is a member the kernel alone reads; its node exchange
+// volumes and LID beds), surface species (publishNodeRows and applyAgingAndReactions return at
+// once without transport rows, so node_row_conc_ stays empty), mesh snow and heat
+// (prepareMeshHeat and advanceRemainingGroundColumns return at once), and the plugin solvers'
+// boundary receipt drain (the serial CPU marcher books its receipts itself). The runtime forcing
+// and source stores (the swmm_2d_* C API) are read where step() reads them (nextRuntimeTime,
+// expireRuntime) and are empty without that API; the marcher refuses them. The development
+// switches OPENSWMM_2D_SYNC_SPAN and OPENSWMM_2D_HEAD_RAMP are refused with the stub when set.
 //
 // Form: the router's shared members (mesh_, options_, boundary_, infil_) are borrowed for each
-// call; the marcher takes them as solver::explicit_inertial_solver_step::StepAttachments.
+// call; the marcher takes them, the node coupling points, the context's node store and the
+// exchange's two state attachments as solver::explicit_inertial_solver_step::StepAttachments.
 // Exceptions on their way to SWMMEngine::step's catch are Err(Terminated).
 
 #![allow(clippy::all)]
 
-use crate::core::cmath::{cclamp, cmax};
+use crate::core::cmath::{cclamp, cmax, cmin};
 use crate::core::context::SimulationContext;
 use crate::core::datetime;
 use crate::core::engine_init_hydraulics::Terminated;
@@ -55,6 +56,7 @@ use crate::data::table::{table_lookup_cursor, table_lookup_ex};
 use crate::hydrology::infil_bank::infiltration_factors;
 use crate::hydrology::lid_node_step as lidnode;
 use crate::twod::data::boundary_data::BoundaryType;
+use crate::twod::coupling::node_coupling::{update_outfall_boundaries, CouplingAttachments};
 use crate::twod::data::mesh_data::MeshData;
 use crate::twod::data::solver_options_2d::{Momentum2D, RainfallMode, SolverOptions2D};
 use crate::twod::data::surface_state_data::SurfaceStateData;
@@ -140,7 +142,7 @@ fn refresh_output_gradients(mesh: &MeshData, state: &mut SurfaceStateData, opts:
 
 impl SurfaceRouter2D {
     /// Whether the mesh exchanges water with the 1D network (outfall or node coupling points,
-    /// an outfall exchange, tracking ponds): the join wave's paths.
+    /// an outfall exchange, tracking ponds).
     pub fn coupled_runtime(&self) -> bool {
         !self.coupling_points_.is_empty()
             || !self.node_coupling_points_.is_empty()
@@ -154,21 +156,21 @@ impl SurfaceRouter2D {
         self.state_.runtime_sources.active() || !self.boundary_.borrow().runtime_original.is_empty() || self.state_.runtime_forcings.active()
     }
 
-    /// nextRuntimeTime(now): the earliest runtime source/forcing transition (infinity when there
-    /// is none, which is always in phase 2a: only the swmm_2d_* C API installs them).
-    pub fn next_runtime_time(&self, _now: f64) -> Result<f64, Terminated> {
-        if !self.state_.runtime_sources.rows.is_empty() || !self.state_.runtime_forcings.rows.is_empty() {
-            return Err(stub("the 2D runtime sources and forcings (SurfaceRouter2D::nextRuntimeTime; the swmm_2d_* C API)"));
-        }
-        Ok(f64::INFINITY)
+    /// nextRuntimeTime(now): the earliest runtime source/forcing transition, std::min({surface
+    /// sources, aquifer sources, forcings}) (infinity when there is none; only the swmm_2d_* C API
+    /// installs them). The aquifer's runtime sources belong to the two-zone kernel (phase 2b), so
+    /// that term is infinity.
+    pub fn next_runtime_time(&self, now: f64) -> f64 {
+        let aquifer_next = f64::INFINITY; // subsurface_.runtimeSources().nextTime(now)
+        cmin(cmin(self.state_.runtime_sources.next_time(now), aquifer_next), self.state_.runtime_forcings.next_time(now))
     }
 
-    /// expireRuntime(now): retire the runtime sources and forcings (none in phase 2a).
-    pub fn expire_runtime(&mut self, _now: f64) -> Result<(), Terminated> {
-        if !self.state_.runtime_sources.rows.is_empty() || !self.state_.runtime_forcings.rows.is_empty() {
-            return Err(stub("the 2D runtime sources and forcings (SurfaceRouter2D::expireRuntime; the swmm_2d_* C API)"));
-        }
-        Ok(())
+    /// expireRuntime(now): retire the surface sources, (the aquifer's: phase 2b,) then the
+    /// forcings whose horizon has passed.
+    pub fn expire_runtime(&mut self, now: f64) {
+        self.state_.runtime_sources.expire(now);
+        // subsurface_.runtimeSources().expire(now): none without the two-zone kernel
+        self.state_.runtime_forcings.expire(now);
     }
 
     /// drainSubcatchRecharge(out): move the pending SUBCATCH_AQUIFER recharge into `out` (m3 per
@@ -190,18 +192,29 @@ impl SurfaceRouter2D {
     }
 
     /// updateOutfallsPreRouting(ctx, dt): freeze the outfall tailwater and donor reservations
-    /// before the 1D routing solve (a coupled mesh only; see the header).
-    pub fn update_outfalls_pre_routing(&mut self, _ctx: &mut SimulationContext, _dt: f64) -> Result<(), Terminated> {
+    /// before the 1D routing solve, then relax the tracking ponds (so the routing step about to
+    /// run starts from the relaxed pond).
+    pub fn update_outfalls_pre_routing(&mut self, ctx: &mut SimulationContext, dt: f64) -> Result<(), Terminated> {
         if !self.active_ {
             return Ok(());
         }
-        if self.coupled_runtime() {
-            return Err(stub(
-                "the 1D-2D exchange at run time (SurfaceRouter2D::updateOutfallsPreRouting: updateOutfallBoundaries, OutfallExchange::recordTailwater/prepare, updateTrackingPonds; join wave)",
-            ));
+        if self.joint_hydraulic_ && !self.outfall_exchange_.points_.is_empty() {
+            // the joint hydraulic pairing's chronology check (refused at initialize, phase 2b)
+            return Err(stub("the joint hydraulic outfall reservation (SurfaceRouter2D::updateOutfallsPreRouting; phase 2b)"));
         }
-        // Uncoupled: updateOutfallBoundaries, recordTailwater, prepare and updateTrackingPonds
-        // have no point, node or pond to visit.
+        {
+            let mesh = self.mesh_.borrow();
+            let opts = self.options_.borrow();
+            let att = CouplingAttachments::of(&self.state_, &self.coupling_head_cells_, &self.node_pond_area_m2_);
+            update_outfall_boundaries(&self.coupling_points_, &mesh, &self.state_, &att, ctx, &opts, dt);
+        }
+        self.outfall_exchange_.record_tailwater(ctx, dt);
+        {
+            let mesh = self.mesh_.borrow();
+            let opts = self.options_.borrow();
+            self.outfall_exchange_.prepare(&mesh, &self.state_, &opts, ctx, dt);
+        }
+        self.update_tracking_ponds(ctx, dt);
         Ok(())
     }
 
@@ -233,14 +246,29 @@ impl SurfaceRouter2D {
         if !self.active_ {
             return Ok(());
         }
-        // publishNodeRows(ctx): no transport rows. OutfallExchange::apply: no outfall point.
-        if self.coupled_runtime() {
-            return Err(stub("the 1D-2D exchange at run time (SurfaceRouter2D::advancePostRouting: OutfallExchange::apply; join wave)"));
+        if self.common_stage_ {
+            // the common source stage's chronology checks (refused at initialize, phase 2b)
+            return Err(stub("the common source stage (SurfaceRouter2D::advancePostRouting; phase 2b)"));
         }
+        // (the LID thermal interval and the LID bed clogging need the two-zone kernel)
+        // publishNodeRows(ctx): no transport rows, so node_row_conc_ stays empty.
+        // Consume only the accepted hydraulic exchange, against the reservations made before
+        // the 1D solve.
+        let changed = {
+            let mesh_rc = self.mesh_.clone();
+            let options_rc = self.options_.clone();
+            let mesh = mesh_rc.borrow();
+            let opts = options_rc.borrow();
+            let node_conc = if self.node_row_conc_.is_empty() { None } else { Some(&self.node_row_conc_[..]) };
+            let cell_acc = if self.common_stage_ { Some(&mut self.coupling_cum_applied_[..]) } else { None };
+            self.outfall_exchange_.apply(&mesh, &mut self.state_, &opts, ctx, routing_dt, &mut self.window_outfall_accum_, node_conc, cell_acc)?
+        };
+        self.outfall_state_changed_ = changed || self.outfall_state_changed_;
         self.pending_dt_ += routing_dt;
         // subsurface_.setProducerEnd(sim_time_ + pending_dt_): the kernel's own clock (phase 2b).
         self.last_t_ = t;
         // aquifer_link_shares_ is empty without the two-zone kernel.
+        // (lid_heat_sync needs the two-zone kernel's LID receipts)
         let sync = {
             let options = self.options_.borrow();
             Self::coupling_sync_span(ctx, &options)?
@@ -686,7 +714,9 @@ impl SurfaceRouter2D {
                 mesh: &mesh,
                 opts: &options,
                 boundary: if self.state_.boundary { Some(&*boundary) } else { None },
-                node_coupling_len: if self.state_.node_coupling { self.node_coupling_points_.len() } else { 0 },
+                node_coupling: if self.state_.node_coupling { Some(&self.node_coupling_points_[..]) } else { None },
+                nodes_1d: if self.state_.nodes_1d { Some(&ctx.nodes) } else { None },
+                coupling: CouplingAttachments::of(&self.state_, &self.coupling_head_cells_, &self.node_pond_area_m2_),
             };
             let t0 = self.sim_time_;
             if let Some(solver) = self.solver_.as_mut() {
@@ -698,11 +728,11 @@ impl SurfaceRouter2D {
         self.sim_time_ += dt;
         // applyAgingAndReactions(ctx, dt): no transport rows.
 
-        // Junction ledger (a coupled mesh only).
-        let exch_nonempty = self.solver_.as_ref().map_or(false, |s| !s.exch_.is_empty());
-        if exch_nonempty {
-            return Err(stub("the 1D-2D junction ledger (SurfaceRouter2D::coAdvanceStep: last_coupling_exchange; join wave)"));
-        }
+        // Junction ledger: the marcher's per-point integral of the exchange (m3, + = 2D -> 1D
+        // drain) into nodes.coupling_volume, held until the queue move below.
+        // (solver_->last_coupling_exchange(), the solver's exch_, unchanged until the next advance)
+        let exch: Vec<f64> = self.solver_.as_ref().map_or_else(Vec::new, |s| s.exch_.clone());
+        self.co_advance_junction_ledger(ctx, &exch);
 
         // Boundary ledger.
         {
@@ -714,8 +744,13 @@ impl SurfaceRouter2D {
             }
         }
 
+        // Ledgers every batch (accumulateMassBalance reads coupling_volume as this batch's
+        // exchange, so it runs before the queue move).
         self.accumulate_mass_balance(ctx, dt);
-        // (no aquifer node exchange; no junction volumes to queue)
+        // (the common stage's surface-ledger sync and the aquifer's node exchange need owners
+        // phase 2a does not have)
+        // Then the batch's junction volumes go to the delivery queue.
+        self.co_advance_junction_queue(ctx, &exch, dt);
         self.state_.clear_reset_forcings();
         self.reset_window_accumulators();
 

@@ -46,6 +46,10 @@
 //     inlet_.compute_all, so the gate can run the first part without the routing step's.
 //   * The OPENSWMM_FV_SLOT_TRACE environment trace in updateStatistics prints to stdout
 //     only; it is left out.
+//   * Under the `twod` feature (the 2D reference build) step()'s OPENSWMM_HAS_2D blocks are in
+//     (12 November 2026, phase 2a waves 4a to 4c): the runtime bound
+//     (SurfaceRouter2D::nextRuntimeTime), the batch flush, the runtime expiry,
+//     updateRoutingMassBalance's COUPLING_IN_FLOODING and isInSteadyState's 2D exclusion.
 
 use crate::core::cmath::{cmax, cmin};
 use crate::core::context::{EngineState, SimulationContext};
@@ -336,7 +340,7 @@ impl SwmmEngine {
         }
         #[cfg(feature = "twod")]
         {
-            dt_next = cmin(dt_next, self.surface_router_.next_runtime_time(now)? - now);
+            dt_next = cmin(dt_next, self.surface_router_.next_runtime_time(now) - now);
         }
         self.emit_progress();
         if let Some(cb) = self.callbacks_.on_step_begin.as_mut() {
@@ -349,7 +353,7 @@ impl SwmmEngine {
         }
         #[cfg(feature = "twod")]
         {
-            dt_next = cmin(dt_next, self.surface_router_.next_runtime_time(now)? - now);
+            dt_next = cmin(dt_next, self.surface_router_.next_runtime_time(now) - now);
         }
         self.runtime_pipeline_ = true;
 
@@ -466,9 +470,7 @@ impl SwmmEngine {
         #[cfg(feature = "twod")]
         {
             let completed = self.runtime_coupling_time();
-            if let Err(t) = self.surface_router_.expire_runtime(completed) {
-                return self.catch_step(t);
-            }
+            self.surface_router_.expire_runtime(completed);
         }
 
         self.runtime_pipeline_ = false;

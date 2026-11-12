@@ -27,8 +27,10 @@
 //     select, keeping each remaining expression as upstream writes it. rk_transport_stage_ is
 //     set only with gw_, so it stays false, and with it boundary_stage and preserve_face_water.
 //   * The live junction exchange in the tier-0 cell firing (exch_ non-empty: a mesh coupled to
-//     1D nodes) is the join wave's: it is refused with the crate's stub before it would run.
-//     SurfaceRouter2D's step refuses a coupled mesh earlier still, so no gate deck reaches it.
+//     1D nodes) was added at the join (12 November 2026, phase 2a wave 4c): computeNodeCouplingQ
+//     is twod/coupling/node_coupling.rs (wave 4b), and StepAttachments carries what upstream
+//     reaches through state_->node_coupling, state_->nodes_1d, state_->coupling_head_cells and
+//     state_->node_pond_area_m2. Its species bookings belong to surface species (phase 2b).
 //   * OpenMP. Upstream's loops are `schedule(static)` over `num_threads(opts->num_threads)`.
 //     Each iteration writes only its own cell or face, except the per-thread source ledgers
 //     (bookSourceLedger / the evaporation slot, folded thread by thread in flushSourceLedgers)
@@ -52,10 +54,12 @@
 use crate::core::cmath::{cmax, cmin, cvt_i32, glibc_cbrt};
 use crate::core::engine_init_hydraulics::Terminated;
 use crate::core::engine_step::stub;
+use crate::data::node::NodeData;
+use crate::twod::coupling::node_coupling::{compute_node_coupling_q, CouplingAttachments, CouplingPoint};
 use crate::twod::data::boundary_data::{BoundaryData, BoundaryType};
 use crate::twod::data::mesh_data::MeshData;
 use crate::twod::data::solver_options_2d::{CellClosure2D, FaceDepth2D, Momentum2D, SolverOptions2D, Turbulence2D};
-use crate::twod::data::surface_state_data::SurfaceStateData;
+use crate::twod::data::surface_state_data::{PondBase, SurfaceStateData};
 use crate::twod::solver::diffusive_kernels::{cell_diffusive_dt, face_discharge};
 use crate::twod::solver::explicit_inertial_solver::{CellSourceStep, ExplicitInertialSolver, SourceLedger, K_REBUILD_EVERY_CYCLES};
 use crate::twod::solver::inertial_kernels::{
@@ -72,8 +76,10 @@ use crate::twod::solver::swe_kernels::K_GRAVITY as SWE_GRAVITY;
 /// Halo depth (rings) when FRONT_REBUILD is on (kFrontHaloRings).
 const K_FRONT_HALO_RINGS: i32 = 5;
 
-/// What the step reads of the router besides the surface state, which upstream's solver
-/// reaches through its pointers mesh_, opts_ and state_->boundary.
+/// What the step reads of the router and the 1D network besides the surface state, which
+/// upstream's solver reaches through its pointers mesh_, opts_ and state_->boundary,
+/// state_->node_coupling, state_->nodes_1d, state_->coupling_head_cells and
+/// state_->node_pond_area_m2.
 pub struct StepAttachments<'a> {
     /// *mesh_ (the router's mesh_)
     pub mesh: &'a MeshData,
@@ -81,8 +87,14 @@ pub struct StepAttachments<'a> {
     pub opts: &'a SolverOptions2D,
     /// state_->boundary (the router's boundary_), when attached
     pub boundary: Option<&'a BoundaryData>,
-    /// state_->node_coupling->size() (the router's node_coupling_points_), 0 when not attached
-    pub node_coupling_len: usize,
+    /// *state_->node_coupling (the router's node_coupling_points_), when attached
+    pub node_coupling: Option<&'a [CouplingPoint]>,
+    /// *state_->nodes_1d (the context's node store, the 1D heads and volumes the batch holds),
+    /// when attached
+    pub nodes_1d: Option<&'a NodeData>,
+    /// The targets of state_->coupling_head_cells and state_->node_pond_area_m2 (the router's
+    /// coupling_head_cells_ and node_pond_area_m2_), as the exchange law reads them
+    pub coupling: CouplingAttachments<'a>,
 }
 
 /// A C++ exception on its way to SWMMEngine::step's catch.
@@ -1659,9 +1671,59 @@ impl ExplicitInertialSolver {
             }
         }
 
-        // Live junction exchange at tier-0 cadence: a mesh coupled to 1D nodes (the join wave).
+        // Live junction exchange at tier-0 cadence (windowless coupling): the orifice law
+        // against the live 2D heads and the routing step's 1D heads. Drains cap at the
+        // exchange-beta share of the source cell; spills cap at the node's ponded volume for the
+        // whole advance (the node_drawn_ ledger). The species bookings of a drain or spill
+        // (species_on_) are phase 2b, refused in advance().
         if !self.exch_.is_empty() && tier0 && st.node_coupling && st.nodes_1d {
-            return Err(stub("the live 1D-2D junction exchange in the 2D marcher (ExplicitInertialSolver::fireCellsImpl; join wave)"));
+            if let (Some(pts), Some(nodes)) = (a.node_coupling, a.nodes_1d) {
+                for k in 0..pts.len() {
+                    let cp = &pts[k];
+                    let ci = cp.cell_idx;
+                    if ci < 0 || self.cell_active_[ci as usize] == 0 {
+                        continue;
+                    }
+                    let uc = ci as usize;
+                    let h_off = if k < self.exch_head_slope_.len() { self.exch_head_slope_[k] * self.exch_tau_ } else { 0.0 };
+                    let mut q = compute_node_coupling_q(cp, mesh, &*st, &a.coupling, nodes, opts, None, h_off);
+                    if q == 0.0 {
+                        continue;
+                    }
+                    if q > 0.0 {
+                        // 2D -> 1D drain: the availability share of the cell
+                        q = cmin(q, opts.exchange_beta * cmax(st.volume[uc], 0.0) / dt_c);
+                    } else {
+                        // 1D -> 2D spill: only the node's ponded water, above the 1D router's
+                        // rim volume (node_pond_base: rpt_full_volume under DW, else full_volume)
+                        let ni = cp.node_idx as usize;
+                        let pond_base = match st.node_pond_base {
+                            PondBase::RptFullVolume => nodes.rpt_full_volume[ni],
+                            PondBase::FullVolume => nodes.full_volume[ni],
+                            PondBase::None => nodes.full_volume[ni],
+                        };
+                        let ponded_1d = cmax(0.0, nodes.volume[ni] - pond_base);
+                        let avail = ponded_1d * opts.vol_1d_to_2d - self.node_drawn_[ni];
+                        if avail <= 0.0 {
+                            continue;
+                        }
+                        let want = -q * dt_c;
+                        let take = cmin(want, avail);
+                        self.spill_deficit_ += cmax(0.0, want - take);
+                        self.node_drawn_[ni] += take;
+                        q = -take / dt_c;
+                    }
+                    st.coupling_applied[uc] += -q * dt_c;
+                    st.volume[uc] -= q * dt_c;
+                    if st.volume[uc] < 0.0 {
+                        st.volume[uc] = 0.0;
+                    }
+                    self.exch_[k] += q * dt_c;
+                    let (eta, depth) = cell_eta_depth(mesh, opts, ci, st.volume[uc]);
+                    st.head[uc] = eta;
+                    st.depth[uc] = depth;
+                }
+            }
         }
         if tier0 {
             self.exch_tau_ += dt_c;
@@ -1961,7 +2023,7 @@ impl ExplicitInertialSolver {
             || st.transport.active()
             || st.heat.enabled
             || st.snow.active()
-            || a.node_coupling_len > 0
+            || a.node_coupling.map_or(false, |pts| !pts.is_empty())
             || st.runtime_sources.active()
             || !st.runtime_forcings.rows.is_empty()
         {
