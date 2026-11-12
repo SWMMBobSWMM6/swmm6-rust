@@ -251,7 +251,7 @@ def main():
     # every boundary type under each momentum equation
     BCS = [
         ('nf_out', 'NORMAL_FLOW', '0.01'),
-        ('nf_in', 'NORMAL_FLOW', '-0.01'),
+        ('nf_in', 'NORMAL_FLOW', '-0.0005'),
         ('stage', 'SPECIFIED_STAGE', None),
         ('ts_stage', 'TS_STAGE', 'STAGE_TS'),
         ('flow_in', 'SPECIFIED_FLOW', '-0.05'),
@@ -397,6 +397,24 @@ def main():
     m = Mesh(init=dam)
     w('ignore_routing', 'IGNORE_ROUTING YES (no routing step, so no 2D advance)', [], m, bc_side(m, 'E', 'NORMAL_FLOW', '0.005'),
       extra_options=[('IGNORE_ROUTING', 'YES')])
+    # SUBCATCH_AQUIFER: 2D infiltration recharging the aquifers of the subcatchments whose
+    # polygons contain the cells (drained by the runoff step's groundwater stage)
+    subs = ('[SUBCATCHMENTS]\n;;Name  Raingage  Outlet  Area  %Imperv  Width  %Slope  CurbLen\n'
+            'S1  RG1  J1  0.12  20  100  0.5  0\nS2  RG1  J1  0.08  20  100  0.5  0\n\n'
+            '[SUBAREAS]\n;;Subcatch  N-Imperv  N-Perv  S-Imperv  S-Perv  PctZero  RouteTo\n'
+            'S1  0.01  0.1  0.05  0.05  25  OUTLET\nS2  0.01  0.1  0.05  0.05  25  OUTLET\n\n'
+            '[INFILTRATION]\n;;Subcatch  Suction  Ksat  IMD\nS1  3.0  0.5  0.25\nS2  3.0  0.5  0.25\n\n')
+    aqs = ('[AQUIFERS]\n;;Name  Por  WP  FC  Ksat  Kslope  Tslope  ETu  ETs  Seep  Ebot  Egw  Umc\n'
+           'A1  0.5  0.15  0.30  50.0  10.0  15.0  0.35  4.0  0.002  0.0  3.5  0.40\n\n'
+           '[GROUNDWATER]\n;;Subcatch  Aquifer  Node  Esurf  A1  B1  A2  B2  A3  Dsw  Egwt  Ebot  Wgr  Umc\n'
+           'S1  A1  J1  6.0  0.1  1.0  0  0  0  0  4.0\nS2  A1  J1  6.0  0.1  1.0  0  0  0  0  4.0\n\n')
+    polys = '[POLYGONS]\n;;Subcatch  X  Y\nS1 0 0\nS1 30 0\nS1 30 40\nS1 0 40\nS2 20 0\nS2 60 0\nS2 60 20\nS2 20 20\n\n'
+    for aname, extra in (('subaq', subs + aqs + polys), ('subaq_noaq', subs + polys)):
+        m = Mesh()
+        w(aname, 'HORTON 2D infiltration to SUBCATCH_AQUIFER over two subcatchment polygons%s' % ('' if aname == 'subaq' else ' without aquifers'),
+          [('INFILTRATION', 'YES'), ('INFIL_DESTINATION', 'SUBCATCH_AQUIFER')], m, bc_side(m, 'E', 'NORMAL_FLOW', '0.005'), rain=50.0,
+          extra_options=[('INFILTRATION', 'GREEN_AMPT')], extra=extra,
+          sections2d='[2D_INFILTRATION_DEFAULTS]\n%s\n\n' % INFIL['horton'].replace(' LOST', ''))
     m = Mesh(init=dam)
     w('long_run', 'six hours with rain bursts', [], m, bc_side(m, 'E', 'NORMAL_FLOW', '0.005'), hours=6, rain=30.0, rain_minutes=50)
     print('twods_gen: %d decks in %s' % (n, OUT))
