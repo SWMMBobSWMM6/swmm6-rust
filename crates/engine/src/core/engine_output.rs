@@ -732,7 +732,23 @@ impl SwmmEngine {
                 snap.sys_storage = tot_store as f64 / vol_ucf;
             }
 
-            // fillSurfaceSnapshot(snap): nothing without 2D
+            // OPENSWMM_HAS_2D: close a pending (COUPLING_SYNC-batched) 2D window and bring the
+            // render fields up to date before the snapshot (the checkpoint profiles are off
+            // without engine checkpointing). postOutputSnapshot is noexcept: an exception from
+            // the batch terminates (a C++ throw becomes a termination here).
+            #[cfg(feature = "twod")]
+            if self.surface_router_.is_active() {
+                let r = self.surface_router_.flush_pending_batch(&mut self.ctx_);
+                if let Err(t) = r {
+                    return Err(match t.exception.strip_prefix(crate::core::engine_step::THROWN_PREFIX) {
+                        Some(ty) => Terminated { exception: ty, what: t.what },
+                        None => t,
+                    });
+                }
+                self.surface_router_.refresh_render_fields_if_stale();
+            }
+
+            // fillSurfaceSnapshot(snap): the 2D snapshot fields are wave 5's (the output side)
 
             let du = ucf::DisplayUnits::from(&self.ctx_.options);
             convert_snapshot_to_display(&mut snap, &du);

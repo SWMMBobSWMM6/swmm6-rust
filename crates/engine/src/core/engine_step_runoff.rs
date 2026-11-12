@@ -283,6 +283,14 @@ impl SwmmEngine {
             }
         }
 
+        // The 2D surface integrates exactly the rates this runoff step applies, from its start,
+        // so the mesh and the subcatchments receive the same gage depth.
+        #[cfg(feature = "twod")]
+        if self.surface_router_.is_active() {
+            let start = self.old_runoff_ms_ / 1000.0;
+            self.surface_router_.book_gage_rates(&self.ctx_, start);
+        }
+
         // A2z. [FILES] USE RUNOFF
         if let Some(f) = self.runoff_iface_file_.as_ref() {
             if f.is_open() && self.ctx_.files.runoff_mode == FileMode::Use {
@@ -374,6 +382,12 @@ impl SwmmEngine {
             // BW-MSX: the same buildup / washoff arithmetic over the reactions component's
             // species (separate store, same cadence).
             crate::transport::msx_surface::step(&mut self.ctx_, dt_runoff, self.old_runoff_time_)?;
+            // S7: the buildup / washoff relations on the 2D cells' land uses (surface quality on
+            // the mesh is a phase-2b refusal at initialize, so the store is never active here).
+            #[cfg(feature = "twod")]
+            if self.surface_router_.surface_quality().borrow().active() {
+                return Err(stub("2D surface quality on the mesh (SurfaceQuality2D::step; phase 2b)"));
+            }
         }
 
         // A6. LID performance
@@ -1273,11 +1287,45 @@ impl SwmmEngine {
             }
         }
 
+        // U3 (track I-b): 2D infiltration whose destination is SUBCATCH_AQUIFER recharges the
+        // containing subcatchment's aquifer (m3 since the last drain, as ft/s over the full
+        // subcatchment area for this runoff step).
+        #[cfg(feature = "twod")]
+        let mut use_2d_recharge = false;
+        #[cfg(feature = "twod")]
+        if self.surface_router_.is_active() && dt_runoff > 0.0 {
+            let mut vols = std::mem::take(&mut self.gw_2d_recharge_vol_);
+            self.surface_router_.drain_subcatch_recharge(&mut vols);
+            self.gw_2d_recharge_vol_ = vols;
+            if !self.gw_2d_recharge_vol_.is_empty() {
+                self.gw_infil_with_2d_.clone_from(&self.gw_infil_rate_);
+                const K_M3_TO_FT3: f64 = 1.0 / (0.3048 * 0.3048 * 0.3048);
+                let mut i = 0usize;
+                while (i as i32) < ns && i < self.gw_2d_recharge_vol_.len() {
+                    let vol_m3 = self.gw_2d_recharge_vol_[i];
+                    if vol_m3 > 0.0 {
+                        let area_ft2 = self.ctx_.subcatches.area[i] / ucf_landarea;
+                        if area_ft2 > 0.0 {
+                            self.gw_infil_with_2d_[i] += (vol_m3 * K_M3_TO_FT3) / (area_ft2 * dt_runoff);
+                            self.ctx_.mass_balance.gw_infil_2d_recharge += vol_m3 * K_M3_TO_FT3;
+                            self.ctx_.mass_balance_2d.infil_to_aquifer += vol_m3;
+                        }
+                    }
+                    i += 1;
+                }
+                use_2d_recharge = true;
+            }
+        }
+
         // Legacy dates the monthly aquifer evaporation pattern on NewRunoffTime.
         let gw_evap_month = datetime::month_of_year(datetime::add_seconds(self.ctx_.options.start_date, (self.new_runoff_ms_ + 1.0) / 1000.0));
         let sw_head = self.ctx_.subcatches.gw_sw_head.clone();
         let evap = self.ctx_.climate_state.evap_rate;
-        if let Err(w) = self.groundwater_.execute(&mut self.ctx_, dt_runoff, evap, &self.gw_infil_rate_, &sw_head, &self.gw_frac_perv_, &self.gw_perv_evap_, gw_evap_month) {
+        #[cfg(not(feature = "twod"))]
+        let gw_infil = &self.gw_infil_rate_;
+        #[cfg(feature = "twod")]
+        let gw_infil = if use_2d_recharge { &self.gw_infil_with_2d_ } else { &self.gw_infil_rate_ };
+        if let Err(w) = self.groundwater_.execute(&mut self.ctx_, dt_runoff, evap, gw_infil, &sw_head, &self.gw_frac_perv_, &self.gw_perv_evap_, gw_evap_month) {
             return Err(stub(w));
         }
 
