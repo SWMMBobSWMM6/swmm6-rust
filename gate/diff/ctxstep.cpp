@@ -118,6 +118,10 @@
 #include "rtdump.hpp"
 #include "hydrodump.hpp"
 #include "lifedump.hpp"
+#ifdef OPENSWMM_HAS_2D
+// the 2D build (gate/build.sh ctxstep2d): the 2D router's whole state too
+#include "twoddump.hpp"
+#endif
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/wait.h>
@@ -133,6 +137,9 @@ static void full_dump(openswmm::SWMMEngine* eng) {
     ctxdump::hydrodump(*eng);
     ctxdump::qualdump(*eng);
     ctxdump::lifedump(*eng);
+#ifdef OPENSWMM_HAS_2D
+    ctxdump::twoddump(*eng);
+#endif
 }
 
 // the dump's FNV-1a 64 hash: the dumpers print to stdout, so fd 1 goes to a scratch file

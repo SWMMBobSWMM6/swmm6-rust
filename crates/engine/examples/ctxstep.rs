@@ -27,6 +27,10 @@ mod hydroload;
 mod lifedump;
 #[path = "common/rtdump.rs"]
 mod rtdump;
+// with the twod feature (gate/build.sh ctxstep2d, into target2d): the 2D router's state too
+#[cfg(feature = "twod")]
+#[path = "common/twoddump.rs"]
+mod twoddump;
 use std::io::Write;
 use swmm6_rust::core::engine::SwmmEngine;
 use swmm6_rust::core::engine_init_hydraulics::Terminated;
@@ -39,6 +43,8 @@ fn full_dump(e: &mut SwmmEngine) -> Vec<u8> {
     o.extend_from_slice(&hydrodump::hydrodump(e));
     o.extend_from_slice(&ctxdump::qualdump(e));
     o.extend_from_slice(&lifedump::lifedump(e));
+    #[cfg(feature = "twod")]
+    o.extend_from_slice(&twoddump::twoddump(e));
     o
 }
 
