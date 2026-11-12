@@ -30,6 +30,8 @@ pub mod options;
 pub mod output_plugin;
 pub mod path_resolver;
 pub mod plugins;
+#[cfg(feature = "twod")]
+pub mod polygon_rings;
 pub mod process_components;
 pub mod report_plugin;
 pub mod report_results;

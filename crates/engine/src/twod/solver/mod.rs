@@ -7,7 +7,10 @@
 // Dickinson. Not an OpenSWMM release.
 
 pub mod diffusive_kernels;
+pub mod explicit_inertial_solver;
+pub mod inertial_edges;
 pub mod inertial_kernels;
 pub mod momentum_physics_2d;
 pub mod surface_flux_calculator;
+pub mod surface_solver_factory;
 pub mod swe_kernels;

@@ -11,7 +11,9 @@
 // one-report-period clamp, DoRouting, the [FILES] interface files (routing USE INFLOWS / SAVE
 // OUTFLOWS, runoff SAVE/USE, RDII USE/SAVE, the RAINFALL slot warning), the plugins'
 // initialize / validate / prepare, the averaging accumulators, the mass-balance NodeInflow
-// seed, the dated SAVE HOTSTART flags and the RUNNING state.
+// seed, the dated SAVE HOTSTART flags and the RUNNING state. With the `twod` feature (the 2D
+// build, 12 November 2026) an active 2D router also turns DoRouting on, and an independent
+// subsurface clock asks for the dated hot-start snapshot.
 //
 // Differences of form, never in result:
 //   * io_thread_.start(): the writer thread only moves output writes off the stepping thread;
@@ -109,6 +111,11 @@ impl SwmmEngine {
 
         // Legacy DoRouting (swmm5.c:748)
         self.do_routing_ = self.ctx_.n_nodes() > 0 && !self.ctx_.options.ignore_routing;
+        // Surface-only engines still need the routing clock and surface advance.
+        #[cfg(feature = "twod")]
+        {
+            self.do_routing_ = self.do_routing_ || (self.surface_router_.is_active() && !self.ctx_.options.ignore_routing);
+        }
 
         // Routing interface files ([FILES] USE INFLOWS / SAVE OUTFLOWS).
         if !self.ctx_.files.inflows_path.is_empty() || !self.ctx_.files.outflows_path.is_empty() {
@@ -219,7 +226,12 @@ impl SwmmEngine {
         self.hotstart_save_done_.resize(self.ctx_.files.hotstart_saves.len(), 0);
 
         self.ctx_.state = EngineState::Running;
-        let date_native_snapshot = self.ctx_.options.heat_transport;
+        #[allow(unused_mut)]
+        let mut date_native_snapshot = self.ctx_.options.heat_transport;
+        #[cfg(feature = "twod")]
+        {
+            date_native_snapshot |= self.surface_router_.subsurface().independent_clock();
+        }
         let wants_native_hotstart = !self.pending_hotstart_checkpoint_.is_empty() || (date_native_snapshot && !self.ctx_.files.hotstart_saves.is_empty());
         if wants_native_hotstart {
             return Err(stub("SWMMEngine::prepareNativeHotstartCheckpointing"));

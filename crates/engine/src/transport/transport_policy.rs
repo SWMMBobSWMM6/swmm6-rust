@@ -14,10 +14,12 @@
 //     (no 2D router attaches them), so hasMesh2D is false, opts2D null, the groundwater cell
 //     takes its legacy branch and the 2D surface cells read "no 2D mesh". The Draft argument
 //     (a planning pass of the C API) is not used by the report: resolve(ctx) takes none.
-//     groundwaterEnables and surface2DEnables are not on the report path; not translated.
+//     groundwaterEnables is not on the report path; not translated.
 //   * With the `twod` feature (12 November 2026) the groundwater and 2D surface cells read the
 //     router's mesh, options, [2D_AQUIFER] rows and [GW_*] options through ctx.twod_io, as
-//     upstream's 2D build does; see groundwater_two_zone for the kernel state.
+//     upstream's 2D build does; see groundwater_two_zone for the kernel state. surface2DEnables
+//     and the canonical row layout (canonicalRows) are translated for the 2D router's
+//     initialize.
 
 use crate::core::context::SimulationContext;
 use crate::core::options::{Bytes, QualitySolverKind};
@@ -105,6 +107,73 @@ pub fn network_1d_enables(ctx: &SimulationContext) -> ClassEnables {
         temperature: q && ctx.options.heat_transport,
         msx_bulk_only: false,
     }
+}
+
+/// surface2DEnables(ctx): the 2D surface's class enables (twod feature). Upstream reads the
+/// [2D_OPTIONS] TRANSPORT_* keys through ctx.twod_io.options; SurfaceRouter2D::initialize holds
+/// that store borrowed, so it is passed here (None reads as upstream's null options: every class
+/// inherits on).
+#[cfg(feature = "twod")]
+pub fn surface_2d_enables(ctx: &SimulationContext, o: Option<&crate::twod::data::solver_options_2d::SolverOptions2D>) -> ClassEnables {
+    let q = !ctx.options.ignore_quality;
+    let tp = o.map_or(true, |o| o.transport_pollutants);
+    let tm = o.map_or(true, |o| o.transport_msx);
+    let ta = o.map_or(true, |o| o.transport_age);
+    let tt = o.map_or(true, |o| o.transport_temperature);
+    let msx_has_wall = reactions_have_wall(ctx);
+    ClassEnables {
+        n_pollut: if q && tp { ctx.n_pollutants() } else { 0 },
+        msx_has_wall,
+        // WALL species have no surface transport semantics.
+        n_msx: if q && tm && reactions_active(ctx) && !msx_has_wall { ctx.reactions.n_species() } else { 0 },
+        age: ta && ctx.options.water_age,
+        temperature: tt && ctx.options.heat_transport,
+        msx_bulk_only: false,
+    }
+}
+
+/// RowLayout: a canonical transported-row layout.
+#[derive(Debug, Clone, Default)]
+pub struct RowLayout {
+    pub n_pollut: i32,
+    pub n_msx: i32,
+    pub age_row: i32,
+    pub temp_row: i32,
+    pub ns: i32,
+    pub names: Vec<crate::core::options::Bytes>,
+}
+
+/// canonicalRows(ctx, e): pollutants, MSX species (BULK only when msx_bulk_only), age,
+/// temperature.
+pub fn canonical_rows(ctx: &SimulationContext, e: &ClassEnables) -> RowLayout {
+    let mut l = RowLayout::default();
+    l.n_pollut = e.n_pollut;
+    l.n_msx = e.n_msx;
+    l.age_row = if e.age { l.n_pollut + l.n_msx } else { -1 };
+    l.temp_row = if e.temperature { l.n_pollut + l.n_msx + (if e.age { 1 } else { 0 }) } else { -1 };
+    l.ns = e.total();
+    l.names.reserve(l.ns.max(0) as usize);
+    for p in 0..l.n_pollut {
+        l.names.push(ctx.pollutant_names.name_of(p).to_vec());
+    }
+    let mut added = 0;
+    let mut m = 0;
+    while added < l.n_msx && m < ctx.reactions.n_species() {
+        if e.msx_bulk_only && ctx.reactions.species_is_wall[m as usize] != 0 {
+            m += 1;
+            continue;
+        }
+        l.names.push(ctx.reactions.species_name[m as usize].clone());
+        added += 1;
+        m += 1;
+    }
+    if e.age {
+        l.names.push(b"__WATER_AGE__".to_vec());
+    }
+    if e.temperature {
+        l.names.push(b"__TEMPERATURE__".to_vec());
+    }
+    l
 }
 
 fn enabled(c: &mut Cell, count: i32) {

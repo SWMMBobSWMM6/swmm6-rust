@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 //
 // Derived from OpenSWMM Engine src/engine/core/SWMMEngine.cpp (the OPENSWMM_HAS_2D blocks of the
-// constructor, wire2DModelIO and open()) (HydroCouple/openswmm.engine, branch swmm6_rel, commit
-// 88329d6), Copyright 2026 Caleb Buahin, licensed under the Apache License, Version 2.0.
+// constructor, wire2DModelIO, open(), initialize(), init_modules(), initHydraulics() and
+// start()) (HydroCouple/openswmm.engine, branch swmm6_rel, commit 88329d6), Copyright 2026 Caleb
+// Buahin, licensed under the Apache License, Version 2.0.
 // Modified: translated from C++ to Rust, 12 November 2026, by Claude (Anthropic) at the
 // request of Robert Dickinson. Not an OpenSWMM release.
 //
@@ -16,12 +17,25 @@
 //   * open_2d_resolve: resolveGwTransport and its two warnings, after msxsurf::resolve;
 //   * open_2d_output_file_warning: [2D_OPTIONS] OUTPUT_FILE without the HDF5 writer (the
 //     reference build is OPENSWMM_2D_HDF5_OUTPUT=OFF, as this translation is).
+// and the later lifecycle (wave 3, 12 November 2026):
+//   * init_hydraulics_2d: initHydraulics' 1a block, surface_router_.initialize(ctx_) and the two
+//     follow-up checks inside upstream's try; its catch's "2D initialization failed: <what>";
+//   * init_hydraulics_2d_has_domain: the ERR_NO_OUTLETS exemption of a model with a mesh;
+//   * the router's thread warnings, appended to initHydraulics' (core/engine_init_hydraulics.rs);
+//   * init_modules_channel_ground: init_modules' initializeChannelGround and its catch;
+//   * initialize_2d_reactive_lid_check: initialize's check after init_modules;
+//   * start's do_routing_ for a surface-only engine (core/engine_start.rs).
+// A path the translation refuses inside SurfaceRouter2D::initialize (phase 2b) returns
+// Err(Terminated) with the crate's STUB_EXCEPTION from initialize().
 // The get_snow_state / set_snow_state accessors' mesh snow pointer is not here: the state
 // accessors are not translated (core/context.rs), and the mesh snow state is a later wave's.
 
 #![allow(clippy::all)]
 
-use crate::core::engine::SwmmEngine;
+use crate::core::engine::{SwmmEngine, CFFI_ERR_BADPARAM};
+use crate::core::engine_init_hydraulics::Terminated;
+use crate::data::lid_node::LidNodeBottom;
+use crate::twod::surface_router_2d::InitError;
 use crate::core::fs_path::FsPath;
 use crate::core::options::Bytes;
 use crate::twod::gw::gw_transport_sections::{gw_transport_inert_warning, register_gw_transport_sections, resolve_gw_transport};
@@ -183,6 +197,85 @@ impl SwmmEngine {
             m.extend_from_slice(&of);
             m.extend_from_slice(b" ignored: this engine was built without the 2D HDF5 results writer; read 2D results through the swmm_2d_* API");
             self.push_report_warning(&m, 0);
+        }
+    }
+}
+
+impl SwmmEngine {
+    /// initHydraulics' has_2d_domain: the mesh is parsed at open, so its counts are valid even
+    /// though surface_router_.initialize() (which sets isActive()) runs later.
+    pub(crate) fn init_hydraulics_2d_has_domain(&self) -> bool {
+        let m = self.surface_router_.mesh().borrow();
+        m.n_triangles() >= 1 && m.n_vertices() >= 3
+    }
+
+    /// initHydraulics 1a: the 2D surface routing module. initialize() and the two checks after
+    /// it run inside upstream's try; its catch reports "2D initialization failed: <what>"
+    /// through the error path. Err only for a path the translation refuses (a stub).
+    pub(crate) fn init_hydraulics_2d(&mut self) -> Result<(), Terminated> {
+        let r = self.init_hydraulics_2d_try();
+        match r {
+            Ok(()) => Ok(()),
+            Err(InitError::Thrown(what)) => {
+                let mut m = b"2D initialization failed: ".to_vec();
+                m.extend_from_slice(&what);
+                self.ctx_.errors.push(m);
+                let e = self.ctx_.errors.last().cloned().unwrap_or_default();
+                self.set_error(SWMM_ERR_PARSE, &e);
+                Ok(())
+            }
+            Err(InitError::Stub(t)) => Err(t),
+        }
+    }
+
+    fn init_hydraulics_2d_try(&mut self) -> Result<(), InitError> {
+        self.surface_router_.initialize(&mut self.ctx_)?;
+        let groundwater = self.surface_router_.options().borrow().groundwater;
+        if !self.ctx_.options.ignore_2d
+            && groundwater != 0
+            && !self.surface_router_.subsurface().active()
+            && (!self.ctx_.reactions.subsurface_laws.is_empty() || !self.surface_router_.aquifer_config().borrow().boundaries.is_empty())
+        {
+            return Err(InitError::Thrown(b"Groundwater edge forcing and REACTION_SUBSURFACE require an active resolved mesh aquifer.".to_vec()));
+        }
+        for n in 0..self.ctx_.n_nodes() {
+            if crate::hydrology::lid_node_step::bottom_mode(&self.ctx_, n) == LidNodeBottom::MeshAquifer
+                && (!self.surface_router_.is_active()
+                    || !self.surface_router_.subsurface().active()
+                    || n as usize >= self.ctx_.nodes.aquifer2d_bed.len()
+                    || self.ctx_.nodes.aquifer2d_bed[n as usize] == 0)
+            {
+                let mut m = b"Mesh LID '".to_vec();
+                m.extend_from_slice(self.ctx_.node_names.name_of(n));
+                m.extend_from_slice(b"' requires an active resolved 2D aquifer bottom connection.");
+                return Err(InitError::Thrown(m));
+            }
+        }
+        Ok(())
+    }
+
+    /// init_modules: surface_router_.initializeChannelGround(ctx_) and its catch. Err only for
+    /// a path the translation refuses (a stub).
+    pub(crate) fn init_modules_channel_ground(&mut self) -> Result<(), Terminated> {
+        match self.surface_router_.initialize_channel_ground(&mut self.ctx_) {
+            Ok(()) => Ok(()),
+            Err(InitError::Thrown(what)) => {
+                let mut m = b"Channel ground heat initialization failed: ".to_vec();
+                m.extend_from_slice(&what);
+                self.ctx_.errors.push(m);
+                let e = self.ctx_.errors.last().cloned().unwrap_or_default();
+                self.set_error(CFFI_ERR_BADPARAM, &e);
+                Ok(())
+            }
+            Err(InitError::Stub(t)) => Err(t),
+        }
+    }
+
+    /// initialize(), after init_modules(): reactive conventional LIDs need ordinary runoff
+    /// ownership, which a 2D source owner does not give.
+    pub(crate) fn initialize_2d_reactive_lid_check(&mut self) {
+        if self.surface_router_.is_active() && self.ctx_.reactions.lid.subcatchments.iter().any(|&v| v != 0) {
+            self.ctx_.errors.push(b"Reactive conventional LIDs require ordinary runoff ownership; 2D source-owner species receipts are not implemented.".to_vec());
         }
     }
 }

@@ -14,6 +14,18 @@ pub fn twoddump(e: &SwmmEngine) -> Vec<u8> {
     let mut o: Vec<u8> = Vec::new();
     let o = &mut o;
     let r = e.surface_router_2d();
+    pi(o, "twod.joint_hydraulic_", if r.joint_hydraulic_ { 2 } else { 0 });
+    pi(o, "twod.common_stage_", if r.common_stage_ { 2 } else { 0 });
+    {
+    pi(o, "twod.checkpoint_owned_initialization_", (r.checkpoint_owned_initialization_) as i64);
+    }
+    pi(o, "twod.source_context_", if r.source_context_ { 2 } else { 0 });
+    {
+    ps(o, "twod.source_router_model_", &r.source_router_model_);
+    }
+    {
+    pi(o, "twod.source_boundary_ready_", (r.source_boundary_ready_) as i64);
+    }
     { let m = r.mesh_.borrow();
     vf(o, "twod.mesh_.vx", &((*m).vx).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "twod.mesh_.vy", &((*m).vy).iter().map(|x| *x as f64).collect::<Vec<f64>>());
@@ -65,6 +77,160 @@ pub fn twoddump(e: &SwmmEngine) -> Vec<u8> {
     pi(o, "twod.mesh_.tri_couplings[].area_set", ((*el).area_set) as i64);
     }
     }
+    {
+    pf(o, "twod.state_.coupling_window_s", (r.state_.coupling_window_s) as f64);
+    pi(o, "twod.state_.transport.n_species", (r.state_.transport.n_species) as i64);
+    pi(o, "twod.state_.transport.n_cells", (r.state_.transport.n_cells) as i64);
+    pi(o, "twod.state_.transport.n_pollut", (r.state_.transport.n_pollut) as i64);
+    pi(o, "twod.state_.transport.n_msx", (r.state_.transport.n_msx) as i64);
+    pi(o, "twod.state_.transport.age_row", (r.state_.transport.age_row) as i64);
+    pi(o, "twod.state_.transport.temp_row", (r.state_.transport.temp_row) as i64);
+    vs(o, "twod.state_.transport.row_names", &r.state_.transport.row_names);
+    vf(o, "twod.state_.transport.cell_mass", &(r.state_.transport.cell_mass).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.transport.lost_infiltration", &(r.state_.transport.lost_infiltration).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.transport.lost_boundary", &(r.state_.transport.lost_boundary).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.transport.gained_external", &(r.state_.transport.gained_external).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.transport.lost_external", &(r.state_.transport.lost_external).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.transport.gained_bed", &(r.state_.transport.gained_bed).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.transport.lost_coupling", &(r.state_.transport.lost_coupling).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.transport.exch_mass", &(r.state_.transport.exch_mass).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.transport.exch_spill", &(r.state_.transport.exch_spill).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.transport.rain_conc", &(r.state_.transport.rain_conc).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.transport.bc_conc", &(r.state_.transport.bc_conc).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pi(o, "twod.state_.transport.runtime_bc_conc.n", (r.state_.transport.runtime_bc_conc).len() as i64);
+    for e128 in (r.state_.transport.runtime_bc_conc).iter() {
+    pi(o, "twod.state_.transport.runtime_bc_conc.key", ((*e128.0)) as i64);
+    vf(o, "twod.state_.transport.runtime_bc_conc.val", &((*e128.1)).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    }
+    pi(o, "twod.state_.transport.bc_quality_rows.n", (r.state_.transport.bc_quality_rows).len() as i64);
+    for el in (r.state_.transport.bc_quality_rows).iter() {
+    pi(o, "twod.state_.transport.bc_quality_rows[].slot", ((*el).slot) as i64);
+    pi(o, "twod.state_.transport.bc_quality_rows[].species", ((*el).species) as i64);
+    pf(o, "twod.state_.transport.bc_quality_rows[].conc", ((*el).conc) as f64);
+    }
+    pi(o, "twod.state_.transport.dispersion_limiter_binds", (r.state_.transport.dispersion_limiter_binds) as i64);
+    vf(o, "twod.state_.transport.gained_rainfall", &(r.state_.transport.gained_rainfall).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.transport.gained_boundary", &(r.state_.transport.gained_boundary).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.transport.gained_coupling", &(r.state_.transport.gained_coupling).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.transport.gained_exfiltration", &(r.state_.transport.gained_exfiltration).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.transport.generated_age", &(r.state_.transport.generated_age).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.transport.gained_washoff", &(r.state_.transport.gained_washoff).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.transport.cell_runoff_vol", &(r.state_.transport.cell_runoff_vol).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.transport.coupling_src", &(r.state_.transport.coupling_src).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pi(o, "twod.state_.heat.enabled", (r.state_.heat.enabled) as i64);
+    pi(o, "twod.state_.heat.surface", (r.state_.heat.surface) as i64);
+    pi(o, "twod.state_.heat.radiative", (r.state_.heat.radiative) as i64);
+    pi(o, "twod.state_.heat.bed", (r.state_.heat.bed) as i64);
+    pi(o, "twod.state_.heat.surface_inherits", (r.state_.heat.surface_inherits) as i64);
+    pi(o, "twod.state_.heat.radiative_inherits", (r.state_.heat.radiative_inherits) as i64);
+    pi(o, "twod.state_.heat.ground_column", (r.state_.heat.ground_column) as i64);
+    pi(o, "twod.state_.heat.standalone_ground.cells.n", (r.state_.heat.standalone_ground.cells).len() as i64);
+    vi(o, "twod.state_.heat.standalone_ground.lid_owners.n[]", &(r.state_.heat.standalone_ground.lid_owners).iter().map(|v| v.len() as i64).collect::<Vec<i64>>());
+    pf(o, "twod.state_.heat.standalone_ground.top_now", (r.state_.heat.standalone_ground.top_now) as f64);
+    pf(o, "twod.state_.heat.standalone_ground.deep_now", (r.state_.heat.standalone_ground.deep_now) as f64);
+    pf(o, "twod.state_.heat.standalone_ground.density", (r.state_.heat.standalone_ground.density) as f64);
+    pf(o, "twod.state_.heat.standalone_ground.water_capacity", (r.state_.heat.standalone_ground.water_capacity) as f64);
+    pi(o, "twod.state_.heat.standalone_ground.top_series", (r.state_.heat.standalone_ground.top_series) as i64);
+    pi(o, "twod.state_.heat.standalone_ground.deep_series", (r.state_.heat.standalone_ground.deep_series) as i64);
+    pi(o, "twod.state_.heat.standalone_ground.context", (r.state_.heat.standalone_ground.context) as i64);
+    pi(o, "twod.state_.heat.standalone_ground.snow_owner", if r.state_.heat.standalone_ground.snow_owner { 2 } else { 0 });
+    pi(o, "twod.state_.heat.standalone_ground.config", if r.state_.heat.standalone_ground.config { 2 } else { 0 });
+    vi(o, "twod.state_.heat.aquifer_owned", &(r.state_.heat.aquifer_owned).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "twod.state_.heat.channel_footprint", &(r.state_.heat.channel_footprint).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pf(o, "twod.state_.heat.ground_now", (r.state_.heat.ground_now) as f64);
+    vf(o, "twod.state_.heat.bed_energy", &(r.state_.heat.bed_energy).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.heat.initial_bed_energy", &(r.state_.heat.initial_bed_energy).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.heat.bed_capacity", &(r.state_.heat.bed_capacity).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.heat.reported_temperature", &(r.state_.heat.reported_temperature).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.heat.atmospheric_j", &(r.state_.heat.atmospheric_j).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.heat.radiative_j", &(r.state_.heat.radiative_j).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.heat.sensible_j", &(r.state_.heat.sensible_j).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.heat.ground_j", &(r.state_.heat.ground_j).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.heat.water_bed_j", &(r.state_.heat.water_bed_j).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.heat.water_j", &(r.state_.heat.water_j).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.heat.latent_j", &(r.state_.heat.latent_j).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.heat.evaporated_m3", &(r.state_.heat.evaporated_m3).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vi(o, "twod.state_.heat.failures", &(r.state_.heat.failures).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "twod.state_.heat.ground_column_seconds", &(r.state_.heat.ground_column_seconds).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vi(o, "twod.state_.heat.hyporheic_eligible", &(r.state_.heat.hyporheic_eligible).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    pi(o, "twod.state_.heat.bed_species", (r.state_.heat.bed_species) as i64);
+    pi(o, "twod.state_.heat.bed_age_row", (r.state_.heat.bed_age_row) as i64);
+    pi(o, "twod.state_.heat.bed_temp_row", (r.state_.heat.bed_temp_row) as i64);
+    vf(o, "twod.state_.heat.bed_pore_volume", &(r.state_.heat.bed_pore_volume).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.heat.bed_carried_mass", &(r.state_.heat.bed_carried_mass).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.heat.bed_initial_mass", &(r.state_.heat.bed_initial_mass).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.heat.bed_exchange_mass", &(r.state_.heat.bed_exchange_mass).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.heat.bed_generated_age", &(r.state_.heat.bed_generated_age).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pi(o, "twod.state_.heat.context", (r.state_.heat.context) as i64);
+    pi(o, "twod.state_.heat.aquifer_ground", if r.state_.heat.aquifer_ground { 2 } else { 0 });
+    vf(o, "twod.state_.depth", &(r.state_.depth).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.head", &(r.state_.head).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.volume", &(r.state_.volume).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.grad_hx", &(r.state_.grad_hx).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.grad_hy", &(r.state_.grad_hy).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.grad_hx_lim", &(r.state_.grad_hx_lim).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.grad_hy_lim", &(r.state_.grad_hy_lim).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.vert_head", &(r.state_.vert_head).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.vert_depth_signed", &(r.state_.vert_depth_signed).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.face_vx", &(r.state_.face_vx).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.face_vy", &(r.state_.face_vy).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.cell_continuity_err", &(r.state_.cell_continuity_err).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.edge_flux", &(r.state_.edge_flux).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pi(o, "twod.state_.snow.active", (r.state_.snow).active() as i64);
+    vi(o, "twod.state_.snow.active_cells_", &(r.state_.snow.active_cells_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "twod.state_.snow.pack_", &(r.state_.snow.pack_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "twod.state_.snow.liquid_rate_", &(r.state_.snow.liquid_rate_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.snow_catch", &(r.state_.snow_catch).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.rainfall", &(r.state_.rainfall).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.evap_rate", &(r.state_.evap_rate).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.infil_rate", &(r.state_.infil_rate).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.infil_applied", &(r.state_.infil_applied).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.coupling_flux", &(r.state_.coupling_flux).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.coupling_applied", &(r.state_.coupling_applied).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vi(o, "twod.state_.boundary_receipt_slots", &(r.state_.boundary_receipt_slots).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "twod.state_.boundary_in_applied", &(r.state_.boundary_in_applied).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.boundary_out_applied", &(r.state_.boundary_out_applied).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.boundary_requested", &(r.state_.boundary_requested).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.boundary_last_flow", &(r.state_.boundary_last_flow).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.boundary_last_dt", &(r.state_.boundary_last_dt).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.net_source", &(r.state_.net_source).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vi(o, "twod.state_.rainfall_forced", &(r.state_.rainfall_forced).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "twod.state_.rainfall_persist", &(r.state_.rainfall_persist).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "twod.state_.rainfall_force_val", &(r.state_.rainfall_force_val).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vi(o, "twod.state_.evap_forced", &(r.state_.evap_forced).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "twod.state_.evap_persist", &(r.state_.evap_persist).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "twod.state_.evap_force_val", &(r.state_.evap_force_val).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vi(o, "twod.state_.coupling_forced", &(r.state_.coupling_forced).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "twod.state_.coupling_persist", &(r.state_.coupling_persist).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "twod.state_.coupling_force_val", &(r.state_.coupling_force_val).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pi(o, "twod.state_.runtime_sources.rows.n", (r.state_.runtime_sources).rows.len() as i64);
+    pi(o, "twod.state_.runtime_sources.cells.n", (r.state_.runtime_sources).cells.len() as i64);
+    pi(o, "twod.state_.runtime_sources.index.n", (r.state_.runtime_sources).index.len() as i64);
+    pi(o, "twod.state_.runtime_forcings.rows.n", (r.state_.runtime_forcings).rows.len() as i64);
+    pi(o, "twod.state_.runtime_forcings.cells.n", (r.state_.runtime_forcings).cells.len() as i64);
+    pi(o, "twod.state_.runtime_forcings.index.n", (r.state_.runtime_forcings).index.len() as i64);
+    for q in 0..4 { pi(o, "twod.state_.runtime_forcings.uniform[]", (r.state_.runtime_forcings).uniform[q] as i64); }
+    vf(o, "twod.state_.coupling_native", &(r.state_.coupling_native).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pi(o, "twod.state_.forcing_dirty", (r.state_.forcing_dirty) as i64);
+    pi(o, "twod.state_.forcing_ever_set", (r.state_.forcing_ever_set) as i64);
+    vf(o, "twod.state_.old_depth", &(r.state_.old_depth).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.old_volume", &(r.state_.old_volume).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.stat_max_depth", &(r.state_.stat_max_depth).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.stat_max_velocity", &(r.state_.stat_max_velocity).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.stat_max_cont_err", &(r.state_.stat_max_cont_err).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.state_.stat_cum_volume", &(r.state_.stat_cum_volume).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pf(o, "twod.state_.evap_loss_total", (r.state_.evap_loss_total) as f64);
+    vf(o, "twod.state_.rk2_rain_pending", &(r.state_.rk2_rain_pending).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pi(o, "twod.state_.boundary", (r.state_.boundary) as i64);
+    pi(o, "twod.state_.nodes_1d", (r.state_.nodes_1d) as i64);
+    pi(o, "twod.state_.node_row_conc", (r.state_.node_row_conc) as i64);
+    pi(o, "twod.state_.node_coupling", (r.state_.node_coupling) as i64);
+    pi(o, "twod.state_.node_pond_base", (r.state_.node_pond_base) as i64);
+    pi(o, "twod.state_.coupling_head_cells", (r.state_.coupling_head_cells) as i64);
+    pi(o, "twod.state_.node_pond_area_m2", (r.state_.node_pond_area_m2) as i64);
+    pi(o, "twod.state_.snow_context", (r.state_.snow_context) as i64);
+    }
+    pi(o, "twod.channel_ground_.active", r.channel_ground_.active() as i64);
     { let m = r.options_.borrow();
     pi(o, "twod.options_.coupled_heat", ((*m).coupled_heat) as i64);
     pi(o, "twod.options_.heat_model_authored", ((*m).heat_model_authored) as i64);
@@ -168,38 +334,44 @@ pub fn twoddump(e: &SwmmEngine) -> Vec<u8> {
     vi(o, "twod.boundary_.edge_bc_rating_curve", &((*m).edge_bc_rating_curve).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     vs(o, "twod.boundary_.edge_bc_rating_curve_name", &(*m).edge_bc_rating_curve_name);
     pi(o, "twod.boundary_.runtime_original.n", ((*m).runtime_original).len() as i64);
-    for e128 in ((*m).runtime_original).iter() {
-    pi(o, "twod.boundary_.runtime_original.key", ((*e128.0)) as i64);
-    pi(o, "twod.boundary_.runtime_original.val.type", ((*e128.1).type_) as i64);
-    pf(o, "twod.boundary_.runtime_original.val.head", ((*e128.1).head) as f64);
-    pf(o, "twod.boundary_.runtime_original.val.flow", ((*e128.1).flow) as f64);
-    pf(o, "twod.boundary_.runtime_original.val.slope", ((*e128.1).slope) as f64);
-    pi(o, "twod.boundary_.runtime_original.val.stage_ts", ((*e128.1).stage_ts) as i64);
-    pi(o, "twod.boundary_.runtime_original.val.flow_ts", ((*e128.1).flow_ts) as i64);
-    pi(o, "twod.boundary_.runtime_original.val.rating", ((*e128.1).rating) as i64);
-    ps(o, "twod.boundary_.runtime_original.val.stage_name", &(*e128.1).stage_name);
-    ps(o, "twod.boundary_.runtime_original.val.flow_name", &(*e128.1).flow_name);
-    ps(o, "twod.boundary_.runtime_original.val.rating_name", &(*e128.1).rating_name);
+    for e129 in ((*m).runtime_original).iter() {
+    pi(o, "twod.boundary_.runtime_original.key", ((*e129.0)) as i64);
+    pi(o, "twod.boundary_.runtime_original.val.type", ((*e129.1).type_) as i64);
+    pf(o, "twod.boundary_.runtime_original.val.head", ((*e129.1).head) as f64);
+    pf(o, "twod.boundary_.runtime_original.val.flow", ((*e129.1).flow) as f64);
+    pf(o, "twod.boundary_.runtime_original.val.slope", ((*e129.1).slope) as f64);
+    pi(o, "twod.boundary_.runtime_original.val.stage_ts", ((*e129.1).stage_ts) as i64);
+    pi(o, "twod.boundary_.runtime_original.val.flow_ts", ((*e129.1).flow_ts) as i64);
+    pi(o, "twod.boundary_.runtime_original.val.rating", ((*e129.1).rating) as i64);
+    ps(o, "twod.boundary_.runtime_original.val.stage_name", &(*e129.1).stage_name);
+    ps(o, "twod.boundary_.runtime_original.val.flow_name", &(*e129.1).flow_name);
+    ps(o, "twod.boundary_.runtime_original.val.rating_name", &(*e129.1).rating_name);
     }
     pi(o, "twod.boundary_.runtime_owner.n", ((*m).runtime_owner).len() as i64);
-    for e129 in ((*m).runtime_owner).iter() {
-    pi(o, "twod.boundary_.runtime_owner.key", ((*e129.0)) as i64);
-    ps(o, "twod.boundary_.runtime_owner.val", &(*e129.1));
+    for e130 in ((*m).runtime_owner).iter() {
+    pi(o, "twod.boundary_.runtime_owner.key", ((*e130.0)) as i64);
+    ps(o, "twod.boundary_.runtime_owner.val", &(*e130.1));
     }
     pi(o, "twod.boundary_.receipts.n", ((*(*m).receipts.borrow())).len() as i64);
-    for e130 in ((*(*m).receipts.borrow())).iter() {
-    pi(o, "twod.boundary_.receipts.key", ((*e130.0)) as i64);
-    pf(o, "twod.boundary_.receipts.val.requested", ((*e130.1).requested) as f64);
-    pf(o, "twod.boundary_.receipts.val.applied", ((*e130.1).applied) as f64);
-    pf(o, "twod.boundary_.receipts.val.water_in", ((*e130.1).water_in) as f64);
-    pf(o, "twod.boundary_.receipts.val.water_out", ((*e130.1).water_out) as f64);
-    pf(o, "twod.boundary_.receipts.val.heat_requested", ((*e130.1).heat_requested) as f64);
-    pf(o, "twod.boundary_.receipts.val.heat_applied", ((*e130.1).heat_applied) as f64);
-    pf(o, "twod.boundary_.receipts.val.last_flow", ((*e130.1).last_flow) as f64);
-    pf(o, "twod.boundary_.receipts.val.last_dt", ((*e130.1).last_dt) as f64);
-    vf(o, "twod.boundary_.receipts.val.requested_mass", &((*e130.1).requested_mass).iter().map(|x| *x as f64).collect::<Vec<f64>>());
-    vf(o, "twod.boundary_.receipts.val.applied_mass", &((*e130.1).applied_mass).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    for e131 in ((*(*m).receipts.borrow())).iter() {
+    pi(o, "twod.boundary_.receipts.key", ((*e131.0)) as i64);
+    pf(o, "twod.boundary_.receipts.val.requested", ((*e131.1).requested) as f64);
+    pf(o, "twod.boundary_.receipts.val.applied", ((*e131.1).applied) as f64);
+    pf(o, "twod.boundary_.receipts.val.water_in", ((*e131.1).water_in) as f64);
+    pf(o, "twod.boundary_.receipts.val.water_out", ((*e131.1).water_out) as f64);
+    pf(o, "twod.boundary_.receipts.val.heat_requested", ((*e131.1).heat_requested) as f64);
+    pf(o, "twod.boundary_.receipts.val.heat_applied", ((*e131.1).heat_applied) as f64);
+    pf(o, "twod.boundary_.receipts.val.last_flow", ((*e131.1).last_flow) as f64);
+    pf(o, "twod.boundary_.receipts.val.last_dt", ((*e131.1).last_dt) as f64);
+    vf(o, "twod.boundary_.receipts.val.requested_mass", &((*e131.1).requested_mass).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.boundary_.receipts.val.applied_mass", &((*e131.1).applied_mass).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     }
+    }
+    {
+    vs(o, "twod.thread_warnings_", &r.thread_warnings_);
+    }
+    {
+    ps(o, "twod.backend_name_", &r.backend_name_);
     }
     { let m = r.infil_.borrow();
     vi(o, "twod.infil_.aquifer_owners_", &((*m).aquifer_owners_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
@@ -231,56 +403,71 @@ pub fn twoddump(e: &SwmmEngine) -> Vec<u8> {
     pf(o, "twod.infil_.step_seconds_", ((*m).step_seconds_) as f64);
     pi(o, "twod.infil_.aquifer_2d_available_", ((*m).aquifer_2d_available_) as i64);
     pi(o, "twod.infil_.resolved_.n", ((*m).resolved_).len() as i64);
-    for e131 in ((*m).resolved_).iter() {
-    pi(o, "twod.infil_.resolved_[].has_method", ((*e131).has_method) as i64);
-    pi(o, "twod.infil_.resolved_[].method", ((*e131).method) as i64);
-    for q in 0..((*e131).p).len() {
-    pf(o, "twod.infil_.resolved_[].p[]", ((*e131).p[q]) as f64);
+    for e132 in ((*m).resolved_).iter() {
+    pi(o, "twod.infil_.resolved_[].has_method", ((*e132).has_method) as i64);
+    pi(o, "twod.infil_.resolved_[].method", ((*e132).method) as i64);
+    for q in 0..((*e132).p).len() {
+    pf(o, "twod.infil_.resolved_[].p[]", ((*e132).p[q]) as f64);
     }
-    pi(o, "twod.infil_.resolved_[].dest", ((*e131).dest) as i64);
-    pi(o, "twod.infil_.resolved_[].dest_explicit", ((*e131).dest_explicit) as i64);
+    pi(o, "twod.infil_.resolved_[].dest", ((*e132).dest) as i64);
+    pi(o, "twod.infil_.resolved_[].dest_explicit", ((*e132).dest_explicit) as i64);
     }
     vi(o, "twod.infil_.prov_", &((*m).prov_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     vi(o, "twod.infil_.bank_.methods_", &((*m).bank_.methods_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     vi(o, "twod.infil_.bank_.owners_", &((*m).bank_.owners_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
     pi(o, "twod.infil_.bank_.horton_.n", ((*m).bank_.horton_).len() as i64);
-    for e132 in ((*m).bank_.horton_).iter() {
-    pf(o, "twod.infil_.bank_.horton_[].f0", ((*e132).f0) as f64);
-    pf(o, "twod.infil_.bank_.horton_[].fmin", ((*e132).fmin) as f64);
-    pf(o, "twod.infil_.bank_.horton_[].decay", ((*e132).decay) as f64);
-    pf(o, "twod.infil_.bank_.horton_[].regen", ((*e132).regen) as f64);
-    pf(o, "twod.infil_.bank_.horton_[].Fmax", ((*e132).Fmax) as f64);
-    pf(o, "twod.infil_.bank_.horton_[].tp", ((*e132).tp) as f64);
-    pf(o, "twod.infil_.bank_.horton_[].Fe", ((*e132).Fe) as f64);
-    pf(o, "twod.infil_.bank_.horton_[].Fmh", ((*e132).Fmh) as f64);
+    for e133 in ((*m).bank_.horton_).iter() {
+    pf(o, "twod.infil_.bank_.horton_[].f0", ((*e133).f0) as f64);
+    pf(o, "twod.infil_.bank_.horton_[].fmin", ((*e133).fmin) as f64);
+    pf(o, "twod.infil_.bank_.horton_[].decay", ((*e133).decay) as f64);
+    pf(o, "twod.infil_.bank_.horton_[].regen", ((*e133).regen) as f64);
+    pf(o, "twod.infil_.bank_.horton_[].Fmax", ((*e133).Fmax) as f64);
+    pf(o, "twod.infil_.bank_.horton_[].tp", ((*e133).tp) as f64);
+    pf(o, "twod.infil_.bank_.horton_[].Fe", ((*e133).Fe) as f64);
+    pf(o, "twod.infil_.bank_.horton_[].Fmh", ((*e133).Fmh) as f64);
     }
     pi(o, "twod.infil_.bank_.grnampt_.n", ((*m).bank_.grnampt_).len() as i64);
-    for e133 in ((*m).bank_.grnampt_).iter() {
-    pf(o, "twod.infil_.bank_.grnampt_[].S", ((*e133).S) as f64);
-    pf(o, "twod.infil_.bank_.grnampt_[].Ks", ((*e133).Ks) as f64);
-    pf(o, "twod.infil_.bank_.grnampt_[].IMDmax", ((*e133).IMDmax) as f64);
-    pf(o, "twod.infil_.bank_.grnampt_[].IMD", ((*e133).IMD) as f64);
-    pf(o, "twod.infil_.bank_.grnampt_[].F", ((*e133).F) as f64);
-    pf(o, "twod.infil_.bank_.grnampt_[].Fu", ((*e133).Fu) as f64);
-    pf(o, "twod.infil_.bank_.grnampt_[].Fumax", ((*e133).Fumax) as f64);
-    pf(o, "twod.infil_.bank_.grnampt_[].Lu", ((*e133).Lu) as f64);
-    pf(o, "twod.infil_.bank_.grnampt_[].T", ((*e133).T) as f64);
-    pi(o, "twod.infil_.bank_.grnampt_[].saturated", ((*e133).saturated) as i64);
+    for e134 in ((*m).bank_.grnampt_).iter() {
+    pf(o, "twod.infil_.bank_.grnampt_[].S", ((*e134).S) as f64);
+    pf(o, "twod.infil_.bank_.grnampt_[].Ks", ((*e134).Ks) as f64);
+    pf(o, "twod.infil_.bank_.grnampt_[].IMDmax", ((*e134).IMDmax) as f64);
+    pf(o, "twod.infil_.bank_.grnampt_[].IMD", ((*e134).IMD) as f64);
+    pf(o, "twod.infil_.bank_.grnampt_[].F", ((*e134).F) as f64);
+    pf(o, "twod.infil_.bank_.grnampt_[].Fu", ((*e134).Fu) as f64);
+    pf(o, "twod.infil_.bank_.grnampt_[].Fumax", ((*e134).Fumax) as f64);
+    pf(o, "twod.infil_.bank_.grnampt_[].Lu", ((*e134).Lu) as f64);
+    pf(o, "twod.infil_.bank_.grnampt_[].T", ((*e134).T) as f64);
+    pi(o, "twod.infil_.bank_.grnampt_[].saturated", ((*e134).saturated) as i64);
     }
     pi(o, "twod.infil_.bank_.curvenum_.n", ((*m).bank_.curvenum_).len() as i64);
-    for e134 in ((*m).bank_.curvenum_).iter() {
-    pf(o, "twod.infil_.bank_.curvenum_[].Smax", ((*e134).Smax) as f64);
-    pf(o, "twod.infil_.bank_.curvenum_[].S", ((*e134).S) as f64);
-    pf(o, "twod.infil_.bank_.curvenum_[].Se", ((*e134).Se) as f64);
-    pf(o, "twod.infil_.bank_.curvenum_[].P", ((*e134).P) as f64);
-    pf(o, "twod.infil_.bank_.curvenum_[].F", ((*e134).F) as f64);
-    pf(o, "twod.infil_.bank_.curvenum_[].f", ((*e134).f) as f64);
-    pf(o, "twod.infil_.bank_.curvenum_[].regen", ((*e134).regen) as f64);
-    pf(o, "twod.infil_.bank_.curvenum_[].T", ((*e134).T) as f64);
-    pf(o, "twod.infil_.bank_.curvenum_[].Tmax", ((*e134).Tmax) as f64);
+    for e135 in ((*m).bank_.curvenum_).iter() {
+    pf(o, "twod.infil_.bank_.curvenum_[].Smax", ((*e135).Smax) as f64);
+    pf(o, "twod.infil_.bank_.curvenum_[].S", ((*e135).S) as f64);
+    pf(o, "twod.infil_.bank_.curvenum_[].Se", ((*e135).Se) as f64);
+    pf(o, "twod.infil_.bank_.curvenum_[].P", ((*e135).P) as f64);
+    pf(o, "twod.infil_.bank_.curvenum_[].F", ((*e135).F) as f64);
+    pf(o, "twod.infil_.bank_.curvenum_[].f", ((*e135).f) as f64);
+    pf(o, "twod.infil_.bank_.curvenum_[].regen", ((*e135).regen) as f64);
+    pf(o, "twod.infil_.bank_.curvenum_[].T", ((*e135).T) as f64);
+    pf(o, "twod.infil_.bank_.curvenum_[].Tmax", ((*e135).Tmax) as f64);
     }
     vf(o, "twod.infil_.bank_.constant_", &((*m).bank_.constant_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     vf(o, "twod.infil_.bank_.cumulative_", &((*m).bank_.cumulative_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    }
+    {
+    pf(o, "twod.infil_elapsed_", (r.infil_elapsed_) as f64);
+    }
+    {
+    vf(o, "twod.infil_cum_applied_", &(r.infil_cum_applied_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    }
+    {
+    vf(o, "twod.coupling_cum_applied_", &(r.coupling_cum_applied_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    }
+    {
+    vi(o, "twod.cell_subcatch_", &(r.cell_subcatch_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    }
+    {
+    vf(o, "twod.subcatch_recharge_", &(r.subcatch_recharge_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
     }
     { let m = r.gw_.borrow();
     ps(o, "twod.gw_.options.unsat_transport", &(*m).options.unsat_transport);
@@ -371,9 +558,9 @@ pub fn twoddump(e: &SwmmEngine) -> Vec<u8> {
     ps(o, "twod.gw_.sources[].species[].ts_name", &(*el).ts_name);
     }
     }
-    { let mut t: Vec<_> = ((*m).source_index_).iter().map(|(k, v)| (k.clone(), v)).collect(); t.sort_by(|a, b| a.0.cmp(&b.0)); pi(o, "twod.gw_.source_index_.n", t.len() as i64); for e135 in t.iter() {
-    ps(o, "twod.gw_.source_index_.key", &e135.0);
-    pi(o, "twod.gw_.source_index_.val", ((*e135.1)) as i64);
+    { let mut t: Vec<_> = ((*m).source_index_).iter().map(|(k, v)| (k.clone(), v)).collect(); t.sort_by(|a, b| a.0.cmp(&b.0)); pi(o, "twod.gw_.source_index_.n", t.len() as i64); for e136 in t.iter() {
+    ps(o, "twod.gw_.source_index_.key", &e136.0);
+    pi(o, "twod.gw_.source_index_.val", ((*e136.1)) as i64);
     } }
     { let mut t: Vec<(i32, Vec<u8>, i32, i32, i32, Vec<u8>, i64)> = ((*m).quality_index_).iter().map(|(k, v)| (k.scope as i32, k.tag.clone(), k.cell, k.zone as i32, k.layer, k.species.clone(), *v as i64)).collect(); t.sort(); pi(o, "twod.gw_.quality_index_.n", t.len() as i64); for x in &t { pi(o, "twod.gw_.quality_index_.scope", x.0 as i64); ps(o, "twod.gw_.quality_index_.tag", &x.1); pi(o, "twod.gw_.quality_index_.cell", x.2 as i64); pi(o, "twod.gw_.quality_index_.zone", x.3 as i64); pi(o, "twod.gw_.quality_index_.layer", x.4 as i64); ps(o, "twod.gw_.quality_index_.species", &x.5); pi(o, "twod.gw_.quality_index_.val", x.6); } }
     pi(o, "twod.gw_.source_index_size_", ((*m).source_index_size_) as i64);
@@ -386,9 +573,9 @@ pub fn twoddump(e: &SwmmEngine) -> Vec<u8> {
     ps(o, "twod.surface_quality_.coverage_rows[].key.tag", &(*el).key.tag);
     pi(o, "twod.surface_quality_.coverage_rows[].key.cell", ((*el).key.cell) as i64);
     pi(o, "twod.surface_quality_.coverage_rows[].uses.n", ((*el).uses).len() as i64);
-    for e136 in ((*el).uses).iter() {
-    ps(o, "twod.surface_quality_.coverage_rows[].uses[].first", &(*e136).0);
-    pf(o, "twod.surface_quality_.coverage_rows[].uses[].second", ((*e136).1) as f64);
+    for e137 in ((*el).uses).iter() {
+    ps(o, "twod.surface_quality_.coverage_rows[].uses[].first", &(*e137).0);
+    pf(o, "twod.surface_quality_.coverage_rows[].uses[].second", ((*e137).1) as f64);
     }
     }
     pi(o, "twod.surface_quality_.loading_rows.n", ((*m).loading_rows).len() as i64);
@@ -525,9 +712,34 @@ pub fn twoddump(e: &SwmmEngine) -> Vec<u8> {
     { let m = r.aquifer_link_names_.borrow();
     vs(o, "twod.aquifer_link_names_", &(*m));
     }
+    pi(o, "twod.subsurface_.active", r.subsurface_.active() as i64);
+    pi(o, "twod.subsurface_.independentClock", r.subsurface_.independent_clock() as i64);
+    pi(o, "twod.subsurface_.coverage.n", r.subsurface_.coverage().len() as i64);
+    pi(o, "twod.subsurface_.transport.n_species", r.subsurface_.transport().n_species as i64);
+    pi(o, "twod.subsurface_.transport.n_layers", r.subsurface_.transport().n_layers as i64);
+    pi(o, "twod.subsurface_.transport.generated_age.n", r.subsurface_.transport().generated_age.len() as i64);
+    pi(o, "twod.subsurface_.nodeBeds.n", r.subsurface_.node_beds().len() as i64);
+    pi(o, "twod.subsurface_.heat_.cells.n", (r.subsurface_.heat_.cells).len() as i64);
+    vi(o, "twod.subsurface_.heat_.lid_owners.n[]", &(r.subsurface_.heat_.lid_owners).iter().map(|v| v.len() as i64).collect::<Vec<i64>>());
+    pf(o, "twod.subsurface_.heat_.top_now", (r.subsurface_.heat_.top_now) as f64);
+    pf(o, "twod.subsurface_.heat_.deep_now", (r.subsurface_.heat_.deep_now) as f64);
+    pf(o, "twod.subsurface_.heat_.density", (r.subsurface_.heat_.density) as f64);
+    pf(o, "twod.subsurface_.heat_.water_capacity", (r.subsurface_.heat_.water_capacity) as f64);
+    pi(o, "twod.subsurface_.heat_.top_series", (r.subsurface_.heat_.top_series) as i64);
+    pi(o, "twod.subsurface_.heat_.deep_series", (r.subsurface_.heat_.deep_series) as i64);
+    pi(o, "twod.subsurface_.heat_.context", (r.subsurface_.heat_.context) as i64);
+    pi(o, "twod.subsurface_.heat_.snow_owner", if r.subsurface_.heat_.snow_owner { 2 } else { 0 });
+    pi(o, "twod.subsurface_.heat_.config", if r.subsurface_.heat_.config { 2 } else { 0 });
+    pi(o, "twod.aquifer_link_shares_.n", (r.aquifer_link_shares_).len() as i64);
+    {
+    vi(o, "twod.aquifer_link_ids_", &(r.aquifer_link_ids_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    }
+    {
+    vf(o, "twod.rain_cum_", &(r.rain_cum_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    }
     { let m = r.pending_bc_rows_.borrow();
-    pi(o, "twod.pending_bc_rows_.n", (*m).len() as i64);
-    for el in (*m).iter() {
+    pi(o, "twod.pending_bc_rows_.n", ((*m)).len() as i64);
+    for el in ((*m)).iter() {
     pi(o, "twod.pending_bc_rows_[].tri", ((*el).tri) as i64);
     pi(o, "twod.pending_bc_rows_[].edge", ((*el).edge) as i64);
     pi(o, "twod.pending_bc_rows_[].bc_type", ((*el).bc_type) as i64);
@@ -537,8 +749,8 @@ pub fn twoddump(e: &SwmmEngine) -> Vec<u8> {
     }
     }
     { let m = r.pending_iq_rows_.borrow();
-    pi(o, "twod.pending_iq_rows_.n", (*m).len() as i64);
-    for el in (*m).iter() {
+    pi(o, "twod.pending_iq_rows_.n", ((*m)).len() as i64);
+    for el in ((*m)).iter() {
     pi(o, "twod.pending_iq_rows_[].tri", ((*el).tri) as i64);
     ps(o, "twod.pending_iq_rows_[].tag", &(*el).tag);
     pi(o, "twod.pending_iq_rows_[].all", ((*el).all) as i64);
@@ -547,8 +759,8 @@ pub fn twoddump(e: &SwmmEngine) -> Vec<u8> {
     }
     }
     { let m = r.pending_ibq_rows_.borrow();
-    pi(o, "twod.pending_ibq_rows_.n", (*m).len() as i64);
-    for el in (*m).iter() {
+    pi(o, "twod.pending_ibq_rows_.n", ((*m)).len() as i64);
+    for el in ((*m)).iter() {
     pi(o, "twod.pending_ibq_rows_[].tri", ((*el).tri) as i64);
     ps(o, "twod.pending_ibq_rows_[].tag", &(*el).tag);
     pi(o, "twod.pending_ibq_rows_[].all", ((*el).all) as i64);
@@ -557,8 +769,8 @@ pub fn twoddump(e: &SwmmEngine) -> Vec<u8> {
     }
     }
     { let m = r.pending_bq_rows_.borrow();
-    pi(o, "twod.pending_bq_rows_.n", (*m).len() as i64);
-    for el in (*m).iter() {
+    pi(o, "twod.pending_bq_rows_.n", ((*m)).len() as i64);
+    for el in ((*m)).iter() {
     pi(o, "twod.pending_bq_rows_[].tri", ((*el).tri) as i64);
     pi(o, "twod.pending_bq_rows_[].edge", ((*el).edge) as i64);
     ps(o, "twod.pending_bq_rows_[].species", &(*el).species);
@@ -566,12 +778,438 @@ pub fn twoddump(e: &SwmmEngine) -> Vec<u8> {
     }
     }
     { let m = r.pending_edge_conveyance_rows_.borrow();
-    pi(o, "twod.pending_edge_conveyance_rows_.n", (*m).len() as i64);
-    for el in (*m).iter() {
+    pi(o, "twod.pending_edge_conveyance_rows_.n", ((*m)).len() as i64);
+    for el in ((*m)).iter() {
     pi(o, "twod.pending_edge_conveyance_rows_[].v_from", ((*el).v_from) as i64);
     pi(o, "twod.pending_edge_conveyance_rows_[].v_to", ((*el).v_to) as i64);
     pf(o, "twod.pending_edge_conveyance_rows_[].conveyance", ((*el).conveyance) as f64);
     }
+    }
+    {
+    pi(o, "twod.coupling_points_.n", (r.coupling_points_).len() as i64);
+    for el in (r.coupling_points_).iter() {
+    pi(o, "twod.coupling_points_[].cell_idx", ((*el).cell_idx) as i64);
+    pi(o, "twod.coupling_points_[].vertex_idx", ((*el).vertex_idx) as i64);
+    pi(o, "twod.coupling_points_[].node_idx", ((*el).node_idx) as i64);
+    pf(o, "twod.coupling_points_[].cd", ((*el).cd) as f64);
+    pf(o, "twod.coupling_points_[].area", ((*el).area) as f64);
+    pi(o, "twod.coupling_points_[].is_outfall", ((*el).is_outfall) as i64);
+    pi(o, "twod.coupling_points_[].has_flap_gate", ((*el).has_flap_gate) as i64);
+    pi(o, "twod.coupling_points_[].area_authored", ((*el).area_authored) as i64);
+    pi(o, "twod.coupling_points_[].cd_authored", ((*el).cd_authored) as i64);
+    pi(o, "twod.coupling_points_[].law", ((*el).law) as i64);
+    pf(o, "twod.coupling_points_[].geo.z_crest", ((*el).geo.z_crest) as f64);
+    pf(o, "twod.coupling_points_[].geo.l_weir", ((*el).geo.l_weir) as f64);
+    pf(o, "twod.coupling_points_[].geo.a_orif", ((*el).geo.a_orif) as f64);
+    pf(o, "twod.coupling_points_[].coef.c_w", ((*el).coef.c_w) as f64);
+    pf(o, "twod.coupling_points_[].coef.c_sw", ((*el).coef.c_sw) as f64);
+    pf(o, "twod.coupling_points_[].coef.c_oi", ((*el).coef.c_oi) as f64);
+    pf(o, "twod.coupling_points_[].coef.c_oo", ((*el).coef.c_oo) as f64);
+    pf(o, "twod.coupling_points_[].coef.h_eps", ((*el).coef.h_eps) as f64);
+    pf(o, "twod.coupling_points_[].chamber_area", ((*el).chamber_area) as f64);
+    pi(o, "twod.coupling_points_[].equalize", ((*el).equalize) as i64);
+    pi(o, "twod.coupling_points_[].head_begin", ((*el).head_begin) as i64);
+    pi(o, "twod.coupling_points_[].head_end", ((*el).head_end) as i64);
+    pf(o, "twod.coupling_points_[].spread", ((*el).spread) as f64);
+    pf(o, "twod.coupling_points_[].tw_relax", ((*el).tw_relax) as f64);
+    }
+    }
+    {
+    pi(o, "twod.outfall_exchange_.points_.n", (r.outfall_exchange_.points_).len() as i64);
+    for el in (r.outfall_exchange_.points_).iter() {
+    pi(o, "twod.outfall_exchange_.points_[].index", ((*el).index) as i64);
+    pi(o, "twod.outfall_exchange_.points_[].node", ((*el).node) as i64);
+    vi(o, "twod.outfall_exchange_.points_[].cells", &((*el).cells).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "twod.outfall_exchange_.points_[].fraction", &((*el).fraction).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.outfall_exchange_.points_[].reserved", &((*el).reserved).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pf(o, "twod.outfall_exchange_.points_[].total", ((*el).total) as f64);
+    pf(o, "twod.outfall_exchange_.points_[].area", ((*el).area) as f64);
+    vi(o, "twod.outfall_exchange_.points_[].spread", &((*el).spread).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    pf(o, "twod.outfall_exchange_.points_[].bed_ref", ((*el).bed_ref) as f64);
+    }
+    vi(o, "twod.outfall_exchange_.recv_", &(r.outfall_exchange_.recv_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "twod.outfall_exchange_.nodes_", &(r.outfall_exchange_.nodes_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "twod.outfall_exchange_.degree_", &(r.outfall_exchange_.degree_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "twod.outfall_exchange_.node_area_", &(r.outfall_exchange_.node_area_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.outfall_exchange_.node_reserved_", &(r.outfall_exchange_.node_reserved_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.outfall_exchange_.tw_engaged_s_", &(r.outfall_exchange_.tw_engaged_s_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.outfall_exchange_.tw_submerged_s_", &(r.outfall_exchange_.tw_submerged_s_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.outfall_exchange_.tw_max_", &(r.outfall_exchange_.tw_max_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.outfall_exchange_.pending_", &(r.outfall_exchange_.pending_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pf(o, "twod.outfall_exchange_.prepared_dt_", (r.outfall_exchange_.prepared_dt_) as f64);
+    pi(o, "twod.outfall_exchange_.prepared_", (r.outfall_exchange_.prepared_) as i64);
+    }
+    {
+    pi(o, "twod.outfall_state_changed_", (r.outfall_state_changed_) as i64);
+    }
+    {
+    pi(o, "twod.node_coupling_points_.n", (r.node_coupling_points_).len() as i64);
+    for el in (r.node_coupling_points_).iter() {
+    pi(o, "twod.node_coupling_points_[].cell_idx", ((*el).cell_idx) as i64);
+    pi(o, "twod.node_coupling_points_[].vertex_idx", ((*el).vertex_idx) as i64);
+    pi(o, "twod.node_coupling_points_[].node_idx", ((*el).node_idx) as i64);
+    pf(o, "twod.node_coupling_points_[].cd", ((*el).cd) as f64);
+    pf(o, "twod.node_coupling_points_[].area", ((*el).area) as f64);
+    pi(o, "twod.node_coupling_points_[].is_outfall", ((*el).is_outfall) as i64);
+    pi(o, "twod.node_coupling_points_[].has_flap_gate", ((*el).has_flap_gate) as i64);
+    pi(o, "twod.node_coupling_points_[].area_authored", ((*el).area_authored) as i64);
+    pi(o, "twod.node_coupling_points_[].cd_authored", ((*el).cd_authored) as i64);
+    pi(o, "twod.node_coupling_points_[].law", ((*el).law) as i64);
+    pf(o, "twod.node_coupling_points_[].geo.z_crest", ((*el).geo.z_crest) as f64);
+    pf(o, "twod.node_coupling_points_[].geo.l_weir", ((*el).geo.l_weir) as f64);
+    pf(o, "twod.node_coupling_points_[].geo.a_orif", ((*el).geo.a_orif) as f64);
+    pf(o, "twod.node_coupling_points_[].coef.c_w", ((*el).coef.c_w) as f64);
+    pf(o, "twod.node_coupling_points_[].coef.c_sw", ((*el).coef.c_sw) as f64);
+    pf(o, "twod.node_coupling_points_[].coef.c_oi", ((*el).coef.c_oi) as f64);
+    pf(o, "twod.node_coupling_points_[].coef.c_oo", ((*el).coef.c_oo) as f64);
+    pf(o, "twod.node_coupling_points_[].coef.h_eps", ((*el).coef.h_eps) as f64);
+    pf(o, "twod.node_coupling_points_[].chamber_area", ((*el).chamber_area) as f64);
+    pi(o, "twod.node_coupling_points_[].equalize", ((*el).equalize) as i64);
+    pi(o, "twod.node_coupling_points_[].head_begin", ((*el).head_begin) as i64);
+    pi(o, "twod.node_coupling_points_[].head_end", ((*el).head_end) as i64);
+    pf(o, "twod.node_coupling_points_[].spread", ((*el).spread) as f64);
+    pf(o, "twod.node_coupling_points_[].tw_relax", ((*el).tw_relax) as f64);
+    }
+    }
+    {
+    vi(o, "twod.coupling_head_cells_", &(r.coupling_head_cells_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    }
+    {
+    vi(o, "twod.pond_track_ptr_", &(r.pond_track_ptr_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    }
+    {
+    vi(o, "twod.pond_track_cell_", &(r.pond_track_cell_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    }
+    {
+    vf(o, "twod.pond_track_share_", &(r.pond_track_share_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    }
+    {
+    vf(o, "twod.pond_chamber_ft2_", &(r.pond_chamber_ft2_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    }
+    {
+    vf(o, "twod.node_pond_area_m2_", &(r.node_pond_area_m2_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    }
+    {
+    vf(o, "twod.node_row_conc_", &(r.node_row_conc_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    }
+    {
+    vf(o, "twod.react_phi_", &(r.react_phi_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    }
+    {
+    vf(o, "twod.react_a_", &(r.react_a_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    }
+    {
+    vf(o, "twod.react_dx_", &(r.react_dx_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    }
+    {
+    pf(o, "twod.co_refresh_elapsed_", (r.co_refresh_elapsed_) as f64);
+    }
+    {
+    pf(o, "twod.co_render_elapsed_", (r.co_render_elapsed_) as f64);
+    }
+    {
+    pi(o, "twod.render_dirty_", (r.render_dirty_) as i64);
+    }
+    {
+    vf(o, "twod.render_eta_", &(r.render_eta_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    }
+    {
+    vi(o, "twod.bc_nonwall_slots_", &(r.bc_nonwall_slots_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    }
+    {
+    pi(o, "twod.bc_nonwall_dirty_", (r.bc_nonwall_dirty_) as i64);
+    }
+    { let mut t: Vec<i64> = r.mb_seen_nodes_.iter().map(|x| *x as i64).collect(); t.sort(); vi(o, "twod.mb_seen_nodes_", &t); }
+    {
+    pf(o, "twod.co_forcing_elapsed_", (r.co_forcing_elapsed_) as f64);
+    }
+    {
+    pi(o, "twod.co_forcing_first_", (r.co_forcing_first_) as i64);
+    }
+    {
+    pi(o, "twod.active_", (r.active_) as i64);
+    }
+    {
+    pf(o, "twod.sim_time_", (r.sim_time_) as f64);
+    }
+    {
+    pf(o, "twod.pending_dt_", (r.pending_dt_) as f64);
+    }
+    {
+    vf(o, "twod.report_old_depth_", &(r.report_old_depth_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    }
+    {
+    vf(o, "twod.report_old_head_", &(r.report_old_head_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    }
+    {
+    pf(o, "twod.report_window_old_ms_", (r.report_window_old_ms_) as f64);
+    }
+    {
+    pf(o, "twod.report_window_new_ms_", (r.report_window_new_ms_) as f64);
+    }
+    {
+    pi(o, "twod.report_old_valid_", (r.report_old_valid_) as i64);
+    }
+    {
+    vf(o, "twod.ramp_prev_head_", &(r.ramp_prev_head_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    }
+    {
+    pf(o, "twod.ramp_prev_span_", (r.ramp_prev_span_) as f64);
+    }
+    {
+    pf(o, "twod.prev_boundary_cum_", (r.prev_boundary_cum_) as f64);
+    }
+    {
+    pf(o, "twod.prev_boundary_in_", (r.prev_boundary_in_) as f64);
+    }
+    {
+    pf(o, "twod.prev_boundary_out_", (r.prev_boundary_out_) as f64);
+    }
+    {
+    vf(o, "twod.window_outfall_accum_", &(r.window_outfall_accum_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    }
+    {
+    pf(o, "twod.last_t_", (r.last_t_) as f64);
+    }
+    {
+    pi(o, "twod.boundary_names_resolved_", (r.boundary_names_resolved_) as i64);
+    }
+    {
+    pf(o, "twod.bc_stage_scale_", (r.bc_stage_scale_) as f64);
+    }
+    {
+    pf(o, "twod.bc_stage_ts_scale_", (r.bc_stage_ts_scale_) as f64);
+    }
+    {
+    pf(o, "twod.bc_flow_scale_", (r.bc_flow_scale_) as f64);
+    }
+    match &r.solver_ { None => pi(o, "twod.solver_", 0), Some(sv) => { pi(o, "twod.solver_", 1);
+    sk(o, "twod.solver_.rk_reaction_workspace_");
+    vi(o, "twod.solver_.rk_reaction_rows_", &((*sv).rk_reaction_rows_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "twod.solver_.rk_decay_", &((*sv).rk_decay_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.rk_reacted_", &((*sv).rk_reacted_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.rk_reacted_reported_", &((*sv).rk_reacted_reported_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    ps(o, "twod.solver_.rk_reaction_identity_", &(*sv).rk_reaction_identity_);
+    pi(o, "twod.solver_.edges_.ne", ((*sv).edges_.ne) as i64);
+    vi(o, "twod.solver_.edges_.cL", &((*sv).edges_.cL).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "twod.solver_.edges_.cR", &((*sv).edges_.cR).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "twod.solver_.edges_.xi", &((*sv).edges_.xi).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.edges_.conveyance", &((*sv).edges_.conveyance).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.edges_.inv_dx", &((*sv).edges_.inv_dx).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.edges_.zface", &((*sv).edges_.zface).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.edges_.ze_lo", &((*sv).edges_.ze_lo).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.edges_.ze_hi", &((*sv).edges_.ze_hi).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vi(o, "twod.solver_.edges_.slotL", &((*sv).edges_.slotL).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "twod.solver_.edges_.slotR", &((*sv).edges_.slotR).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "twod.solver_.edges_.nx", &((*sv).edges_.nx).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.edges_.ny", &((*sv).edges_.ny).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.edges_.mx", &((*sv).edges_.mx).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.edges_.my", &((*sv).edges_.my).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.edges_.inv_dx_normal", &((*sv).edges_.inv_dx_normal).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.edges_.n2_face", &((*sv).edges_.n2_face).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.edges_.n_face", &((*sv).edges_.n_face).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.edges_.cell_lchar", &((*sv).edges_.cell_lchar).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.edges_.cell_lpos", &((*sv).edges_.cell_lpos).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vi(o, "twod.solver_.edges_.cell_ptr", &((*sv).edges_.cell_ptr).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "twod.solver_.edges_.cell_edge", &((*sv).edges_.cell_edge).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "twod.solver_.edges_.cell_sign", &((*sv).edges_.cell_sign).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "twod.solver_.edges_.cell_arm_x", &((*sv).edges_.cell_arm_x).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.edges_.cell_arm_y", &((*sv).edges_.cell_arm_y).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.q_", &((*sv).q_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.qcx_", &((*sv).qcx_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.qcy_", &((*sv).qcy_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pi(o, "twod.solver_.mode_", ((*sv).mode_) as i64);
+    pi(o, "twod.solver_.has_quads_", ((*sv).has_quads_) as i64);
+    vi(o, "twod.solver_.wall_ptr_", &((*sv).wall_ptr_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "twod.solver_.wall_slot_", &((*sv).wall_slot_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    pf(o, "twod.solver_.swe_bc_dqx_", ((*sv).swe_bc_dqx_) as f64);
+    pf(o, "twod.solver_.swe_bc_dqy_", ((*sv).swe_bc_dqy_) as f64);
+    pi(o, "twod.solver_.second_order_", ((*sv).second_order_) as i64);
+    pi(o, "twod.solver_.rk_transport_stage_", ((*sv).rk_transport_stage_) as i64);
+    vf(o, "twod.solver_.rk_stage_mass_", &((*sv).rk_stage_mass_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.rk_stage_volume_", &((*sv).rk_stage_volume_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.gex_", &((*sv).gex_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.gey_", &((*sv).gey_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.gux_", &((*sv).gux_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.guy_", &((*sv).guy_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.gvx_", &((*sv).gvx_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.gvy_", &((*sv).gvy_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.rk_v0_", &((*sv).rk_v0_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.rk_qx0_", &((*sv).rk_qx0_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.rk_qy0_", &((*sv).rk_qy0_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.rk_inf0_", &((*sv).rk_inf0_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.rk_bc0_", &((*sv).rk_bc0_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.rk_ex0_", &((*sv).rk_ex0_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.rk_drawn0_", &((*sv).rk_drawn0_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.rk_cpl0_", &((*sv).rk_cpl0_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.momentum_physics_.viscosity", &((*sv).momentum_physics_.viscosity).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.momentum_physics_.strain", &((*sv).momentum_physics_.strain).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.momentum_physics_.vorticity", &((*sv).momentum_physics_.vorticity).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.momentum_physics_.wall_distance", &((*sv).momentum_physics_.wall_distance).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pf(o, "twod.solver_.momentum_physics_.last_limit", ((*sv).momentum_physics_.last_limit) as f64);
+    pi(o, "twod.solver_.momentum_physics_.substeps", ((*sv).momentum_physics_.substeps) as i64);
+    pi(o, "twod.solver_.momentum_physics_.retries", ((*sv).momentum_physics_.retries) as i64);
+    pi(o, "twod.solver_.momentum_physics_.stencils_.n", ((*sv).momentum_physics_.stencils_).len() as i64);
+    for el in ((*sv).momentum_physics_.stencils_).iter() {
+    pi(o, "twod.solver_.momentum_physics_.stencils_[].ids.n", ((*el).ids).len() as i64);
+    for e138 in ((*el).ids).iter() {
+    pi(o, "twod.solver_.momentum_physics_.stencils_[].ids[]", ((*e138)) as i64);
+    }
+    pi(o, "twod.solver_.momentum_physics_.stencils_[].gx.n", ((*el).gx).len() as i64);
+    for e139 in ((*el).gx).iter() {
+    pf(o, "twod.solver_.momentum_physics_.stencils_[].gx[]", ((*e139)) as f64);
+    }
+    pi(o, "twod.solver_.momentum_physics_.stencils_[].gy.n", ((*el).gy).len() as i64);
+    for e140 in ((*el).gy).iter() {
+    pf(o, "twod.solver_.momentum_physics_.stencils_[].gy[]", ((*e140)) as f64);
+    }
+    pi(o, "twod.solver_.momentum_physics_.stencils_[].count", ((*el).count) as i64);
+    }
+    vi(o, "twod.solver_.momentum_physics_.connected_", &((*sv).momentum_physics_.connected_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "twod.solver_.momentum_physics_.bound_x_", &((*sv).momentum_physics_.bound_x_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.momentum_physics_.bound_y_", &((*sv).momentum_physics_.bound_y_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.momentum_physics_.rx_", &((*sv).momentum_physics_.rx_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.momentum_physics_.ry_", &((*sv).momentum_physics_.ry_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.momentum_physics_.sx_", &((*sv).momentum_physics_.sx_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.momentum_physics_.sy_", &((*sv).momentum_physics_.sy_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.momentum_physics_.tx_", &((*sv).momentum_physics_.tx_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.momentum_physics_.ty_", &((*sv).momentum_physics_.ty_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vi(o, "twod.solver_.wall_drag_slots_", &((*sv).wall_drag_slots_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    pf(o, "twod.solver_.wall_drag_energy_", ((*sv).wall_drag_energy_) as f64);
+    pi(o, "twod.solver_.rk_boundary_signals_.n", ((*sv).rk_boundary_signals_).len() as i64);
+    pf(o, "twod.solver_.rk_boundary_anchor_", ((*sv).rk_boundary_anchor_) as f64);
+    pi(o, "twod.solver_.front_rebuild_", ((*sv).front_rebuild_) as i64);
+    vi(o, "twod.solver_.frontier_", &((*sv).frontier_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    pi(o, "twod.solver_.front_breach_", ((*sv).front_breach_) as i64);
+    pf(o, "twod.solver_.h_on_front_", ((*sv).h_on_front_) as f64);
+    vf(o, "twod.solver_.dw_slope_", &((*sv).dw_slope_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vi(o, "twod.solver_.cell_active_", &((*sv).cell_active_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "twod.solver_.active_cells_", &((*sv).active_cells_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "twod.solver_.active_faces_", &((*sv).active_faces_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "twod.solver_.pin_t0_", &((*sv).pin_t0_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "twod.solver_.rebuild_seed_", &((*sv).rebuild_seed_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "twod.solver_.rebuild_dt_cell_", &((*sv).rebuild_dt_cell_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.rebuild_dt_partial_", &((*sv).rebuild_dt_partial_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vi(o, "twod.solver_.tier_", &((*sv).tier_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "twod.solver_.face_tier_", &((*sv).face_tier_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "twod.solver_.face_accum_", &((*sv).face_accum_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pi(o, "twod.solver_.face_accum_stride_", ((*sv).face_accum_stride_) as i64);
+    vf(o, "twod.solver_.sacc_L_", &((*sv).sacc_L_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.sacc_R_", &((*sv).sacc_R_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pi(o, "twod.solver_.species_on_", ((*sv).species_on_) as i64);
+    pi(o, "twod.solver_.plain_sources_", ((*sv).plain_sources_) as i64);
+    vf(o, "twod.solver_.source_ledgers_", &((*sv).source_ledgers_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pi(o, "twod.solver_.source_ledger_stride_", ((*sv).source_ledger_stride_) as i64);
+    pi(o, "twod.solver_.channel_sources_.n", ((*sv).channel_sources_).len() as i64);
+    for el in ((*sv).channel_sources_).iter() {
+    pf(o, "twod.solver_.channel_sources_[].area_dt", ((*el).area_dt) as f64);
+    pf(o, "twod.solver_.channel_sources_[].rain", ((*el).rain) as f64);
+    pf(o, "twod.solver_.channel_sources_[].coupling", ((*el).coupling) as f64);
+    pf(o, "twod.solver_.channel_sources_[].available", ((*el).available) as f64);
+    pf(o, "twod.solver_.channel_sources_[].infil", ((*el).infil) as f64);
+    pf(o, "twod.solver_.channel_sources_[].evap", ((*el).evap) as f64);
+    pf(o, "twod.solver_.channel_sources_[].out", ((*el).out) as f64);
+    pf(o, "twod.solver_.channel_sources_[].final_volume", ((*el).final_volume) as f64);
+    pf(o, "twod.solver_.channel_sources_[].requested_infil", ((*el).requested_infil) as f64);
+    pi(o, "twod.solver_.channel_sources_[].ledger", if (*el).ledger { 2 } else { 0 });
+    }
+    vi(o, "twod.solver_.channel_source_ready_", &((*sv).channel_source_ready_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "twod.solver_.channel_temperature_mixed_", &((*sv).channel_temperature_mixed_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    pi(o, "twod.solver_.accumulators_pending_", ((*sv).accumulators_pending_) as i64);
+    pi(o, "twod.solver_.cells_by_tier_.n", ((*sv).cells_by_tier_).len() as i64);
+    for e141 in ((*sv).cells_by_tier_).iter() {
+    vi(o, "twod.solver_.cells_by_tier_[]", &((*e141)).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    }
+    pi(o, "twod.solver_.edges_by_tier_.n", ((*sv).edges_by_tier_).len() as i64);
+    for e142 in ((*sv).edges_by_tier_).iter() {
+    vi(o, "twod.solver_.edges_by_tier_[]", &((*e142)).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    }
+    pf(o, "twod.solver_.dt0_", ((*sv).dt0_) as f64);
+    vi(o, "twod.solver_.bc_cell_", &((*sv).bc_cell_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "twod.solver_.bc_slot_", &((*sv).bc_slot_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "twod.solver_.gw_row_map_", &((*sv).gw_row_map_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "twod.solver_.bc_accum_", &((*sv).bc_accum_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.bc_q_", &((*sv).bc_q_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.exch_", &((*sv).exch_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    vf(o, "twod.solver_.node_drawn_", &((*sv).node_drawn_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pf(o, "twod.solver_.spill_deficit_", ((*sv).spill_deficit_) as f64);
+    vf(o, "twod.solver_.exch_head_slope_", &((*sv).exch_head_slope_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    pf(o, "twod.solver_.exch_tau_", ((*sv).exch_tau_) as f64);
+    pf(o, "twod.solver_.t_last_sync_", ((*sv).t_last_sync_) as f64);
+    pi(o, "twod.solver_.checkpoint_ready_", ((*sv).checkpoint_ready_) as i64);
+    pi(o, "twod.solver_.joint_checkpoint_", ((*sv).joint_checkpoint_) as i64);
+    pf(o, "twod.solver_.source_phase_end_", ((*sv).source_phase_end_) as f64);
+    pi(o, "twod.solver_.cycles_since_rebuild_", ((*sv).cycles_since_rebuild_) as i64);
+    pi(o, "twod.solver_.substeps_run_", ((*sv).substeps_run_) as i64);
+    pi(o, "twod.solver_.face_passes_", ((*sv).face_passes_) as i64);
+    pi(o, "twod.solver_.last_steps_", ((*sv).last_steps_) as i64);
+    pf(o, "twod.solver_.last_dt_", ((*sv).last_dt_) as f64);
+    pi(o, "twod.solver_.initialized_", ((*sv).initialized_) as i64);
+    pi(o, "twod.solver_.telemetry_.n", ((*sv).telemetry_).len() as i64);
+    for e143 in ((*sv).telemetry_).iter() {
+    pf(o, "twod.solver_.telemetry_[].first", ((*e143).0) as f64);
+    pi(o, "twod.solver_.telemetry_[].second", ((*e143).1) as i64);
+    }
+    ps(o, "twod.solver_.telemetry_path_", &(*sv).telemetry_path_);
+    pf(o, "twod.solver_.active_frac_min_", ((*sv).active_frac_min_) as f64);
+    pf(o, "twod.solver_.active_frac_max_", ((*sv).active_frac_max_) as f64);
+    pf(o, "twod.solver_.active_frac_sum_", ((*sv).active_frac_sum_) as f64);
+    pi(o, "twod.solver_.active_samples_", ((*sv).active_samples_) as i64);
+    pi(o, "twod.solver_.tier_occupancy_.n", ((*sv).tier_occupancy_).len() as i64);
+    for e144 in ((*sv).tier_occupancy_).iter() {
+    pi(o, "twod.solver_.tier_occupancy_[]", ((*e144)) as i64);
+    }
+    pf(o, "twod.solver_.gw_end_time_", ((*sv).gw_end_time_) as f64);
+    pi(o, "twod.solver_.gw_quiescent_", ((*sv).gw_quiescent_) as i64);
+    pi(o, "twod.solver_.rk_reactions_", if (*sv).rk_reactions_ { 2 } else { 0 });
+    pi(o, "twod.solver_.mesh_", ((*sv).mesh_) as i64);
+    pi(o, "twod.solver_.state_", ((*sv).state_) as i64);
+    pi(o, "twod.solver_.opts_", ((*sv).opts_) as i64);
+    pi(o, "twod.solver_.channel_ground_", if (*sv).channel_ground_ { 2 } else { 0 });
+    pi(o, "twod.solver_.common_stage_", if (*sv).common_stage_ { 2 } else { 0 });
+    pi(o, "twod.solver_.source_history_", if (*sv).source_history_ { 2 } else { 0 });
+    pi(o, "twod.solver_.engine_source_history_", if (*sv).engine_source_history_ { 2 } else { 0 });
+    pi(o, "twod.solver_.engine_source_stream_", if (*sv).engine_source_stream_ { 2 } else { 0 });
+    pi(o, "twod.solver_.gw_", if (*sv).gw_ { 2 } else { 0 });
+    } }
+    {
+    pi(o, "twod.interp_.diagnostics_.unlocated", (r.interp_.diagnostics_.unlocated) as i64);
+    pi(o, "twod.interp_.diagnostics_.invalid", (r.interp_.diagnostics_.invalid) as i64);
+    pi(o, "twod.interp_.diagnostics_.duplicates", (r.interp_.diagnostics_.duplicates) as i64);
+    pi(o, "twod.interp_.diagnostics_.idwCells", (r.interp_.diagnostics_.idwCells) as i64);
+    vi(o, "twod.interp_.cell_method_", &(r.interp_.cell_method_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    pi(o, "twod.interp_.ready_", (r.interp_.ready_) as i64);
+    pi(o, "twod.interp_.nt_", (r.interp_.nt_) as i64);
+    vi(o, "twod.interp_.w_ptr_", &(r.interp_.w_ptr_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vi(o, "twod.interp_.w_gage_", &(r.interp_.w_gage_).iter().map(|x| *x as i64).collect::<Vec<i64>>());
+    vf(o, "twod.interp_.w_val_", &(r.interp_.w_val_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    }
+    {
+    vf(o, "twod.rain_gage_last_", &(r.rain_gage_last_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    }
+    {
+    vf(o, "twod.gage_rate_", &(r.gage_rate_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    }
+    {
+    vf(o, "twod.gage_cum_", &(r.gage_cum_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    }
+    {
+    vf(o, "twod.gage_window_depth_", &(r.gage_window_depth_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    }
+    {
+    vf(o, "twod.gage_window_rate_", &(r.gage_window_rate_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    }
+    {
+    pf(o, "twod.gage_since_", (r.gage_since_) as f64);
+    }
+    {
+    vf(o, "twod.gage_report_depth_", &(r.gage_report_depth_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    }
+    {
+    vf(o, "twod.report_rain_cum_", &(r.report_rain_cum_).iter().map(|x| *x as f64).collect::<Vec<f64>>());
+    }
+    {
+    pf(o, "twod.report_rain_ms_", (r.report_rain_ms_) as f64);
     }
     std::mem::take(o)
 }

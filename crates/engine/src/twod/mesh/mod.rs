@@ -6,5 +6,8 @@
 // Written for swmm6-rust, 12 November 2026, by Claude (Anthropic) at the request of Robert
 // Dickinson. Not an OpenSWMM release.
 
+pub mod mesh_builder;
 pub mod quad_vfr;
+pub mod rainfall_interpolator;
+pub mod vertex_reconstruction;
 pub mod vfr_closure;

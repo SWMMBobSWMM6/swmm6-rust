@@ -60,9 +60,12 @@ def split_top(s, sep=','):
     out.append(cur)
     return out
 
-def fields(header, struct):
-    """(name, type, arraylen) for every data member at depth 0, in order."""
+def fields(header, struct, pre=None):
+    """(name, type, arraylen) for every data member at depth 0, in order. `pre`, when given,
+    rewrites the struct body first (the 2D dumper uses it; the 1D dumpers pass none)."""
     body = struct_body(header, struct)
+    if pre:
+        body = pre(body)
     # remove nested braces (methods, nested structs) to depth 0 text, keeping ';' structure.
     # A nested `struct X { ... } member;` keeps its declarator: it becomes `X member`, so the
     # member is dumped (X in STRUCTS) or reported as a skip rather than dropped unseen.
@@ -1075,9 +1078,138 @@ TWOD_CUSTOM = {
     ('GwTransportData', 'quality_index_'): _twod_quality_index,
 }
 
+# Wave 3 (initialize and start): the router's run-time members. Further aggregate types:
+TWOD_STRUCTS.update({
+    'SurfaceStateData': ('2d/data/SurfaceStateData.hpp', 'SurfaceStateData'),
+    'SurfaceTransportState': ('2d/data/SurfaceTransportState.hpp', 'SurfaceTransportState'),
+    'MeshHeatState': ('2d/heat/MeshHeat.hpp', 'MeshHeatState'),
+    'GroundHeatState': ('2d/heat/GroundHeat.hpp', 'GroundHeatState'),
+    'InertialEdges': ('2d/solver/InertialEdges.hpp', 'InertialEdges'),
+    'MomentumPhysics2D': ('2d/solver/MomentumPhysics2D.hpp', 'MomentumPhysics2D'),
+    'exchange::Geometry': ('2d/coupling/ExchangeLaw.hpp', 'Geometry'),
+    'exchange::Coefficients': ('2d/coupling/ExchangeLaw.hpp', 'Coefficients'),
+    'OutfallExchange': ('2d/coupling/OutfallExchange.hpp', 'OutfallExchange'),
+    'RainfallInterpolator': ('2d/mesh/RainfallInterpolator.hpp', 'RainfallInterpolator'),
+    'Diagnostics': ('2d/mesh/RainfallInterpolator.hpp', 'Diagnostics'),
+    # wave 1's members, dumped as before
+    'MeshData': ('2d/data/MeshData.hpp', 'MeshData'),
+    'SolverOptions2D': ('2d/data/SolverOptions2D.hpp', 'SolverOptions2D'),
+    'BoundaryData': ('2d/data/BoundaryData.hpp', 'BoundaryData'),
+    'Infil2D': ('2d/infil/Infil2D.hpp', 'Infil2D'),
+    'GwTransportData': ('2d/gw/GwTransportData.hpp', 'GwTransportData'),
+    'SurfaceQuality2D': ('2d/quality/SurfaceQuality2D.hpp', 'SurfaceQuality2D'),
+    'SubsurfaceConfig': ('2d/subsurface/SubsurfaceData.hpp', 'SubsurfaceConfig'),
+})
+TWOD_ELEM_STRUCTS.update({
+    'CouplingPoint': '2d/coupling/NodeCoupling.hpp', 'Point': '2d/coupling/OutfallExchange.hpp',
+    'BoundaryQualityRow': '2d/data/SurfaceTransportState.hpp', 'Stencil': '2d/solver/MomentumPhysics2D.hpp',
+    'CellSourceStep': '2d/solver/ExplicitInertialSolver.hpp',
+})
+
+# Non-owning pointer members (the field parser drops `T* name`; every pointer of a dumped 2D
+# struct must be listed here, which twod_check_pointers verifies). Upstream prints 0 for null,
+# 1 for the one member it may name (C++ expression; None: any non-null), 2 for anything else;
+# the translation keeps a flag (or, for node_pond_base, PondBase), printed as its integer.
+TWOD_POINTERS = {
+    'SurfaceStateData': [('boundary', '&r.boundary_'), ('nodes_1d', '&e.ctx_.nodes'), ('node_row_conc', '&r.node_row_conc_'),
+                         ('node_coupling', '&r.node_coupling_points_'), ('node_pond_base', None),
+                         ('coupling_head_cells', '&r.coupling_head_cells_'), ('node_pond_area_m2', '&r.node_pond_area_m2_'),
+                         ('snow_context', '&e.ctx_')],
+    'MeshHeatState': [('context', '&e.ctx_'), ('aquifer_ground', None)],
+    'GroundHeatState': [('context', '&e.ctx_'), ('snow_owner', None), ('config', None)],
+    'ExplicitInertialSolver': [('rk_reactions_', None), ('mesh_', '&r.mesh_'), ('state_', '&r.state_'), ('opts_', '&r.options_'),
+                               ('channel_ground_', None), ('common_stage_', None), ('source_history_', None),
+                               ('engine_source_history_', None), ('engine_source_stream_', None), ('gw_', None)],
+    'CellSourceStep': [('ledger', None)],
+    'SurfaceRouter2D': [('joint_hydraulic_', None), ('common_stage_', None), ('source_context_', None)],
+}
+
+def twod_check_pointers(header, struct):
+    """Every `T* name` member of the struct (depth 0) must be in TWOD_POINTERS."""
+    body = strip(struct_body(header, struct))
+    depth = 0; flat = ''
+    for ch in body:
+        if ch == '{': depth += 1; continue
+        if ch == '}': depth -= 1; flat += ';'; continue
+        if depth == 0: flat += ch
+    found = set()
+    for stmt in flat.split(';'):
+        st = ' '.join(stmt.split())
+        if '(' in st.split('=')[0]:
+            continue
+        for m in re.finditer(r'\*\s*(\w+)\s*(?:=|$)', st):
+            found.add(m.group(1))
+    listed = {n for n, _ in TWOD_POINTERS.get(struct, [])}
+    missing = found - listed
+    if missing:
+        raise SystemExit(f'twoddump: pointer members of {struct} not listed in TWOD_POINTERS: {sorted(missing)}')
+
+def twod_pre(body):
+    """`T a{}, b{};` -> `T a, b;` so the field parser keeps every declarator."""
+    return re.sub(r'\{\}\s*,', ',', body)
+
+def _twod_ptr(struct, name, expected, pc, pr, lb, C, R):
+    if name == 'node_pond_base':
+        C.append(f'  pi("{lb}", {pc} == nullptr ? 0 : {pc} == &e.ctx_.nodes.rpt_full_volume ? 1 : {pc} == &e.ctx_.nodes.full_volume ? 2 : 3);')
+    elif expected:
+        C.append(f'  pi("{lb}", {pc} == nullptr ? 0 : (const void*){pc} == (const void*)({expected}) ? 1 : 2);')
+    else:
+        C.append(f'  pi("{lb}", {pc} == nullptr ? 0 : 2);')
+    if expected or name == 'node_pond_base':
+        R.append(f'    pi(o, "{lb}", ({pr}) as i64);')
+    else:
+        R.append(f'    pi(o, "{lb}", if {pr} {{ 2 }} else {{ 0 }});')
+
+def _twod_snow(pc, pr, lb, C, R):
+    """surface::MeshSnow: active() and the three members phase 2a reads (heat/mesh_snow.rs)."""
+    C.append(f'  pi("{lb}.active", ({pc}).active());'); R.append(f'    pi(o, "{lb}.active", ({pr}).active() as i64);')
+    emit(f'{pc}.active_cells_', f'{pr}.active_cells_', lb + '.active_cells_', kind('std::vector<int>'), C, R)
+    emit(f'{pc}.pack_', f'{pr}.pack_', lb + '.pack_', kind('std::vector<int>'), C, R)
+    emit(f'{pc}.liquid_rate_', f'{pr}.liquid_rate_', lb + '.liquid_rate_', kind('std::vector<double>'), C, R)
+    TWOD_REASONS.append(f'{lb}: MeshSnow beyond active_cells_, pack_ and liquid_rate_ (snow on the mesh is a phase-2b refusal; SurfaceStateData::resize default-constructs it and no 2a path writes it)')
+
+def _twod_runtime_sources(pc, pr, lb, C, R):
+    for m in ('rows', 'cells', 'index'):
+        C.append(f'  pi("{lb}.{m}.n", (long long)({pc}).{m}.size());'); R.append(f'    pi(o, "{lb}.{m}.n", ({pr}).{m}.len() as i64);')
+    TWOD_REASONS.append(f'{lb}: rows, cells and index as counts (only the swmm_2d_* C API fills them; not translated)')
+
+def _twod_runtime_forcings(pc, pr, lb, C, R):
+    for m in ('rows', 'cells', 'index'):
+        C.append(f'  pi("{lb}.{m}.n", (long long)({pc}).{m}.size());'); R.append(f'    pi(o, "{lb}.{m}.n", ({pr}).{m}.len() as i64);')
+    C.append(f'  for (int q = 0; q < 4; ++q) pi("{lb}.uniform[]", ({pc}).uniform[q]);'); R.append(f'    for q in 0..4 {{ pi(o, "{lb}.uniform[]", ({pr}).uniform[q] as i64); }}')
+    TWOD_REASONS.append(f'{lb}: rows, cells and index as counts (only the swmm_2d_* C API fills them; not translated)')
+
+def _twod_count(pc, pr, lb, C, R):
+    C.append(f'  pi("{lb}.n", (long long)({pc}).size());'); R.append(f'    pi(o, "{lb}.n", ({pr}).len() as i64);')
+    TWOD_REASONS.append(f'{lb}: count only (elements of a phase-2b type; never filled in 2a)')
+
+def _twod_lid_owners(pc, pr, lb, C, R):
+    C.append(f'  {{ std::vector<long long> t; for (auto& v : {pc}) t.push_back((long long)v.size()); vi("{lb}.n[]", t); }}')
+    R.append(f'    vi(o, "{lb}.n[]", &({pr}).iter().map(|v| v.len() as i64).collect::<Vec<i64>>());')
+    TWOD_REASONS.append(f'{lb}: each cell\'s owner count (GroundLidThermalOwner is phase 2b; never created in 2a)')
+
+def _twod_skip(reason):
+    def f(pc, pr, lb, C, R):
+        C.append(f'  sk("{lb}");'); R.append(f'    sk(o, "{lb}");')
+        TWOD_REASONS.append(f'{lb}: {reason}')
+    return f
+
+TWOD_REASONS = []
+TWOD_CUSTOM.update({
+    ('SurfaceStateData', 'snow'): _twod_snow,
+    ('SurfaceStateData', 'runtime_sources'): _twod_runtime_sources,
+    ('SurfaceStateData', 'runtime_forcings'): _twod_runtime_forcings,
+    ('GroundHeatState', 'cells'): _twod_count,
+    ('GroundHeatState', 'lid_owners'): _twod_lid_owners,
+    ('ExplicitInertialSolver', 'rk_boundary_signals_'): _twod_count,
+    ('ExplicitInertialSolver', 'rk_reaction_workspace_'): _twod_skip('transport::RxWorkspace, scratch of the coupled-groundwater RK2 reactions (refused in 2a); initialize does not touch it'),
+})
+
 def twod_dump_struct(header, struct, path_c, path_r, label, C, R):
-    """dump_struct with the TWOD_CUSTOM hooks and TWOD_ELEM_STRUCTS, recursing into itself."""
-    for name, ty, arr in fields(header, struct):
+    """dump_struct with the TWOD_CUSTOM hooks, TWOD_ELEM_STRUCTS and the pointer members,
+    recursing into itself."""
+    twod_check_pointers(header, struct)
+    for name, ty, arr in fields(header, struct, twod_pre):
         if name == 'operator':
             continue   # `bool operator==(...)`: the field parser splits at its '=' (not data)
         pc, pr, lb = f'{path_c}.{name}', f'{path_r}.{rname(name)}', f'{label}.{name}'
@@ -1109,25 +1241,90 @@ def twod_dump_struct(header, struct, path_c, path_r, label, C, R):
             SKIPS.append(f'{lb} ({ty})'); C.append(f'  sk("{lb}");'); R.append(f'    sk(o, "{lb}");')
             continue
         emit(pc, pr, lb, k, C, R)
+    for name, expected in TWOD_POINTERS.get(struct, []):
+        if struct == 'SurfaceRouter2D':
+            continue   # the router's own pointers are printed in member order (twod_dumper)
+        _twod_ptr(struct, name, expected, f'{path_c}.{name}', f'{path_r}.{rname(name)}', f'{label}.{name}', C, R)
 
-# SurfaceRouter2D members open() fills, in upstream's member order:
-# (member, header, struct or None for a vector, element type for a vector)
-TWOD_MEMBERS = [
-    ('mesh_', '2d/data/MeshData.hpp', 'MeshData', None),
-    ('options_', '2d/data/SolverOptions2D.hpp', 'SolverOptions2D', None),
-    ('boundary_', '2d/data/BoundaryData.hpp', 'BoundaryData', None),
-    ('infil_', '2d/infil/Infil2D.hpp', 'Infil2D', None),
-    ('gw_', '2d/gw/GwTransportData.hpp', 'GwTransportData', None),
-    ('surface_quality_', '2d/quality/SurfaceQuality2D.hpp', 'SurfaceQuality2D', None),
-    ('aquifer_cfg_', '2d/subsurface/SubsurfaceData.hpp', 'SubsurfaceConfig', None),
-    ('aquifer_node_names_', None, None, 'std::string'),
-    ('aquifer_link_names_', None, None, 'std::string'),
-    ('pending_bc_rows_', '2d/data/PendingRows2D.hpp', None, 'PendingBoundaryRow'),
-    ('pending_iq_rows_', '2d/data/PendingRows2D.hpp', None, 'PendingInitialQualityRow'),
-    ('pending_ibq_rows_', '2d/data/PendingRows2D.hpp', None, 'PendingInitialBedQualityRow'),
-    ('pending_bq_rows_', '2d/data/PendingRows2D.hpp', None, 'PendingBoundaryQualityRow'),
-    ('pending_edge_conveyance_rows_', '2d/data/PendingRows2D.hpp', None, 'PendingEdgeConveyanceRow'),
+# The router's members in upstream's declaration order. Shared members (wave 1's handles, a
+# RefCell in the translation) are borrowed first on the Rust side.
+TWOD_SHARED = {'mesh_', 'options_', 'boundary_', 'infil_', 'gw_', 'surface_quality_', 'aquifer_cfg_', 'aquifer_node_names_',
+               'aquifer_link_names_', 'pending_bc_rows_', 'pending_iq_rows_', 'pending_ibq_rows_', 'pending_bq_rows_',
+               'pending_edge_conveyance_rows_'}
+TWOD_ROUTER_ORDER = [
+    'joint_hydraulic_', 'common_stage_', 'checkpoint_owned_initialization_', 'source_context_', 'source_router_model_',
+    'source_boundary_ready_', 'mesh_', 'state_', 'channel_ground_', 'options_', 'boundary_', 'thread_warnings_', 'backend_name_',
+    'infil_', 'infil_elapsed_', 'infil_cum_applied_', 'coupling_cum_applied_', 'cell_subcatch_', 'subcatch_recharge_', 'gw_',
+    'surface_quality_', 'aquifer_cfg_', 'aquifer_node_names_', 'aquifer_link_names_', 'subsurface_', 'aquifer_link_shares_',
+    'aquifer_link_ids_', 'rain_cum_', 'pending_bc_rows_', 'pending_iq_rows_', 'pending_ibq_rows_', 'pending_bq_rows_',
+    'pending_edge_conveyance_rows_', 'coupling_points_', 'outfall_exchange_', 'outfall_state_changed_', 'node_coupling_points_',
+    'coupling_head_cells_', 'pond_track_ptr_', 'pond_track_cell_', 'pond_track_share_', 'pond_chamber_ft2_', 'node_pond_area_m2_',
+    'node_row_conc_', 'react_phi_', 'react_a_', 'react_dx_', 'co_refresh_elapsed_', 'co_render_elapsed_', 'render_dirty_',
+    'render_eta_', 'bc_nonwall_slots_', 'bc_nonwall_dirty_', 'mb_seen_nodes_', 'co_forcing_elapsed_', 'co_forcing_first_',
+    'active_', 'sim_time_', 'pending_dt_', 'report_old_depth_', 'report_old_head_', 'report_window_old_ms_',
+    'report_window_new_ms_', 'report_old_valid_', 'ramp_prev_head_', 'ramp_prev_span_', 'prev_boundary_cum_', 'prev_boundary_in_',
+    'prev_boundary_out_', 'window_outfall_accum_', 'last_t_', 'boundary_names_resolved_', 'bc_stage_scale_', 'bc_stage_ts_scale_',
+    'bc_flow_scale_', 'solver_', 'interp_', 'rain_gage_last_', 'gage_rate_', 'gage_cum_', 'gage_window_depth_',
+    'gage_window_rate_', 'gage_since_', 'gage_report_depth_', 'report_rain_cum_', 'report_rain_ms_',
 ]
+
+def _twod_router_member(name, types, C, R):
+    lb = f'twod.{name}'
+    if name in dict(TWOD_POINTERS['SurfaceRouter2D']):
+        _twod_ptr('SurfaceRouter2D', name, None, f'r.{name}', f'r.{name}', lb, C, R)
+        return
+    if name == 'channel_ground_':
+        C.append(f'  pi("{lb}.active", r.channel_ground_.active());'); R.append(f'    pi(o, "{lb}.active", r.channel_ground_.active() as i64);')
+        TWOD_REASONS.append(f'{lb}: ChannelGroundState as active() (MESH_CONTACTS channel heat is a phase-2b refusal; initialize only clears it)')
+        return
+    if name == 'subsurface_':
+        for q, qc, qr in [('active', 'r.subsurface_.active()', 'r.subsurface_.active() as i64'),
+                          ('independentClock', 'r.subsurface_.independentClock()', 'r.subsurface_.independent_clock() as i64'),
+                          ('coverage.n', '(long long)r.subsurface_.coverage().size()', 'r.subsurface_.coverage().len() as i64'),
+                          ('transport.n_species', 'r.subsurface_.transport().n_species', 'r.subsurface_.transport().n_species as i64'),
+                          ('transport.n_layers', 'r.subsurface_.transport().n_layers', 'r.subsurface_.transport().n_layers as i64'),
+                          ('transport.generated_age.n', '(long long)r.subsurface_.transport().generated_age.size()', 'r.subsurface_.transport().generated_age.len() as i64'),
+                          ('nodeBeds.n', '(long long)r.subsurface_.nodeBeds().size()', 'r.subsurface_.node_beds().len() as i64')]:
+            C.append(f'  pi("{lb}.{q}", (long long)({qc}));'); R.append(f'    pi(o, "{lb}.{q}", {qr});')
+        twod_dump_struct('2d/heat/GroundHeat.hpp', 'GroundHeatState', 'r.subsurface_.heat_', 'r.subsurface_.heat_', lb + '.heat_', C, R)
+        TWOD_REASONS.append(f'{lb}: the two-zone kernel as its activity, coverage, row layout, node beds, clock and ground heat owner (the kernel is a phase-2b refusal; 2a reads only these)')
+        return
+    if name == 'aquifer_link_shares_':
+        _twod_count(f'r.{name}', f'r.{name}', lb, C, R)
+        return
+    if name == 'mb_seen_nodes_':
+        C.append(f'  {{ std::vector<long long> t(r.mb_seen_nodes_.begin(), r.mb_seen_nodes_.end()); std::sort(t.begin(), t.end()); vi("{lb}", t); }}')
+        R.append(f'    {{ let mut t: Vec<i64> = r.mb_seen_nodes_.iter().map(|x| *x as i64).collect(); t.sort(); vi(o, "{lb}", &t); }}')
+        return
+    if name == 'solver_':
+        C.append('  { auto* sv = dynamic_cast<openswmm::twoD::ExplicitInertialSolver*>(r.solver_.get());')
+        C.append(f'  pi("{lb}", sv ? 1 : (r.solver_ ? 2 : 0));')
+        C.append('  if (sv) {')
+        R.append(f'    match &r.solver_ {{ None => pi(o, "{lb}", 0), Some(sv) => {{ pi(o, "{lb}", 1);')
+        twod_dump_struct('2d/solver/ExplicitInertialSolver.hpp', 'ExplicitInertialSolver', '(*sv)', '(*sv)', lb, C, R)
+        C.append('  } }'); R.append('    } }')
+        return
+    ty = types[name]
+    if name in TWOD_SHARED:
+        C.append('  {'); R.append(f'    {{ let m = r.{name}.borrow();')
+        pc, pr = f'r.{name}', '(*m)'
+    else:
+        C.append('  {'); R.append('    {')
+        pc, pr = f'r.{name}', f'r.{name}'
+    k = kind(ty)
+    em = re.fullmatch(r'std::vector<(?:\w+::)*(\w+)>', ty)
+    if k is not None and k[0] == 'struct':
+        twod_dump_struct(k[1], k[2], pc, pr, lb, C, R)
+    elif k is None and em and em.group(1) in TWOD_ELEM_STRUCTS:
+        C.append(f'  pi("{lb}.n", (long long)({pc}).size());'); R.append(f'    pi(o, "{lb}.n", ({pr}).len() as i64);')
+        C.append(f'  for (auto& el : {pc}) {{'); R.append(f'    for el in ({pr}).iter() {{')
+        twod_dump_struct(TWOD_ELEM_STRUCTS[em.group(1)], em.group(1), 'el', '(*el)', lb + '[]', C, R)
+        C.append('  }'); R.append('    }')
+    elif k is None:
+        raise SystemExit(f'twoddump: no kind for router member {name} ({ty})')
+    else:
+        emit(pc, pr, lb, k, C, R)
+    C.append('  }'); R.append('    }')
 
 def twod_dumper():
     # the 2D enums, structs and spellings (after every 1D file is written; see above)
@@ -1138,10 +1335,12 @@ def twod_dumper():
                     ENUMS.add(m.group(1))
     STRUCTS.update(TWOD_STRUCTS)
     ALIASES['openswmm::FilePathPair'] = 'FilePathPair'
+    ENUMS.add('CellMethod')   # `enum class CellMethod : signed char`: the scan above takes one-word bases only
     nskip = len(SKIPS)
-    C = ['// generated by tools/ctxdump.py: prints the 2D router\'s open-time state; the Rust twin prints the same',
+    C = ['// generated by tools/ctxdump.py: prints the 2D router\'s state (every member, in upstream\'s order); the Rust twin prints the same',
          '// include after `#define private public` and core/SWMMEngine.hpp built with OPENSWMM_HAS_2D=1 (see gate/diff/ctxopen2d.cpp)',
-         '#pragma once', '#include <tuple>', '#include <algorithm>', '#include "ctxdump.hpp"', 'namespace ctxdump {',
+         '#pragma once', '#include <tuple>', '#include <algorithm>', '#include "ctxdump.hpp"', '#include "2d/solver/ExplicitInertialSolver.hpp"',
+         'namespace ctxdump {',
          'inline void twoddump(openswmm::SWMMEngine& e) {', '  auto& r = e.surface_router_;']
     R = ['// generated by tools/ctxdump.py: Rust twin of gate/diff/twoddump.hpp', '#![allow(dead_code, unused_parens, clippy::all)]',
          'use std::io::Write;', 'use swmm6_rust::core::engine::SwmmEngine;',
@@ -1155,19 +1354,15 @@ def twod_dumper():
          'fn pn(o: &mut Vec<u8>, l: &str) { writeln!(o, "{} none", l).unwrap(); }',
          'pub fn twoddump(e: &SwmmEngine) -> Vec<u8> {', '    let mut o: Vec<u8> = Vec::new();', '    let o = &mut o;',
          '    let r = e.surface_router_2d();']
-    for member, header, struct, elem in TWOD_MEMBERS:
-        lb = f'twod.{member}'
-        C.append('  {'); R.append(f'    {{ let m = r.{member}.borrow();')
-        if struct:
-            twod_dump_struct(header, struct, f'r.{member}', '(*m)', lb, C, R)
-        elif elem == 'std::string':
-            emit(f'r.{member}', '(*m)', lb, kind('std::vector<std::string>'), C, R)
-        else:
-            C.append(f'  pi("{lb}.n", (long long)(r.{member}).size());'); R.append(f'    pi(o, "{lb}.n", (*m).len() as i64);')
-            C.append(f'  for (auto& el : r.{member}) {{'); R.append('    for el in (*m).iter() {')
-            twod_dump_struct(header, elem, 'el', '(*el)', lb + '[]', C, R)
-            C.append('  }'); R.append('    }')
-        C.append('  }'); R.append('    }')
+    # types of the router's members as upstream declares them (solver_ is under an #ifdef the
+    # parser does not see; the pointers are printed by _twod_ptr)
+    twod_check_pointers('2d/SurfaceRouter2D.hpp', 'SurfaceRouter2D')
+    types = {n: t for n, t, a in fields('2d/SurfaceRouter2D.hpp', 'SurfaceRouter2D', twod_pre)}
+    declared = set(types) | {'solver_'} | {n for n, _ in TWOD_POINTERS['SurfaceRouter2D']}
+    if declared != set(TWOD_ROUTER_ORDER):
+        raise SystemExit(f'twoddump: router member list differs from the header: {sorted(declared ^ set(TWOD_ROUTER_ORDER))}')
+    for name in TWOD_ROUTER_ORDER:
+        _twod_router_member(name, types, C, R)
     C.append('}'); C.append('} // namespace ctxdump')
     R.append('    std::mem::take(o)'); R.append('}')
     tskips = SKIPS[nskip:]
@@ -1175,6 +1370,9 @@ def twod_dumper():
     open(f'{ROOT}/gate/diff/twoddump.hpp', 'w').write('\n'.join(C) + '\n')
     open(f'{ROOT}/crates/engine/examples/common/twoddump.rs', 'w').write('\n'.join(R) + '\n')
     print(f'twoddump: {len(tskips)} skipped:', '; '.join(tskips))
+    print(f'twoddump: {len(TWOD_REASONS)} reduced to a summary, each with its reason:')
+    for x in TWOD_REASONS:
+        print('  ' + x)
 
 def main():
     collect_enums()

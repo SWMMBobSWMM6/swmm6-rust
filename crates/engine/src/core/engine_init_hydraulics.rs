@@ -12,8 +12,9 @@
 // inlet and interface-file solvers, event sorting and the [CONTROLS] rule parser.
 //
 // Differences in form, never in result:
-//   * OPENSWMM_HAS_2D is off in the reference build, so the 2D blocks (has_2d_domain,
-//     surface_router_.initialize and its thread warnings) are absent here too.
+//   * OPENSWMM_HAS_2D is off in the 1D reference build, so without the `twod` feature the 2D
+//     blocks (has_2d_domain, surface_router_.initialize and its thread warnings) are absent
+//     here too; with it they call core/engine_twod.rs.
 //   * omp_set_num_threads and the `#pragma omp parallel` team-size probe go through
 //     core::thread_info's model of libgomp (see that module).
 //   * router_.setStructureSolver(&hydstruct_) records the attachment
@@ -118,7 +119,10 @@ impl SwmmEngine {
                     n_outlets += 1;
                 }
             }
+            #[cfg(not(feature = "twod"))]
             let has_2d_domain = false; // OPENSWMM_HAS_2D off
+            #[cfg(feature = "twod")]
+            let has_2d_domain = self.init_hydraulics_2d_has_domain();
             if n_outlets == 0 && (rm == RouteModel::Dynwave || rm == RouteModel::Fv) && !has_2d_domain {
                 let e = format_error(ERR_NO_OUTLETS, b"");
                 self.push_error_and_set(e);
@@ -171,6 +175,10 @@ impl SwmmEngine {
             self.set_error(SWMM_ERR_PARSE, b"Routing loop detected: network contains a cycle that cannot be topologically sorted (KW/STEADY routing only).");
         }
 
+        // 1a. The optional 2D surface routing module (twod feature; core/engine_twod.rs).
+        #[cfg(feature = "twod")]
+        self.init_hydraulics_2d()?;
+
         // 1b. OpenMP thread count from THREADS.
         {
             let mut thread_warnings: Vec<Bytes> = Vec::new();
@@ -185,6 +193,10 @@ impl SwmmEngine {
             if rm == RouteModel::Dynwave {
                 let n = self.ctx_.options.num_threads;
                 self.router_.set_dw_num_threads(n, Some(&mut thread_warnings));
+            }
+            #[cfg(feature = "twod")]
+            for w in self.surface_router_.thread_warnings() {
+                thread_warnings.push(w.clone());
             }
             for w in &thread_warnings {
                 self.push_report_warning(w, 0);
