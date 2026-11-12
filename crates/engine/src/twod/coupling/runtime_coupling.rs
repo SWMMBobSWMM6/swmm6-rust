@@ -15,8 +15,6 @@
 // Differences in form, never in result:
 //   * The unordered_map index members are HashMaps: find and insert use them, and clear(id)
 //     iterates one only to set flags, so their order is not observable.
-//   * `std::move` of a RuntimeReceipt leaves the source's doubles and empties its two vectors
-//     (libstdc++'s moved-from vector), which `move_receipt` reproduces (replace, U550).
 //   * rebuild's `cells.at(cell)` throws std::out_of_range for a cell outside the new size;
 //     here it returns Err with libstdc++'s what() (the rows before it are already placed, as
 //     upstream's are). The API that calls it is not translated.
@@ -74,23 +72,6 @@ pub struct RuntimeSources {
     pub index: HashMap<Bytes, HashMap<i32, usize>>,
 }
 
-/// `dst = std::move(src)` for a RuntimeReceipt: the doubles are copied, the vectors move
-/// (the source's become empty).
-fn move_receipt(src: &mut RuntimeReceipt) -> RuntimeReceipt {
-    RuntimeReceipt {
-        requested: src.requested,
-        applied: src.applied,
-        water_in: src.water_in,
-        water_out: src.water_out,
-        heat_requested: src.heat_requested,
-        heat_applied: src.heat_applied,
-        last_flow: src.last_flow,
-        last_dt: src.last_dt,
-        requested_mass: std::mem::take(&mut src.requested_mass),
-        applied_mass: std::mem::take(&mut src.applied_mass),
-    }
-}
-
 /// libstdc++'s std::vector::at range-check what().
 fn range_check(n: usize, size: usize) -> Bytes {
     format!("vector::_M_range_check: __n (which is {}) >= this->size() (which is {})", n, size).into_bytes()
@@ -119,12 +100,12 @@ impl RuntimeSources {
         Ok(())
     }
 
-    /// replace(value): a new (id, cell) row is appended with zeroed mass receipts. For an
-    /// existing row upstream moves the row's receipt into `value` and returns, so `value` is
-    /// dropped and the row keeps its old values, its receipt's two mass vectors emptied (U550).
+    /// replace(value): an existing (id, cell) row takes the new values and keeps its receipt;
+    /// a new one is appended with zeroed mass receipts.
     pub fn replace(&mut self, mut value: RuntimeSource) {
         if let Some(k) = self.find(&value.id, value.cell) {
-            value.receipt = move_receipt(&mut self.rows[k].receipt);
+            value.receipt = std::mem::take(&mut self.rows[k].receipt);
+            self.rows[k] = value;
             return;
         }
         let n = self.rows.len();
@@ -288,12 +269,12 @@ impl RuntimeForcings {
         }
     }
 
-    /// replace(row): a new (channel, cell) row is appended. For an existing one upstream moves
-    /// the old row's receipt into `row` and drops `row`, so the old row keeps its values, its
-    /// receipt's mass vectors emptied (U550).
+    /// replace(row): an existing (channel, cell) row takes the new values and keeps its
+    /// receipt; a new one is appended.
     pub fn replace(&mut self, mut row: RuntimeForcing) {
         if let Some(k) = self.find(row.channel, row.cell) {
-            row.receipt = move_receipt(&mut self.rows[k].receipt);
+            row.receipt = std::mem::take(&mut self.rows[k].receipt);
+            self.rows[k] = row;
         } else {
             let n = self.rows.len();
             self.index.entry(row.channel).or_default().insert(row.cell, n);

@@ -237,28 +237,7 @@ impl DWSolver {
         self.bypassed_.iter_mut().for_each(|b| *b = 0);
 
         // Refresh the node-invariant tile for this step.
-        {
-            let nd = &ctx.nodes;
-            if self.node_tile_.len() != self.n_nodes_ as usize {
-                self.node_tile_.resize(self.n_nodes_ as usize, NodeTile::default());
-            }
-            self.unit_sys_ = ucf::get_unit_system(ctx.options.flow_units as i32);
-            for i in 0..self.n_nodes_ {
-                let ui = i as usize;
-                let t = &mut self.node_tile_[ui];
-                t.full_depth = nd.full_depth[ui];
-                t.y_crown = nd.crown_elev[ui] - nd.invert_elev[ui];
-                t.invert_elev = nd.invert_elev[ui];
-                t.ponded_area = nd.ponded_area[ui];
-                t.sur_depth = nd.sur_depth[ui];
-                t.full_volume = nd.full_volume[ui];
-                t.rpt_full_volume = nd.rpt_full_volume[ui];
-                t.degree = nd.degree[ui];
-                t.is_storage = if nd.type_[ui] == NodeType::Storage || nd.storage_area[ui] > 0.0 { 1 } else { 0 };
-                t.is_outfall = if nd.type_[ui] == NodeType::Outfall { 1 } else { 0 };
-                t.is_virtual = if ui < nd.is_virtual.len() && nd.is_virtual[ui] != 0 { 1 } else { 0 };
-            }
-        }
+        self.refresh_node_tile(ctx);
 
         let has_nc = non_conduit_fn.is_some();
         let mut t_steps = 0;
@@ -367,6 +346,41 @@ impl DWSolver {
 
         self.last_converged_ = converged;
         Ok(steps)
+    }
+
+    /// execute's refresh of the node-invariant tile (upstream inline at the top of execute).
+    fn refresh_node_tile(&mut self, ctx: &SimulationContext) {
+        let nd = &ctx.nodes;
+        if self.node_tile_.len() != self.n_nodes_ as usize {
+            self.node_tile_.resize(self.n_nodes_ as usize, NodeTile::default());
+        }
+        self.unit_sys_ = ucf::get_unit_system(ctx.options.flow_units as i32);
+        for i in 0..self.n_nodes_ {
+            let ui = i as usize;
+            let t = &mut self.node_tile_[ui];
+            t.full_depth = nd.full_depth[ui];
+            t.y_crown = nd.crown_elev[ui] - nd.invert_elev[ui];
+            t.invert_elev = nd.invert_elev[ui];
+            t.ponded_area = nd.ponded_area[ui];
+            t.sur_depth = nd.sur_depth[ui];
+            t.full_volume = nd.full_volume[ui];
+            t.rpt_full_volume = nd.rpt_full_volume[ui];
+            t.degree = nd.degree[ui];
+            t.is_storage = if nd.type_[ui] == NodeType::Storage || nd.storage_area[ui] > 0.0 { 1 } else { 0 };
+            t.is_outfall = if nd.type_[ui] == NodeType::Outfall { 1 } else { 0 };
+            t.is_virtual = if ui < nd.is_virtual.len() && nd.is_virtual[ui] != 0 { 1 } else { 0 };
+        }
+    }
+
+    /// The gate's access to initNodeStates (gate/diff/twod_exch.cpp interposes upstream's,
+    /// which the solver calls through the library's PLT): execute's tile refresh, then
+    /// initNodeStates. Returns (new_surf_area, sumdqdh, converged) as the call leaves them.
+    #[doc(hidden)]
+    pub fn gate_init_node_states(&mut self, ctx: &mut SimulationContext) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
+        self.refresh_node_tile(ctx);
+        self.init_node_states(ctx);
+        let conv = self.xnode_.converged.iter().map(|&c| c as f64).collect();
+        (self.xnode_.new_surf_area.clone(), self.xnode_.sumdqdh.clone(), conv)
     }
 
     /// initNodeStates: reset per-node accumulators and the surface-area baseline.

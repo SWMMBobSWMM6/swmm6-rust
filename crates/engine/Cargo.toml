@@ -70,3 +70,13 @@ required-features = ["twod"]
 [[example]]
 name = "twod_pond"
 required-features = ["twod"]
+
+# Phase 2a wave 4b: the run-time exchange differential (gate/twodexch.sh)
+
+[[example]]
+name = "twod_exch"
+required-features = ["twod"]
+
+[[example]]
+name = "twod_runtime"
+required-features = ["twod"]

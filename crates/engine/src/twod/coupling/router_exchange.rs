@@ -249,4 +249,11 @@ impl SwmmEngine {
     pub fn gate_surface_router_2d_and_context(&mut self) -> (&mut SurfaceRouter2D, &mut SimulationContext) {
         (&mut self.surface_router_, &mut self.ctx_)
     }
+
+    /// The 1D router and the context together, mutable (the exchange gate reaches the
+    /// dynamic-wave solver's initNodeStates through it).
+    #[doc(hidden)]
+    pub fn gate_router_and_context(&mut self) -> (&mut crate::hydraulics::routing::Router, &mut SimulationContext) {
+        (&mut self.router_, &mut self.ctx_)
+    }
 }
