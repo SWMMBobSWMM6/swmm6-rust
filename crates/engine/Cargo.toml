@@ -22,6 +22,10 @@ name = "ctxopen2d"
 required-features = ["twod"]
 
 [[example]]
+name = "snap2d"
+required-features = ["twod", "gate"]
+
+[[example]]
 name = "ctxload"
 required-features = ["gate"]
 

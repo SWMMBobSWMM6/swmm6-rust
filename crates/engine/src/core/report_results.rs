@@ -14,9 +14,16 @@
 // outfall loading, link flow, flow classification, conduit surcharge, pumping, streets,
 // inlets, link pollutant loads). See core/report_plugin.rs for the conventions.
 //
-// Not in this 1D build (upstream's own #ifdef OPENSWMM_HAS_2D, or reached only when the 2D
-// router sets mass_balance_2d.active): the 2D surface routing continuity block, the 2D
-// surface washoff summary and the 2D outfall tailwater summary.
+// The 2D blocks (12 November 2026, phase 2a wave 5): the 2D surface routing continuity, the
+// 2D solver statistics and the 1D <-> 2D exchange reconciliation are compiled in both builds,
+// as upstream compiles them, and print only when the 2D router has set
+// mass_balance_2d.active (never in a 1D build). Upstream's #ifdef OPENSWMM_HAS_2D blocks (the
+// 2D aquifer and aquifer quality continuity, the 2D aquifer clock, the 2D surface washoff
+// summary and the 2D outfall tailwater summary) compile only with the `twod` feature; they
+// read the router, which upstream reaches through ctx.twod_io.surface_router and the engine
+// passes here. The aquifer blocks, the clock and the washoff summary need a phase-2b owner
+// (the two-zone kernel, surface quality) that SurfaceRouter2D::initialize refuses, so a run
+// cannot reach them; each is guarded with the crate's "STUB:" panic.
 
 use crate::cfprintf;
 use crate::core::cmath::{cclamp, cmax, cmin};
@@ -81,7 +88,7 @@ fn qual_err(in_: f64, out_: f64) -> f64 {
 
 impl DefaultReportPlugin {
     /// write_results(f, ctx): the simulation result sections.
-    pub(crate) fn write_results(&mut self, f: &mut CFile, ctx: &SimulationContext) {
+    pub(crate) fn write_results(&mut self, f: &mut CFile, ctx: &SimulationContext, #[cfg(feature = "twod")] router: Option<&crate::twod::surface_router_2d::SurfaceRouter2D>) {
         let opt = &ctx.options;
         let mut fu = opt.flow_units as i32;
         if !(0..=5).contains(&fu) {
@@ -431,7 +438,125 @@ impl DefaultReportPlugin {
             }
         }
 
-        // (2D Surface Routing Continuity: mass_balance_2d.active is set only by the 2D router)
+        // ---- 2D Surface Routing Continuity (SI volumes; a separate balance from the 1D one) ----
+        if opt.rpt_continuity && ctx.mass_balance_2d.active {
+            let mb2 = &ctx.mass_balance_2d;
+            wr(f, b"");
+            wr(f, b"");
+            cfprintf!(f, b"\n  **************************        Volume        Volume");
+            cfprintf!(f, b"\n  2D Surface Routing Continuity  cubic meters      10^6 ltr");
+            cfprintf!(f, b"\n  **************************     ---------     ---------");
+            let row2 = |f: &mut CFile, label: &[u8], vol_m3: f64| {
+                cfprintf!(f, b"\n  %s%14.3f%14.3f", label, vol_m3, vol_m3 * 1.0e-3);
+            };
+            row2(f, b"Initial Stored Volume ....", mb2.init_storage);
+            row2(f, b"Rainfall Inflow ..........", mb2.rainfall_in);
+            row2(f, b"1D -> 2D Spill Inflow ....", mb2.coupling_1d_to_2d_in);
+            row2(f, b"Outfall Inflow ...........", mb2.outfall_in);
+            row2(f, b"Boundary Inflow ..........", mb2.boundary_in);
+            if mb2.external_in != 0.0 {
+                row2(f, b"Runtime Source Inflow ....", mb2.external_in);
+            }
+            if mb2.external_out != 0.0 {
+                row2(f, b"Runtime Source Outflow ...", mb2.external_out);
+            }
+            row2(f, b"2D -> 1D Drain Outflow ...", mb2.coupling_2d_to_1d_out);
+            row2(f, b"Outfall Withdrawal .......", mb2.outfall_out);
+            row2(f, b"Boundary Outflow .........", mb2.boundary_out);
+            row2(f, b"Evaporation Loss .........", mb2.evap_out);
+            row2(f, b"Infiltration Loss ........", mb2.infil_out);
+            // the SUBCATCH_AQUIFER share: delivered to the legacy aquifer, and still in flight
+            if mb2.infil_to_aquifer > 0.0 || mb2.infil_aquifer_pending > 0.0 {
+                row2(f, b"  to Aquifer (delivered) .", mb2.infil_to_aquifer);
+                row2(f, b"  to Aquifer (in flight) .", mb2.infil_aquifer_pending);
+            }
+            row2(f, b"Final Stored Volume ......", mb2.final_storage);
+
+            cfprintf!(f, b"\n  Continuity Error (%%) .....%14.3f", mb2.error() * 100.0);
+
+            // OPENSWMM_HAS_2D: the two-zone [2D_AQUIFER] ledger and its species continuity
+            // (ctx.twod_io.aquifer_state / aquifer_transport: the subsurface kernel, phase 2b)
+            #[cfg(feature = "twod")]
+            if let Some(r) = router {
+                if r.subsurface_.active() {
+                    panic!("STUB: the 2D Aquifer Continuity report blocks (DefaultReportPlugin::write_results; phase 2b)");
+                }
+            }
+
+            // 2D Solver Statistics: cumulative marcher throughput, when populated
+            if mb2.solver_nsteps >= 0 {
+                wr(f, b"");
+                wr(f, b"");
+                cfprintf!(f, b"\n  *************************");
+                cfprintf!(f, b"\n  2D Solver Statistics");
+                cfprintf!(f, b"\n  *************************");
+                let srow = |f: &mut CFile, label: &[u8], v: i64| {
+                    cfprintf!(f, b"\n  %s%14ld", label, v);
+                };
+                srow(f, b"Internal Steps ...........", mb2.solver_nsteps);
+                srow(f, b"Face-Kernel Evals ........", mb2.solver_nrhs);
+                cfprintf!(f, b"\n  Avg Internal Step (s) ....%14.4f", mb2.solver_avg_h);
+                cfprintf!(f, b"\n  Last Internal Step (s) ...%14.4f", mb2.solver_last_h);
+
+                // marcher telemetry: active-fraction spread and LTS tier occupancy
+                if mb2.solver_active_mean >= 0.0 {
+                    cfprintf!(
+                        f,
+                        b"\n  Active Cells min/mean/max %8.1f /%5.1f /%5.1f  (%%)",
+                        100.0 * mb2.solver_active_min,
+                        100.0 * mb2.solver_active_mean,
+                        100.0 * mb2.solver_active_max
+                    );
+                }
+                if mb2.solver_n_tiers > 0 {
+                    let mut total: i64 = 0;
+                    for k in 0..mb2.solver_n_tiers as usize {
+                        total += mb2.solver_tier_cells[k];
+                    }
+                    if total > 0 {
+                        for k in 0..mb2.solver_n_tiers {
+                            cfprintf!(f, b"\n  LTS Tier %d Occupancy (%%) .%14.1f", k, 100.0 * mb2.solver_tier_cells[k as usize] as f64 / total as f64);
+                        }
+                    }
+                }
+            }
+
+            // OPENSWMM_HAS_2D: the 2D aquifer's independent clock (phase 2b)
+            #[cfg(feature = "twod")]
+            if let Some(r) = router {
+                if r.subsurface_.independent_clock() {
+                    panic!("STUB: the 2D Aquifer Clock report block (DefaultReportPlugin::write_results; phase 2b)");
+                }
+            }
+
+            // 1D <-> 2D Exchange Reconciliation: the routing continuity with the exchange
+            // treated as an internal transfer (U450: the error divides by the adjusted inflow).
+            if mb2.coupling_1d_to_2d_in > 0.0 || mb2.coupling_2d_to_1d_out > 0.0 {
+                let mb1 = &ctx.mass_balance;
+                let land_vcf = du.landvol;
+                let mvol_vcf = du.mvol;
+                let m3_to_1d = 1.0 / 0.028316846592;
+                let spill_1d = mb2.coupling_1d_to_2d_in * m3_to_1d;
+                let drain_1d = mb2.coupling_2d_to_1d_out * m3_to_1d;
+
+                wr(f, b"");
+                wr(f, b"");
+                cfprintf!(f, b"\n  **************************        Volume        Volume");
+                cfprintf!(f, if si_report { b"\n  1D <-> 2D Exchange Reconcil.   hectare-m      10^6 ltr" as &[u8] } else { b"\n  1D <-> 2D Exchange Reconcil.   acre-feet      10^6 gal" });
+                cfprintf!(f, b"\n  **************************     ---------     ---------");
+                let rowx = |f: &mut CFile, label: &[u8], vol_1d: f64| {
+                    cfprintf!(f, b"\n  %s%14.3f%14.3f", label, vol_1d * land_vcf, vol_1d * mvol_vcf);
+                };
+                rowx(f, b"1D -> 2D Spill ...........", spill_1d);
+                rowx(f, b"2D -> 1D Drain ...........", drain_1d);
+                rowx(f, b"Net 1D -> 2D .............", spill_1d - drain_1d);
+
+                let in_adj = mb1.routing_dry_weather + mb1.routing_wet_weather + mb1.routing_gw_inflow + mb1.routing_link_gw_inflow + mb1.routing_rdii + (mb1.routing_external - drain_1d) + mb1.routing_init_storage;
+                let out_adj = (mb1.routing_flooding + mb1.routing_coupling_out - spill_1d) + mb1.routing_outflow + mb1.routing_evap_loss + mb1.routing_seep_loss + mb1.routing_final_storage;
+                let err_adj = if in_adj > 0.0 { (in_adj - out_adj) / in_adj } else { 0.0 };
+                cfprintf!(f, b"\n  Flow Continuity w/ Exchange Internal (%%) %8.3f", err_adj * 100.0);
+            }
+        }
 
         wr(f, b"");
         wr(f, b"");
@@ -1158,6 +1283,54 @@ impl DefaultReportPlugin {
             }
             wr(f, b"");
             wr(f, b"");
+        }
+
+        // ---- OPENSWMM_HAS_2D: 2D Surface Washoff Summary (surface quality, phase 2b) ----
+        #[cfg(feature = "twod")]
+        if let Some(sq) = &ctx.twod_io.surface_quality {
+            if sq.borrow().active() && !opt.ignore_quality {
+                panic!("STUB: the 2D Surface Washoff Summary (DefaultReportPlugin::write_results; phase 2b)");
+            }
+        }
+
+        // ---- OPENSWMM_HAS_2D: 2D Outfall Tailwater Summary ----
+        // Each outfall coupled to the 2D surface: how long the surface set its stage (engaged)
+        // and drowned its crown (submerged), the highest stage, and the reverse volume.
+        #[cfg(feature = "twod")]
+        if let Some(r) = router {
+            let ex = r.outfall_exchange();
+            let mut header = false;
+            for j in 0..ctx.n_nodes() {
+                let (engaged, submerged, max_stage) = match crate::twod::surface_router_2d_end::outfall_tailwater(ex, j) {
+                    Some(t) => t,
+                    None => continue,
+                };
+                if !header {
+                    wr(f, b"****************************");
+                    wr(f, b"2D Outfall Tailwater Summary");
+                    wr(f, b"****************************");
+                    cfprintf!(f, b"\n");
+                    cfprintf!(f, b"\n  ------------------------------------------------------------------------");
+                    cfprintf!(f, b"\n                          Hours        Hours          Max       Reverse");
+                    cfprintf!(f, b"\n                       Tailwater    Submerged    Tailwater        Volume");
+                    cfprintf!(f, b"\n  Outfall Node            Engaged      (crown)    %9s    %10s", du.length_word, vol_word);
+                    cfprintf!(f, b"\n  ------------------------------------------------------------------------");
+                    header = true;
+                }
+                let uj = j as usize;
+                let reverse_ft3 = if uj < ctx.outfall_exports.reverse_m3.len() { ctx.outfall_exports.reverse_m3[uj] / 0.028316846592 } else { 0.0 };
+                cfprintf!(f, b"\n  %-20s %10.2f   %10.2f", ctx.node_names.name_of(j), engaged / 3600.0, submerged / 3600.0);
+                if max_stage > -1.0e29 {
+                    cfprintf!(f, b"   %10.3f", max_stage * len_ucf);
+                } else {
+                    cfprintf!(f, b"   %10s", b"-");
+                }
+                cfprintf!(f, b"    %10.3f", reverse_ft3 * vcf);
+            }
+            if header {
+                wr(f, b"");
+                wr(f, b"");
+            }
         }
 
         // ---- Groundwater Summary (legacy writeGroundwater) ----

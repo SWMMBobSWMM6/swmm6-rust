@@ -13,8 +13,12 @@
 //
 // Differences of form, never in result:
 //   * SimulationSnapshot keeps the fields DefaultOutputPlugin reads and the engine fills in
-//     a 1D build; the 2D surface, subsurface and thermal blocks (filled only by the 2D
-//     router) and the name-table pointers (read by no writer of a 1D build) are left out.
+//     a 1D build, and, with the `twod` feature, the 2D surface block SWMMEngine::
+//     fillSurfaceSnapshot fills (SurfaceSnapshot, 12 November 2026, phase 2a wave 5; the
+//     subsurface (gw2d_*) and thermal blocks belong to phase 2b and are left out, gw2d_active
+//     stays false). No writer of this build reads the surface block: upstream's reader is the
+//     HDF5 2D writer, which the reference build leaves out (OPENSWMM_2D_HDF5_OUTPUT=OFF). The
+//     name-table pointers (read by no writer of this build) are left out.
 //   * The FILE* is a CFile (core/cprintf.rs); fwrite of an int/float/double is its native
 //     (little-endian) bytes; ftell is the count of bytes written to the fresh file.
 //   * The managed checkpoint members (checkpoint_fresh_, readPrefix and the rest) serve a
@@ -64,7 +68,92 @@ pub struct SubcatchSnapshot {
     pub soil_moist: Vec<f64>,
 }
 
-/// The 1D part of SimulationSnapshot.
+/// SnowResults.hpp meshSnowFields.size(): the per-cell mesh snow fields of the snapshot.
+#[cfg(feature = "twod")]
+pub const MESH_SNOW_FIELDS: usize = 23;
+
+/// The 2D surface block of SimulationSnapshot (its surface_* members, SI-native, in
+/// upstream's order; `snow` is surface_snow, `species_*` surface_species_*, and so on).
+/// species_names / species_units (borrowed name tables) are left out: they are set only with
+/// surface transport rows (phase 2b), and nothing of this build reads them.
+#[cfg(feature = "twod")]
+#[derive(Debug, Clone)]
+pub struct SurfaceSnapshot {
+    pub tri_count: i32,
+    pub vert_count: i32,
+    pub quad_count: i32,
+    pub edge_stride: i32,
+    pub cell_nv: Vec<u8>,
+    pub depth: Vec<f64>,
+    pub head: Vec<f64>,
+    pub grad_hx: Vec<f64>,
+    pub grad_hy: Vec<f64>,
+    pub grad_hx_lim: Vec<f64>,
+    pub grad_hy_lim: Vec<f64>,
+    pub snow: [Vec<f64>; MESH_SNOW_FIELDS],
+    pub rainfall: Vec<f64>,
+    pub coupling_flux: Vec<f64>,
+    pub net_source: Vec<f64>,
+    pub infil_rate: Vec<f64>,
+    pub infil_cum: Vec<f64>,
+    pub rain_cum: Vec<f64>,
+    pub species_conc: Vec<f64>,
+    pub species_count: i32,
+    pub buildup: Vec<f64>,
+    pub buildup_count: i32,
+    pub gw2d_active: bool,
+    pub edge_flux: Vec<f64>,
+    pub vert_head: Vec<f64>,
+    pub vert_depth: Vec<f64>,
+    pub face_vx: Vec<f64>,
+    pub face_vy: Vec<f64>,
+    pub continuity_err: Vec<f64>,
+    pub stat_max_depth: Vec<f64>,
+    pub stat_max_velocity: Vec<f64>,
+    pub stat_max_cont_err: Vec<f64>,
+}
+
+#[cfg(feature = "twod")]
+impl Default for SurfaceSnapshot {
+    fn default() -> Self {
+        SurfaceSnapshot {
+            tri_count: 0,
+            vert_count: 0,
+            quad_count: 0,
+            edge_stride: 3,
+            cell_nv: Vec::new(),
+            depth: Vec::new(),
+            head: Vec::new(),
+            grad_hx: Vec::new(),
+            grad_hy: Vec::new(),
+            grad_hx_lim: Vec::new(),
+            grad_hy_lim: Vec::new(),
+            snow: Default::default(),
+            rainfall: Vec::new(),
+            coupling_flux: Vec::new(),
+            net_source: Vec::new(),
+            infil_rate: Vec::new(),
+            infil_cum: Vec::new(),
+            rain_cum: Vec::new(),
+            species_conc: Vec::new(),
+            species_count: 0,
+            buildup: Vec::new(),
+            buildup_count: 0,
+            gw2d_active: false,
+            edge_flux: Vec::new(),
+            vert_head: Vec::new(),
+            vert_depth: Vec::new(),
+            face_vx: Vec::new(),
+            face_vy: Vec::new(),
+            continuity_err: Vec::new(),
+            stat_max_depth: Vec::new(),
+            stat_max_velocity: Vec::new(),
+            stat_max_cont_err: Vec::new(),
+        }
+    }
+}
+
+/// The 1D part of SimulationSnapshot, and with `twod` its 2D surface block.
 #[derive(Debug, Clone)]
 pub struct SimulationSnapshot {
     pub sim_time: f64,
@@ -95,6 +184,9 @@ pub struct SimulationSnapshot {
     pub link_quality: Vec<f64>,
     pub subcatch_quality: Vec<f64>,
     pub flow_units_code: i32,
+    /// The surface_* members (SWMMEngine::fillSurfaceSnapshot).
+    #[cfg(feature = "twod")]
+    pub surface: SurfaceSnapshot,
 }
 
 impl Default for SimulationSnapshot {
@@ -128,6 +220,8 @@ impl Default for SimulationSnapshot {
             link_quality: Vec::new(),
             subcatch_quality: Vec::new(),
             flow_units_code: 0,
+            #[cfg(feature = "twod")]
+            surface: SurfaceSnapshot::default(),
         }
     }
 }

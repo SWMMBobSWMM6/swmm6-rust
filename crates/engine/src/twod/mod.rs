@@ -28,6 +28,8 @@ pub mod surface_router_2d;
 pub mod surface_router_2d_init;
 // Phase 2a wave 4a: the 2D step on an uncoupled mesh.
 pub mod surface_router_2d_step;
+// Phase 2a wave 5: the output side (the report-time accessors, finalize).
+pub mod surface_router_2d_end;
 
 /// A member of the 2D router that upstream reaches through raw pointers or captured references
 /// as well as through its owner (SimulationContext::twod_io, the section handlers): one

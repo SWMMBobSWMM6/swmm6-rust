@@ -20,8 +20,9 @@
 //   * write_timing prints ctime(3) for the wall-clock start and end. The time zone database
 //     is not read: the time is printed as UTC (the gate machine's zone). These three lines
 //     are the ones the .rpt gate masks.
-//   * The 2D blocks of write_results (#ifdef OPENSWMM_HAS_2D, or reached only when the 2D
-//     router has set mass_balance_2d.active) are not in this 1D build.
+//   * The 2D blocks of write_results (core/report_results.rs; 12 November 2026, phase 2a wave
+//     5): upstream reaches the router through ctx.twod_io.surface_router; here, with the
+//     `twod` feature, the engine passes it to write_summary.
 
 use crate::cfprintf;
 use crate::core::context::SimulationContext;
@@ -214,7 +215,8 @@ impl DefaultReportPlugin {
     }
 
     /// write_summary(ctx): the result sections, the snow balance, the timing, then fclose.
-    pub fn write_summary(&mut self, ctx: &SimulationContext) -> i32 {
+    /// With `twod`, `router` is what upstream's ctx.twod_io.surface_router points at.
+    pub fn write_summary(&mut self, ctx: &SimulationContext, #[cfg(feature = "twod")] router: Option<&crate::twod::surface_router_2d::SurfaceRouter2D>) -> i32 {
         if self.rpt_path().is_empty() {
             return 0;
         }
@@ -238,7 +240,10 @@ impl DefaultReportPlugin {
             }
         };
 
+        #[cfg(not(feature = "twod"))]
         self.write_results(&mut f, ctx);
+        #[cfg(feature = "twod")]
+        self.write_results(&mut f, ctx, router);
 
         if !ctx.snowpacks.report_values.is_empty() {
             cfprintf!(f, b"\n\n  Snow Process Water and Energy Balance (SI)\n  -----------------------------------------\n");

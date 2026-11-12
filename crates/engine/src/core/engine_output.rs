@@ -22,7 +22,9 @@
 //     thread upstream; the writes happen in post order either way (one consumer, a FIFO
 //     queue drained before end() finalizes), so here post_output_snapshot calls the
 //     plugins' update directly.
-//   * fillSurfaceSnapshot is empty without OPENSWMM_HAS_2D, as upstream's is.
+//   * fillSurfaceSnapshot is empty without OPENSWMM_HAS_2D, as upstream's is; with the `twod`
+//     feature it and the other OPENSWMM_HAS_2D blocks of these functions are in
+//     core/engine_output_twod.rs (12 November 2026, phase 2a wave 5).
 //   * The perf:: timers and the OPENSWMM_PERF stderr line only time the run; left out.
 //   * The FV solver's run statistics (end()) and the FV router are not translated: a deck
 //     with ROUTING FV stops in stepRouting before end() is reached, and end() returns
@@ -748,7 +750,11 @@ impl SwmmEngine {
                 self.surface_router_.refresh_render_fields_if_stale();
             }
 
-            // fillSurfaceSnapshot(snap): the 2D snapshot fields are wave 5's (the output side)
+            // fillSurfaceSnapshot(snap): the 2D surface block (core/engine_output_twod.rs)
+            #[cfg(feature = "twod")]
+            self.fill_surface_snapshot(&mut snap);
+            #[cfg(all(feature = "twod", feature = "gate"))]
+            crate::core::engine_output_twod::gate_snapshot_hook(&snap);
 
             let du = ucf::DisplayUnits::from(&self.ctx_.options);
             convert_snapshot_to_display(&mut snap, &du);
@@ -1012,6 +1018,10 @@ impl SwmmEngine {
             }
         }
 
+        // OPENSWMM_HAS_2D: the source histories close at the last accepted checkpoint
+        #[cfg(feature = "twod")]
+        self.detach_engine_source_history();
+
         // Final GW storage for the mass balance report
         {
             let gw = self.groundwater_.state();
@@ -1061,6 +1071,11 @@ impl SwmmEngine {
                 rs.fv_macro_rejected = s.n_macro_rejected;
             }
         }
+
+        // OPENSWMM_HAS_2D: finalize the 2D module before the max-stats finalize (its partial
+        // batch flush books the last exchanges and the solver statistics the report reads)
+        #[cfg(feature = "twod")]
+        self.end_2d_finalize()?;
 
         self.ctx_.finalize_max_stats();
 
@@ -1119,7 +1134,12 @@ impl SwmmEngine {
             return Ok(());
         }
         let lid_restart = self.ctx_.node_subtypes.storages.lid.iter().any(|c| c.control >= 0);
-        let full_continuation = self.ctx_.options.heat_transport;
+        #[allow(unused_mut)]
+        let mut full_continuation = self.ctx_.options.heat_transport;
+        #[cfg(feature = "twod")]
+        {
+            full_continuation |= self.hotstart_independent_clock();
+        }
         let native = entry.format == HotstartFormat::Native || (entry.format == HotstartFormat::Auto && (lid_restart || full_continuation));
         let rc;
         if native {
@@ -1271,7 +1291,15 @@ impl SwmmEngine {
             self.ctx_.snowpacks.report_values = rows.iter().map(|(k, v)| (k.to_vec(), *v)).collect();
         }
 
+        // OPENSWMM_HAS_2D: the mesh snow rows (phase 2b; refused)
+        #[cfg(feature = "twod")]
+        self.report_mesh_snow_rows()?;
+
+        #[cfg(not(feature = "twod"))]
         let plugin_result = if self.plugins_.is_empty() { 0 } else { self.plugins_.write_summary_all(&self.ctx_) };
+        // the report's 2D blocks read the router (upstream: ctx.twod_io.surface_router)
+        #[cfg(feature = "twod")]
+        let plugin_result = if self.plugins_.is_empty() { 0 } else { self.plugins_.write_summary_all(&self.ctx_, Some(&self.surface_router_)) };
         self.ctx_.state = EngineState::Reported;
         if plugin_result != 0 {
             let m = plugin_io_error(&self.plugins_, b"Cannot write report summary");
@@ -1290,6 +1318,8 @@ impl SwmmEngine {
         self.checkpoint_model_.clear();
         self.pending_hotstart_checkpoint_.clear();
         self.hotstart_checkpoint_error_.clear();
+        #[cfg(feature = "twod")]
+        self.close_2d();
         // perf:: dumps: timing only. io_thread_.stop(): nothing queued.
 
         if self.ctx_.state == EngineState::ErrorState {

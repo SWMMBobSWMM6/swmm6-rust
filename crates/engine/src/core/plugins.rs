@@ -727,11 +727,15 @@ impl PluginFactory {
         last_err
     }
 
-    /// write_summary_all: every report plugin; the last nonzero code.
-    pub fn write_summary_all(&mut self, ctx: &SimulationContext) -> i32 {
+    /// write_summary_all: every report plugin; the last nonzero code. With `twod` the engine
+    /// passes its 2D router, which upstream's report reaches through ctx.twod_io.surface_router.
+    pub fn write_summary_all(&mut self, ctx: &SimulationContext, #[cfg(feature = "twod")] router: Option<&crate::twod::surface_router_2d::SurfaceRouter2D>) -> i32 {
         let mut last_err = 0;
         for p in self.report_plugins_.iter_mut() {
+            #[cfg(not(feature = "twod"))]
             let rc = p.write_summary(ctx);
+            #[cfg(feature = "twod")]
+            let rc = p.write_summary(ctx, router);
             if rc != 0 {
                 last_err = rc;
             }
