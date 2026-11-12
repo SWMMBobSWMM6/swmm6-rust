@@ -10,7 +10,7 @@
 # Build first: gate/build.sh snap2d. SNAP2D_TIMEOUT=s sets the per-side limit (default 1800).
 # Written for swmm6-rust, 12 November 2026, by Claude (Anthropic) for Robert Dickinson.
 H=$(cd "$(dirname "$0")/.." && pwd)
-LIST=$1; W=${2:-$(mktemp -d)}; mkdir -p "$W"
+LIST=$1; W=${2:-$(mktemp -d)}; mkdir -p "$W"; W=$(cd "$W" && pwd)   # absolute: the runs are in the decks' folders
 C_BIN="$H/gate/diff/snap2d"; R_BIN="${SNAP2D_EXAMPLES:-$H/target2d/release/examples}/snap2d"
 T=${SNAP2D_TIMEOUT:-1800}
 n=0; same=0; differ=0; stub=0; snaps=0
