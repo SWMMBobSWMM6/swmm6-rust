@@ -6,3 +6,9 @@
 // OPENSWMM_HAS_2D. Each submodule names the upstream files it derives from.
 // Written for swmm6-rust, 12 November 2026, by Claude (Anthropic) at the request of Robert
 // Dickinson. Not an OpenSWMM release.
+
+// Phase 2a wave 2: the leaf numerics (each gated against upstream by a gate/diff/twod_*
+// differential; gate/twodkern.sh builds and runs them all).
+pub mod coupling;
+pub mod mesh;
+pub mod solver;
