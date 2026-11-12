@@ -27,6 +27,16 @@
 #       "[openswmm 2D] ..." notices go to stderr on both sides); a deck where the translation
 #       stops at a stub ("stub init|start <what>", everything before it identical) counts
 #       apart, with its stderr not compared. SAVE files are backed up and restored as in init.
+#   gate/ctxgate.sh step2d [N]
+#       the per-step state gate against the 2D reference: the same harnesses as init2d/start2d,
+#       running open, initialize, start and then up to N steps (default 1) through
+#       SWMMEngine::step as `step` does, the whole state (context, open() members, router and
+#       solvers, hydrology, quality, lifecycle and the 2D router's twoddump) hashed after start
+#       and after each step. stdout and the exit code are compared, then stderr; a deck where the
+#       translation stops at a stub ("stub <phase> <what>", everything before it identical)
+#       counts apart. With CTXGATE_DIFFDIR=dir the first differing deck's full dumps at its first
+#       differing step are written there (c.txt, r.txt, and the two stderr files). N=0 runs to
+#       the end of the simulation (as "step 1000000000").
 #   gate/ctxgate.sh inithyd
 #       open, then SWMMEngine::initHydraulics (gate/diff/inithyd, examples/inithyd); dumps the
 #       context, the open() members and the Router, controls, inflow, RDII, exfiltration,
@@ -130,7 +140,7 @@
 H=$(cd "$(dirname "$0")/.." && pwd); W=$(mktemp -d)
 E="${CTXGATE_EXAMPLES:-$H/target/release/examples}"   # CTXGATE_EXAMPLES=dir: the Rust harnesses built elsewhere (CARGO_TARGET_DIR)
 if [ -n "$DECKLIST" ]; then sort "$DECKLIST" > "$W/decks.txt"      # DECKLIST=file: one deck path per line
-elif [ "${1:-}" = open2d ] || [ "${1:-}" = init2d ] || [ "${1:-}" = start2d ]; then
+elif [ "${1:-}" = open2d ] || [ "${1:-}" = init2d ] || [ "${1:-}" = start2d ] || [ "${1:-}" = step2d ]; then
   { find "${CORPUS:-/root/work/corpus}" -name '*.inp'; find /root/work/swmm6src/upstream/tests -name '*.inp'; find "$H/gate/decks" -name '*.inp';
     find /root/work/swmm6src/upstream/examples /root/work/swmm6src/upstream/docs -name '*.inp'; } | sort > "$W/decks.txt"
 else { find "${CORPUS:-/root/work/corpus}" -name '*.inp'; find /root/work/swmm6src/upstream/tests -name '*.inp'; find "$H/gate/decks" -name '*.inp'; } | sort > "$W/decks.txt"; fi
@@ -222,6 +232,55 @@ if [ "${1:-}" = loadrt ]; then
   echo "ctxgate loadrt $M rust: $rs identical, $rd differ, $rn without a translation dump"
   echo "ctxgate loadrt $M cross: $xs identical, $xd differ, $xn without an upstream dump"
   head -${CTXGATE_SHOW:-5} "$W/differ.txt"
+  [ -n "$CTXGATE_KEEP" ] && cp "$W/differ.txt" "$CTXGATE_KEEP"; rm -rf "$W"
+  exit 0
+fi
+
+if [ "${1:-}" = step2d ]; then
+  NS=${2:-1}; [ "$NS" = 0 ] && NS=1000000000
+  C_BIN="$H/gate/diff/ctxstep2d"; R_BIN="${CTXGATE_EXAMPLES2D:-$H/target2d/release/examples}/ctxstep"
+  # run copies of the two harnesses, so the next build can replace them while this runs
+  cp "$C_BIN" "$W/ctxstep-c"; cp "$R_BIN" "$W/ctxstep-r"; C_BIN="$W/ctxstep-c"; R_BIN="$W/ctxstep-r"
+  same=0; diff=0; stubn=0; errd=0; : > "$W/differ.txt"; : > "$W/stubs.txt"; : > "$W/reached.txt"; mkdir -p "$W/bak"
+  while IFS= read -r d; do
+    python3 "$H/gate/savefiles.py" "$d" > "$W/saves.txt" 2>/dev/null; k=0
+    while IFS= read -r f; do k=$((k+1)); rm -f "$W/bak/$k"; [ -f "$f" ] && cp -p "$f" "$W/bak/$k"; done < "$W/saves.txt"
+    restore() { local k=0; while IFS= read -r f; do k=$((k+1)); if [ -f "$W/bak/$k" ]; then cp -p "$W/bak/$k" "$f"; else rm -f "$f"; fi; done < "$W/saves.txt"; }
+    ( cd "$(dirname "$d")" && timeout ${CTXGATE_TIMEOUT:-1200} "$C_BIN" "$d" step "$NS" hash > "$W/c.txt" 2> "$W/c.err"; echo "exit $?" >> "$W/c.txt" ) 2>/dev/null; restore
+    ( cd "$(dirname "$d")" && timeout ${CTXGATE_TIMEOUT:-1200} "$R_BIN" "$d" step "$NS" hash > "$W/r.txt" 2> "$W/r.err"; echo "exit $?" >> "$W/r.txt" ) 2>/dev/null; restore
+    if cmp -s "$W/c.txt" "$W/r.txt"; then
+      if cmp -s "$W/c.err" "$W/r.err"; then
+        same=$((same+1))
+        echo "$(grep -aE '^(open|init|start)_rc ' "$W/c.txt" | tr '\n' ' ')$(grep -aE '^step [0-9]+ rc ' "$W/c.txt" | tail -1 | cut -d' ' -f1-4) $(tail -1 "$W/c.txt")" >> "$W/reached.txt"
+        [ -n "$CTXGATE_LOG" ] && echo "identical $(grep -acE '^step [0-9]+ rc ' "$W/c.txt") $d" >> "$CTXGATE_LOG"
+      else
+        errd=$((errd+1)); echo "stderr $d" >> "$W/differ.txt"
+        [ -n "$CTXGATE_LOG" ] && echo "stderr $d" >> "$CTXGATE_LOG"
+      fi
+      continue
+    fi
+    nr=$(wc -l < "$W/r.txt"); sl=$(sed -n "$((nr-1))p" "$W/r.txt")
+    if [ "${sl%% *}" = stub ] && [ "$(tail -1 "$W/r.txt")" = "exit 0" ] && cmp -s <(head -n $((nr-2)) "$W/r.txt") <(head -n $((nr-2)) "$W/c.txt"); then
+      stubn=$((stubn+1)); echo "$sl  $d" >> "$W/stubs.txt"
+      [ -n "$CTXGATE_LOG" ] && echo "$sl  $d" >> "$CTXGATE_LOG"
+      continue
+    fi
+    diff=$((diff+1)); echo "$d" >> "$W/differ.txt"
+    [ -n "$CTXGATE_LOG" ] && echo "differ $d" >> "$CTXGATE_LOG"
+    if [ -n "$CTXGATE_DIFFDIR" ] && [ ! -f "$CTXGATE_DIFFDIR/c.txt" ]; then
+      mkdir -p "$CTXGATE_DIFFDIR"; echo "$d" > "$CTXGATE_DIFFDIR/deck.txt"
+      fl=$(cmp "$W/c.txt" "$W/r.txt" 2>/dev/null | sed -n 's/.* line \([0-9]*\).*/\1/p')
+      lk=$(sed -n "${fl}p" "$W/c.txt"); set -- $lk; K=${2:-0}; [ "$K" = start ] && K=0
+      echo "first differing line: $lk" >> "$CTXGATE_DIFFDIR/deck.txt"
+      ( cd "$(dirname "$d")" && timeout 1200 "$C_BIN" "$d" step "$NS" full "$K" > "$CTXGATE_DIFFDIR/c.txt" 2> "$CTXGATE_DIFFDIR/c.err" ) 2>/dev/null; restore
+      ( cd "$(dirname "$d")" && timeout 1200 "$R_BIN" "$d" step "$NS" full "$K" > "$CTXGATE_DIFFDIR/r.txt" 2> "$CTXGATE_DIFFDIR/r.err" ) 2>/dev/null; restore
+    fi
+  done < "$W/decks.txt"
+  echo "identical decks by what they reached:"; sort "$W/reached.txt" 2>/dev/null | uniq -c | sort -rn | head -${CTXGATE_SHOW_REACHED:-12}
+  echo "ctxgate step2d $NS: $same identical, $diff differ, $errd differ in stderr only, $stubn stopped at a stub"
+  sed 's/  .*//; s/^stub step [0-9]* /stub step /' "$W/stubs.txt" | sort | uniq -c | sort -rn
+  head -${CTXGATE_SHOW:-5} "$W/differ.txt"
+  [ -n "$CTXGATE_STUBS" ] && cp "$W/stubs.txt" "$CTXGATE_STUBS"
   [ -n "$CTXGATE_KEEP" ] && cp "$W/differ.txt" "$CTXGATE_KEEP"; rm -rf "$W"
   exit 0
 fi
