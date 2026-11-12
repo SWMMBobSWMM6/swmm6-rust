@@ -6,7 +6,8 @@
 # interposers, and the Rust twin (examples/twod_exch.rs, features "twod gate", into target2d).
 # Each deck runs to its end on the reference; every exchange call's inputs and upstream's
 # outputs stream into the twin, which runs the translation on the same inputs and compares the
-# outputs bit for bit (see the two files' headers).
+# outputs bit for bit (see the two files' headers). First, gate/diff/twod_runtime.cpp against
+# examples/twod_runtime.rs: RuntimeCoupling.hpp on a fixed random sequence of operations.
 #
 # Usage: gate/twodexch.sh [deck.inp ...]   (paths are made absolute)
 #   default decks: gate/decks/twodc, twodx, twodi, twod, upstream examples/2d_complete_example.inp;
@@ -23,12 +24,17 @@ CXX="g++ -ffp-contract=off -O3 -DNDEBUG -std=c++20 -flto=auto -fno-fat-lto-objec
 DEF="-DOPENSWMM_HAS_2D=1 -DSWMM_OS_LINUX -DSWMM_USE_OPENMP"
 INC="-I$U/include -I$U/src/engine -I$B/include -Igate/diff"
 if [ -z "$NOBUILD" ]; then
-  echo "g++ twod_exch"
+  echo "g++ twod_exch twod_runtime"
   nice $CXX $DEF $INC gate/diff/twod_exch.cpp -o gate/diff/twod_exch $B/src/engine/libopenswmm.engine.so -Wl,-rpath,$B/src/engine -Wl,-E -ldl
-  CARGO_BUILD_JOBS=${CARGO_BUILD_JOBS:-1} CARGO_TARGET_DIR="$H/target2d" nice cargo build --release --features "twod gate" --example twod_exch
+  nice $CXX $DEF $INC gate/diff/twod_runtime.cpp -o gate/diff/twod_runtime
+  CARGO_BUILD_JOBS=${CARGO_BUILD_JOBS:-1} CARGO_TARGET_DIR="$H/target2d" nice cargo build --release --features "twod gate" --example twod_exch --example twod_runtime
 fi
 C_BIN="$H/gate/diff/twod_exch"; R_BIN="$H/target2d/release/examples/twod_exch"
 W=$(mktemp -d); trap 'rm -rf "$W"' EXIT
+# RuntimeCoupling.hpp: the operation-sequence differential (no deck)
+"$H/gate/diff/twod_runtime" > "$W/rt_c.txt"; "$H/target2d/release/examples/twod_runtime" > "$W/rt_r.txt"
+if cmp -s "$W/rt_c.txt" "$W/rt_r.txt"; then echo "twod_runtime: identical, $(wc -l < "$W/rt_c.txt") lines"
+else echo "twod_runtime: DIFFER at $(cmp "$W/rt_c.txt" "$W/rt_r.txt" | head -1)"; fi
 if [ $# -gt 0 ]; then for d in "$@"; do realpath "$d"; done > "$W/decks.txt"
 else
   { find "$H/gate/decks/twodc" "$H/gate/decks/twodx" "$H/gate/decks/twodi" "$H/gate/decks/twod" -name '*.inp' 2>/dev/null
