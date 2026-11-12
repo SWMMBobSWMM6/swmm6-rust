@@ -108,12 +108,14 @@
 # CTXGATE_OUTGATE=file runs that build of gate/diff/outgate in the out modes.
 # CTXGATE_EXAMPLES=dir runs the Rust harnesses from dir (default target/release/examples), so a
 # gate can run while the next build goes to another CARGO_TARGET_DIR.
+# CORPUS=dir: the corpus to run (default /root/work/corpus); point it at a private copy when
+# another job may be running the same decks, since start() truncates a deck's SAVE files.
 # CTXGATE_KEEP=file keeps the list of differing decks; CTXGATE_STUBS=file the stub lines (step,
 # helpers, runoff modes); CTXGATE_SHOW=n shows the first n.
 H=$(cd "$(dirname "$0")/.." && pwd); W=$(mktemp -d)
 E="${CTXGATE_EXAMPLES:-$H/target/release/examples}"   # CTXGATE_EXAMPLES=dir: the Rust harnesses built elsewhere (CARGO_TARGET_DIR)
 if [ -n "$DECKLIST" ]; then sort "$DECKLIST" > "$W/decks.txt"      # DECKLIST=file: one deck path per line
-else { find /root/work/corpus -name '*.inp'; find /root/work/swmm6src/upstream/tests -name '*.inp'; find "$H/gate/decks" -name '*.inp'; } | sort > "$W/decks.txt"; fi
+else { find "${CORPUS:-/root/work/corpus}" -name '*.inp'; find /root/work/swmm6src/upstream/tests -name '*.inp'; find "$H/gate/decks" -name '*.inp'; } | sort > "$W/decks.txt"; fi
 
 if [ "${1:-}" = route ]; then
   K1=${2:-300}; K0=${3:-1}; HYD=${4:-}; C_BIN="$H/gate/diff/routestep"; R_BIN="$E/routestep"
