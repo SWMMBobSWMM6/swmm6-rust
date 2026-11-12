@@ -1153,12 +1153,13 @@ impl SwmmEngine {
                 c.mass_balance.routing_forcing_inflow += user_q_total * dt_routing;
             }
             if coupling_out_q > 0.0 {
+                // [2D_OPTIONS] COUPLING_IN_FLOODING books the 1D -> 2D spill as flooding
+                // (`ctx_.twod_io.options && ctx_.twod_io.options->coupling_in_flooding`).
+                #[cfg(feature = "twod")]
+                let as_flooding = c.twod_io.options.as_ref().map_or(false, |o| o.borrow().coupling_in_flooding);
                 // No surface coupling exists in a build without the 2D feature.
                 #[cfg(not(feature = "twod"))]
                 let as_flooding = false;
-                // ctx.twod_io.options->coupling_in_flooding (the router's [2D_OPTIONS])
-                #[cfg(feature = "twod")]
-                let as_flooding = self.surface_router_.options().borrow().coupling_in_flooding;
                 if as_flooding {
                     c.mass_balance.routing_flooding += coupling_out_q * dt_routing;
                 } else {

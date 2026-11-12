@@ -33,6 +33,12 @@
 // DYNAMIC_SLOT (applyDPSGeometry, updateDPSState, spatialSmoothP), TPA (updateTpaLatch,
 // applyTpaGeometry), physical junction areas (NodeData::storage_area > 0: chamberEndArea,
 // chamberPipeVolumeChange and the chamber branches).
+//
+// The 2D-coupled junction pond (initNodeStates' ctx.coupled_pond_area branch, the C1 pond
+// area of PondModel.hpp) was added 12 November 2026 (phase 2a wave 4b). DynamicWave.cpp
+// includes PondModel.hpp in both reference builds; only the 2D router fills coupled_pond_area,
+// so the branch is live only under `twod`. Without `twod` the module is compiled from the same
+// file (twod/coupling/pond_model.rs), as the 1D reference compiles the header.
 
 use crate::core::cmath::{cmax, cmin};
 use crate::core::constants::{self, EXTRAN_CROWN_CUTOFF, FUDGE, GRAVITY, MAX_VELOCITY, MIN_TIMESTEP, SLOT_CROWN_CUTOFF};
@@ -52,6 +58,12 @@ use crate::hydraulics::outfall;
 use crate::hydraulics::xsect_batch::{XSectGroups, XSectParams};
 use crate::hydraulics::xsection as xsect;
 use crate::hydrology::lid_node_step as lidnode;
+#[cfg(feature = "twod")]
+use crate::twod::coupling::pond_model as pond;
+#[cfg(not(feature = "twod"))]
+#[path = "../twod/coupling/pond_model.rs"]
+#[allow(dead_code)]
+mod pond;
 
 /// The solver state the non-conduit callback reaches through its captured DWSolver upstream.
 pub struct NcView<'a> {
@@ -200,9 +212,6 @@ impl DWSolver {
         if ctx.nodes.storage_area.iter().any(|&a| a > 0.0) {
             return Some("physical junction areas");
         }
-        if !ctx.coupled_pond_area.is_empty() {
-            return Some("2D-coupled ponds");
-        }
         None
     }
 
@@ -228,28 +237,7 @@ impl DWSolver {
         self.bypassed_.iter_mut().for_each(|b| *b = 0);
 
         // Refresh the node-invariant tile for this step.
-        {
-            let nd = &ctx.nodes;
-            if self.node_tile_.len() != self.n_nodes_ as usize {
-                self.node_tile_.resize(self.n_nodes_ as usize, NodeTile::default());
-            }
-            self.unit_sys_ = ucf::get_unit_system(ctx.options.flow_units as i32);
-            for i in 0..self.n_nodes_ {
-                let ui = i as usize;
-                let t = &mut self.node_tile_[ui];
-                t.full_depth = nd.full_depth[ui];
-                t.y_crown = nd.crown_elev[ui] - nd.invert_elev[ui];
-                t.invert_elev = nd.invert_elev[ui];
-                t.ponded_area = nd.ponded_area[ui];
-                t.sur_depth = nd.sur_depth[ui];
-                t.full_volume = nd.full_volume[ui];
-                t.rpt_full_volume = nd.rpt_full_volume[ui];
-                t.degree = nd.degree[ui];
-                t.is_storage = if nd.type_[ui] == NodeType::Storage || nd.storage_area[ui] > 0.0 { 1 } else { 0 };
-                t.is_outfall = if nd.type_[ui] == NodeType::Outfall { 1 } else { 0 };
-                t.is_virtual = if ui < nd.is_virtual.len() && nd.is_virtual[ui] != 0 { 1 } else { 0 };
-            }
-        }
+        self.refresh_node_tile(ctx);
 
         let has_nc = non_conduit_fn.is_some();
         let mut t_steps = 0;
@@ -360,6 +348,41 @@ impl DWSolver {
         Ok(steps)
     }
 
+    /// execute's refresh of the node-invariant tile (upstream inline at the top of execute).
+    fn refresh_node_tile(&mut self, ctx: &SimulationContext) {
+        let nd = &ctx.nodes;
+        if self.node_tile_.len() != self.n_nodes_ as usize {
+            self.node_tile_.resize(self.n_nodes_ as usize, NodeTile::default());
+        }
+        self.unit_sys_ = ucf::get_unit_system(ctx.options.flow_units as i32);
+        for i in 0..self.n_nodes_ {
+            let ui = i as usize;
+            let t = &mut self.node_tile_[ui];
+            t.full_depth = nd.full_depth[ui];
+            t.y_crown = nd.crown_elev[ui] - nd.invert_elev[ui];
+            t.invert_elev = nd.invert_elev[ui];
+            t.ponded_area = nd.ponded_area[ui];
+            t.sur_depth = nd.sur_depth[ui];
+            t.full_volume = nd.full_volume[ui];
+            t.rpt_full_volume = nd.rpt_full_volume[ui];
+            t.degree = nd.degree[ui];
+            t.is_storage = if nd.type_[ui] == NodeType::Storage || nd.storage_area[ui] > 0.0 { 1 } else { 0 };
+            t.is_outfall = if nd.type_[ui] == NodeType::Outfall { 1 } else { 0 };
+            t.is_virtual = if ui < nd.is_virtual.len() && nd.is_virtual[ui] != 0 { 1 } else { 0 };
+        }
+    }
+
+    /// The gate's access to initNodeStates (gate/diff/twod_exch.cpp interposes upstream's,
+    /// which the solver calls through the library's PLT): execute's tile refresh, then
+    /// initNodeStates. Returns (new_surf_area, sumdqdh, converged) as the call leaves them.
+    #[doc(hidden)]
+    pub fn gate_init_node_states(&mut self, ctx: &mut SimulationContext) -> (Vec<f64>, Vec<f64>, Vec<f64>) {
+        self.refresh_node_tile(ctx);
+        self.init_node_states(ctx);
+        let conv = self.xnode_.converged.iter().map(|&c| c as f64).collect();
+        (self.xnode_.new_surf_area.clone(), self.xnode_.sumdqdh.clone(), conv)
+    }
+
     /// initNodeStates: reset per-node accumulators and the surface-area baseline.
     fn init_node_states(&mut self, ctx: &mut SimulationContext) {
         let unit_sys = ucf::get_unit_system(ctx.options.flow_units as i32);
@@ -372,7 +395,12 @@ impl DWSolver {
             let t = self.node_tile_[ui];
             if t.is_storage == 0 {
                 self.xnode_.new_surf_area[ui] = if node_can_pond && ctx.nodes.depth[ui] > t.full_depth && t.ponded_area > 0.0 { t.ponded_area } else { 0.0 };
-                // (coupled_pond_area is empty in a 1D build; execute refuses it otherwise)
+                // A 2D-coupled junction with a configured pond (COUPLING_POND_MODE CHAMBER /
+                // TRACKING or a COUPLING_RIM_BAND): its area A_eq ramps in C1 over the band
+                // above the rim instead of stepping onto it.
+                if ui < ctx.coupled_pond_area.len() && ctx.coupled_node[ui] != 0 {
+                    self.xnode_.new_surf_area[ui] = pond::area(ctx.nodes.depth[ui] - t.full_depth, ctx.coupled_pond_area[ui], ctx.coupled_pond_band[ui]);
+                }
             } else {
                 self.xnode_.new_surf_area[ui] = if node_can_pond {
                     lidnode_free_ponded_area(ctx, i, ctx.nodes.depth[ui], unit_sys)

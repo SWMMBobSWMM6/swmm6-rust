@@ -25,7 +25,7 @@
 // step_routing_not_translated): the reaction solvers ROS2 and BDF2, EQUIL species, booster
 // sources, engine checkpointing, FV quality transport of reaction species, heat or bed
 // exchange, the FV solver options Router::fv_not_translated names, and what the solvers
-// report as not translated (DYNAMIC_SLOT, TPA, physical junction areas, 2D-coupled ponds,
+// report as not translated (DYNAMIC_SLOT, TPA, physical junction areas,
 // control-rule expression premises, checkpoint sessions, heat::updateSolarForcing from the
 // snow configuration).
 

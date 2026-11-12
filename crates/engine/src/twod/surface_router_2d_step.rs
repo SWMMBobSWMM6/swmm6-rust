@@ -205,18 +205,6 @@ impl SurfaceRouter2D {
         Ok(())
     }
 
-    /// computeCouplingConductances(ctx, out): the node exchange's head sensitivity for the DW
-    /// node continuity (nothing on an uncoupled mesh).
-    pub fn compute_coupling_conductances(&self, _ctx: &SimulationContext, _out: &mut Vec<(i32, f64)>) -> Result<(), Terminated> {
-        if !self.active_ {
-            return Ok(());
-        }
-        if !self.node_coupling_points_.is_empty() {
-            return Err(stub("the 1D-2D node exchange conductance (SurfaceRouter2D::computeCouplingConductances; join wave)"));
-        }
-        Ok(())
-    }
-
     /// couplingSyncSpan(ctx, options): the co-advance batch span.
     fn coupling_sync_span(ctx: &SimulationContext, options: &SolverOptions2D) -> Result<f64, Terminated> {
         if std::env::var_os("OPENSWMM_2D_SYNC_SPAN").is_some() {
@@ -312,17 +300,6 @@ impl SurfaceRouter2D {
         if self.render_dirty_ {
             self.refresh_render_fields();
         }
-    }
-
-    /// publishEqualizeAreas(ctx, window): no equalizing point on an uncoupled mesh, so only the
-    /// window is published.
-    fn publish_equalize_areas(&mut self, window: f64) -> Result<(), Terminated> {
-        self.state_.node_pond_area_m2 = false;
-        self.state_.coupling_window_s = window;
-        if self.node_coupling_points_.iter().any(|cp| cp.equalize) {
-            return Err(stub("the 1D-2D equalization areas (SurfaceRouter2D::publishEqualizeAreas; join wave)"));
-        }
-        Ok(())
     }
 
     /// updateRainfall(ctx): the held per-cell rainfall from this window's gage rates.
@@ -697,7 +674,7 @@ impl SurfaceRouter2D {
             return Err(stub("the OPENSWMM_2D_HEAD_RAMP development switch (SurfaceRouter2D::coAdvanceStep)"));
         }
         // prepareMeshHeat: mesh heat is a phase-2b refusal (returns at once when disabled).
-        self.publish_equalize_areas(dt)?;
+        self.publish_equalize_areas(ctx, dt);
         {
             let mesh_rc = self.mesh_.clone();
             let options_rc = self.options_.clone();
