@@ -33,6 +33,12 @@
 // DYNAMIC_SLOT (applyDPSGeometry, updateDPSState, spatialSmoothP), TPA (updateTpaLatch,
 // applyTpaGeometry), physical junction areas (NodeData::storage_area > 0: chamberEndArea,
 // chamberPipeVolumeChange and the chamber branches).
+//
+// The 2D-coupled junction pond (initNodeStates' ctx.coupled_pond_area branch, the C1 pond
+// area of PondModel.hpp) was added 12 November 2026 (phase 2a wave 4b). DynamicWave.cpp
+// includes PondModel.hpp in both reference builds; only the 2D router fills coupled_pond_area,
+// so the branch is live only under `twod`. Without `twod` the module is compiled from the same
+// file (twod/coupling/pond_model.rs), as the 1D reference compiles the header.
 
 use crate::core::cmath::{cmax, cmin};
 use crate::core::constants::{self, EXTRAN_CROWN_CUTOFF, FUDGE, GRAVITY, MAX_VELOCITY, MIN_TIMESTEP, SLOT_CROWN_CUTOFF};
@@ -52,6 +58,12 @@ use crate::hydraulics::outfall;
 use crate::hydraulics::xsect_batch::{XSectGroups, XSectParams};
 use crate::hydraulics::xsection as xsect;
 use crate::hydrology::lid_node_step as lidnode;
+#[cfg(feature = "twod")]
+use crate::twod::coupling::pond_model as pond;
+#[cfg(not(feature = "twod"))]
+#[path = "../twod/coupling/pond_model.rs"]
+#[allow(dead_code)]
+mod pond;
 
 /// The solver state the non-conduit callback reaches through its captured DWSolver upstream.
 pub struct NcView<'a> {
@@ -199,9 +211,6 @@ impl DWSolver {
         }
         if ctx.nodes.storage_area.iter().any(|&a| a > 0.0) {
             return Some("physical junction areas");
-        }
-        if !ctx.coupled_pond_area.is_empty() {
-            return Some("2D-coupled ponds");
         }
         None
     }
@@ -372,7 +381,12 @@ impl DWSolver {
             let t = self.node_tile_[ui];
             if t.is_storage == 0 {
                 self.xnode_.new_surf_area[ui] = if node_can_pond && ctx.nodes.depth[ui] > t.full_depth && t.ponded_area > 0.0 { t.ponded_area } else { 0.0 };
-                // (coupled_pond_area is empty in a 1D build; execute refuses it otherwise)
+                // A 2D-coupled junction with a configured pond (COUPLING_POND_MODE CHAMBER /
+                // TRACKING or a COUPLING_RIM_BAND): its area A_eq ramps in C1 over the band
+                // above the rim instead of stepping onto it.
+                if ui < ctx.coupled_pond_area.len() && ctx.coupled_node[ui] != 0 {
+                    self.xnode_.new_surf_area[ui] = pond::area(ctx.nodes.depth[ui] - t.full_depth, ctx.coupled_pond_area[ui], ctx.coupled_pond_band[ui]);
+                }
             } else {
                 self.xnode_.new_surf_area[ui] = if node_can_pond {
                     lidnode_free_ponded_area(ctx, i, ctx.nodes.depth[ui], unit_sys)
