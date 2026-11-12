@@ -26,6 +26,8 @@ pub mod subsurface;
 pub mod surface_router_2d;
 // Phase 2a wave 3: SurfaceRouter2D::initialize and what it calls.
 pub mod surface_router_2d_init;
+// Phase 2a wave 4a: the 2D step on an uncoupled mesh.
+pub mod surface_router_2d_step;
 
 /// A member of the 2D router that upstream reaches through raw pointers or captured references
 /// as well as through its owner (SimulationContext::twod_io, the section handlers): one

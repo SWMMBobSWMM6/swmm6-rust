@@ -63,6 +63,17 @@ impl From<StepError> for Terminated {
     }
 }
 
+/// A Terminated from the 2D router (a C++ exception on its way to step()'s catch, or a stub) as
+/// the routing step's StepError.
+#[cfg(feature = "twod")]
+fn step_error(t: Terminated) -> StepError {
+    if t.exception == STUB_EXCEPTION {
+        StepError::NotTranslated(t.what)
+    } else {
+        StepError::Exception(t.what)
+    }
+}
+
 impl SwmmEngine {
     /// The paths stepRouting does not translate yet, checked before anything changes.
     fn step_routing_not_translated(&self) -> Option<&'static str> {
@@ -180,6 +191,10 @@ impl SwmmEngine {
         // B2c. Assemble the lateral inflows
         self.assemble_lateral_inflows(dt_routing);
 
+        // B2c. Pre-routing: the 2D surface's outfall boundary heads (OPENSWMM_HAS_2D).
+        #[cfg(feature = "twod")]
+        self.surface_router_.update_outfalls_pre_routing(&mut self.ctx_, dt_routing).map_err(step_error)?;
+
         // B2d. Steady state skip
         let action_count = self.controls_.last_action_count();
         let has_lid_nodes = self.ctx_.node_subtypes.storages.lid.iter().any(|c| c.control >= 0);
@@ -188,7 +203,10 @@ impl SwmmEngine {
             return Ok(());
         }
         let evap_now = self.ctx_.climate_state.evap_rate;
+        #[cfg(not(feature = "twod"))]
         lidnode::prepare_step(&mut self.ctx_, dt_routing, evap_now)?;
+        #[cfg(feature = "twod")]
+        self.surface_router_.prepare_lid_step(&mut self.ctx_, dt_routing, evap_now).map_err(step_error)?;
         self.ctx_.save_hyd_state();
 
         // B3. Hydraulic routing, with the non-conduit flows computed inside the Picard loop
@@ -287,6 +305,10 @@ impl SwmmEngine {
                     }
                 }
             }
+            // OPENSWMM_HAS_2D: the windowless-coupling conductance of the 2D node exchange
+            // (SurfaceRouter2D::computeCouplingConductances) adds nothing on an uncoupled mesh,
+            // and a coupled mesh has stopped at updateOutfallsPreRouting above (the join wave
+            // adds the node exchange here).
             Ok(())
         };
 
@@ -302,6 +324,13 @@ impl SwmmEngine {
         lidnode::finish_step(&mut self.ctx_)?;
         let converged = self.router_.last_step_converged();
         self.ctx_.routing_stats.update_iterations(iters, converged);
+
+        // B3+. Post-routing: the 2D exchange, rainfall and the 2D advance (OPENSWMM_HAS_2D).
+        #[cfg(feature = "twod")]
+        {
+            let t = self.ctx_.current_time;
+            self.surface_router_.advance_post_routing(&mut self.ctx_, dt_routing, t).map_err(step_error)?;
+        }
 
         // B4b. Gap #55: inlet quality mass transfer (bypass <-> capture on the net flow).
         //      (U92: B5's assembleExternalLoads zeroes what it adds.)

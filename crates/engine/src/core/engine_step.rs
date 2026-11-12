@@ -334,6 +334,10 @@ impl SwmmEngine {
         if self.exchange_target_ >= 0.0 {
             dt_next = cmin(dt_next, self.exchange_target_ - now);
         }
+        #[cfg(feature = "twod")]
+        {
+            dt_next = cmin(dt_next, self.surface_router_.next_runtime_time(now)? - now);
+        }
         self.emit_progress();
         if let Some(cb) = self.callbacks_.on_step_begin.as_mut() {
             cb(self.ctx_.current_date, dt_next);
@@ -342,6 +346,10 @@ impl SwmmEngine {
         let now = self.runtime_coupling_time();
         if self.exchange_target_ >= 0.0 {
             dt_next = cmin(dt_next, self.exchange_target_ - now);
+        }
+        #[cfg(feature = "twod")]
+        {
+            dt_next = cmin(dt_next, self.surface_router_.next_runtime_time(now)? - now);
         }
         self.runtime_pipeline_ = true;
 
@@ -404,6 +412,14 @@ impl SwmmEngine {
                 self.accumulate_node_routing_totals(if fv_window_totals { dt_next } else { dt_next / 2.0 });
             }
         }
+        // OPENSWMM_HAS_2D: a runtime prescription or an advanceTo target closes the pending 2D
+        // batch now (the checkpointed surface output is off without engine checkpointing).
+        #[cfg(feature = "twod")]
+        if self.surface_router_.runtime_active() || self.exchange_target_ >= 0.0 {
+            if let Err(t) = self.surface_router_.flush_pending_batch(&mut self.ctx_) {
+                return self.catch_step(t);
+            }
+        }
         reassert_node_state_overrides(&mut self.ctx_);
         self.compute_final_storage();
         if !self.ctx_.options.ignore_quality {
@@ -444,6 +460,16 @@ impl SwmmEngine {
 
         // Expire a one-step API rainfall prescription.
         self.ctx_.gages.api_rainfall.iter_mut().for_each(|x| *x = -1.0);
+
+        // OPENSWMM_HAS_2D: retire the runtime sources and forcings that expired (the subsurface's
+        // independent clock is phase 2b).
+        #[cfg(feature = "twod")]
+        {
+            let completed = self.runtime_coupling_time();
+            if let Err(t) = self.surface_router_.expire_runtime(completed) {
+                return self.catch_step(t);
+            }
+        }
 
         self.runtime_pipeline_ = false;
         if let Some(cb) = self.callbacks_.on_step_end.as_mut() {
@@ -1128,7 +1154,11 @@ impl SwmmEngine {
             }
             if coupling_out_q > 0.0 {
                 // No surface coupling exists in a build without the 2D feature.
+                #[cfg(not(feature = "twod"))]
                 let as_flooding = false;
+                // ctx.twod_io.options->coupling_in_flooding (the router's [2D_OPTIONS])
+                #[cfg(feature = "twod")]
+                let as_flooding = self.surface_router_.options().borrow().coupling_in_flooding;
                 if as_flooding {
                     c.mass_balance.routing_flooding += coupling_out_q * dt_routing;
                 } else {
@@ -1370,6 +1400,11 @@ impl SwmmEngine {
     /// inflowHasChanged).
     #[allow(dead_code)] // stepRouting's helper
     pub(crate) fn is_in_steady_state(&self, action_count: i32) -> bool {
+        // OPENSWMM_HAS_2D: quiescent 1D inflows do not imply a steady surface.
+        #[cfg(feature = "twod")]
+        if self.surface_router_.is_active() {
+            return false;
+        }
         let c = &self.ctx_;
         if !c.options.skip_steady_state {
             return false;
